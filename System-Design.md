@@ -71,6 +71,48 @@
 
 ## ৪. Database Schema (ER Design)
 
+### Content Hierarchy — Class → Subject → Chapter → Question
+
+> প্রশ্ন সরাসরি Subject-এর সাথে যুক্ত হয় না। প্রতিটা প্রশ্ন একটা **Chapter**-এর অধীনে, Chapter একটা **Subject**-এর অধীনে, আর Subject একটা **Class**-এর অধীনে থাকে। প্রশ্ন এড/এডিট করার ফর্মে চারটা স্তরই cascading dropdown (Class → Subject → Chapter → Question) হিসেবে সিলেক্ট করতে হয় — Class না বাছা পর্যন্ত Subject dropdown, আর Subject না বাছা পর্যন্ত Chapter dropdown খালি/disabled থাকবে।
+>
+> `Class` PHP-তে reserved word হওয়ায় মডেলের নাম **`AcademicClass`** (টেবিল: `academic_classes` — Laravel কনভেনশন অনুযায়ী মডেলের নাম থেকেই অটো-ডিরাইভড, কাস্টম `$table` override করার দরকার নেই)। Class/Subject/Chapter — তিনটাই বর্তমান `Subject`-এর মতো **Admin-only ম্যানেজড রেফারেন্স ডেটা** (Teacher/Staff প্রশ্ন যোগ করার সময় শুধু সিলেক্ট করবে, নিজে তৈরি করতে পারবে না)।
+
+> **আপডেট:** `subjects` এখন কোনো নির্দিষ্ট class-এর সাথে সরাসরি বাঁধা না — একটা মাস্টার লিস্ট (যেমন "Mathematics" একটা মাত্র row, Class 6 থেকে HSC পর্যন্ত সব ক্লাসেই reuse হবে)। কোন class-এ কোন subject আছে সেটা আলাদা pivot টেবিল `class_subjects` দিয়ে ট্র্যাক হয়। এই তিনটা টেবিলই Admin-only reference data হওয়ায় `created_by` রাখা হয়নি।
+
+**academic_classes** ✅ *তৈরি হয়ে গেছে — model: `App\Models\AcademicClass`, migration, factory, ও Admin Panel resource (`App\Filament\Resources\AcademicClasses\AcademicClassResource`, nav label "Classes")। এই আপডেটেড ডিজাইন অনুযায়ী migration আপডেট করা বাকি (name-only, created_by বাদ)।*
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| name | string | যেমন "Class 6", "SSC", "HSC 1st Year" |
+| order_index | int, default 0 | UI-তে ক্রম সাজানোর জন্য (Class 6, 7, 8... ঠিক ক্রমে দেখাতে) |
+
+**subjects**
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| name | string | যেমন "Mathematics", "Biology" — মাস্টার লিস্ট, একবারই তৈরি হবে |
+
+**class_subjects** (pivot — কোন class-এ কোন subject আছে সেটা ট্র্যাক করে)
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| academic_class_id | FK → academic_classes.id | |
+| subject_id | FK → subjects.id | |
+| order_index | int, default 0 | ওই class-এর মধ্যে subject-এর ক্রম |
+| — | unique(`academic_class_id`, `subject_id`) | একই class-এ একই subject দুইবার assign না হয় |
+
+> **✅ কনফার্মড চেইন:** `academic_classes` → `class_subjects` (pivot) → `chapters` → `questions`। অর্থাৎ `chapters.class_subject_id` সরাসরি `class_subjects.id`-কে পয়েন্ট করে, `subjects.id`-কে না — কারণ একই subject (যেমন Math) বিভিন্ন class-এ আলাদা chapter সেট রাখে (Class 6 vs Class 9-এর Math chapter সম্পূর্ণ আলাদা), আর `class_subject_id` থেকেই `class_subjects.academic_class_id` + `class_subjects.subject_id` দুটোই relation দিয়ে বের করা যায়।
+
+**chapters**
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| class_subject_id | FK → class_subjects.id | এখান থেকেই academic_class + subject দুটোই বের করা যায় |
+| name | string | যেমন "Algebra", "কোষ ও কোষ বিভাজন" |
+| order_index | int, default 0 | ওই subject-এর মধ্যে chapter-এর ক্রম (Chapter 1, 2, 3...) |
+
+---
+
 ### Core Tables
 
 **users**
@@ -79,28 +121,44 @@
 | id | PK | |
 | name | string | |
 | email | string, unique | |
-| password_hash | string | |
-| role | enum(`admin`,`teacher`,`staff`,`student`) | |
-| status | enum(`active`,`suspended`) | |
+| password_hash | string, nullable | শুধু `admin`/`super_admin`-এর জন্য filled (Filament default password auth); Teacher/Staff/Student-এর জন্য সবসময় `null` (Google auth) |
+| google_id | string, unique, nullable | Google-এর `sub` — শুধু Teacher/Staff/Student-দের জন্য filled |
+| avatar | string, nullable | Google প্রোফাইল ছবির URL |
+| role | enum(`super_admin`,`admin`,`teacher`,`staff`,`student`) | |
+| status | enum(`pending_approval`,`active`,`suspended`) | নিচে "Authentication" সেকশনে বিস্তারিত |
+| email_verified_at | timestamp, nullable | Google callback-এ auto-set; Admin/Super Admin Filament-এর normal flow অনুযায়ী |
 | created_at | timestamp | |
 
-**subjects**
-| Field | Type |
-|---|---|
-| id | PK |
-| name | string |
-| created_by | FK → users.id |
+### Authentication — Google OAuth (Teacher/Staff/Student) + Filament Default (Admin/Super Admin)
+
+> শুধু `super_admin` ও `admin` রোল **Filament-এর ডিফল্ট email/password Login + Forget Password** ব্যবহার করবে (Admin Panel, `/admin`) — Registration পাবলিকলি বন্ধ থাকবে (নিচে দেখুন)। বাকি তিনটা প্যানেল (Teacher/Staff/Student) সম্পূর্ণ **Google OAuth-only** — কোনো password ফর্ম/forget-password ফ্লো থাকবে না।
+
+**Google login ফ্লো (Teacher/Staff/Student):**
+1. প্রতিটা প্যানেলের কাস্টম Login page-এ শুধু "Continue with Google" বাটন থাকে, যা `/auth/google/redirect/{role}` (role = `teacher`|`staff`|`student`) রুটে যায় — intended role session-এ সেভ হয়।
+2. Google callback (`/auth/google/callback`)-এ email/`google_id` দিয়ে existing user খোঁজা হয়:
+   - **পাওয়া গেলে** → সরাসরি লগইন করিয়ে সংশ্লিষ্ট প্যানেলে redirect (role মিসম্যাচ হলে, অর্থাৎ Student হিসেবে সাইনআপ করা কেউ Teacher প্যানেলে ঢুকতে চাইলে, এরর দেখিয়ে আটকানো হবে)।
+   - **না পাওয়া গেলে** → নতুন `users` row তৈরি (session-এ রাখা intended role অনুযায়ী `role` সেট), `google_id`/`avatar`/`email_verified_at` ফিল করে দেয়া হয়।
+3. **Status অনুযায়ী আচরণ:**
+   - `role = teacher` অথবা `role = student` → নতুন একাউন্ট সাথে সাথে `status = active`, সরাসরি প্যানেলে ঢুকে যাবে।
+   - `role = staff` → নতুন একাউন্ট `status = pending_approval`-এ তৈরি হবে — লগইন হবে (authenticated) কিন্তু Staff Panel middleware/policy-তে চেক করে "আপনার একাউন্ট Admin অনুমোদনের অপেক্ষায় আছে" পেজ দেখানো হবে, `QuestionResource`-এ কিছু করতে পারবে না যতক্ষণ না Admin `AdminResource`-এ গিয়ে approve করে `status = active` করে দেয়।
+
+**Admin/Super Admin:**
+- একাউন্ট Google flow-এর সম্পূর্ণ বাইরে, `password_hash` filled থাকবে, `google_id` সবসময় `null`।
+- **✅ সিদ্ধান্ত: Admin Panel-এ পাবলিক Registration বন্ধ থাকবে** (`->registration(false)`) — নিরাপত্তার কারণে যে কেউ সাইনআপ করে Admin হয়ে যেতে পারবে না। শুধু **Login** ও **Forget Password** পেজ চালু থাকবে।
+- প্রথম **Super Admin** একাউন্ট তৈরি হবে `php artisan db:seed` (একটা dedicated seeder, যেমন `SuperAdminSeeder`) দিয়ে — deploy করার পর একবারই রান হবে।
+- এরপর নতুন Admin/Staff-manager লাগলে **Super Admin নিজে Admin Panel-এর ভিতর থেকে** (`AdminResource` — নাম, ইমেইল, password সেট করে) তৈরি করে দেবে, পাবলিক রুট দিয়ে না।
 
 **questions**
 | Field | Type | নোট |
 |---|---|---|
 | id | PK | |
-| subject_id | FK → subjects.id | |
-| question_text | text (rich text, CKEditor output) | |
-| question_type | enum(`mcq`,`true_false`,`short`,`descriptive`) | |
-| options | JSON | |
-| correct_answer | text/JSON | |
-| marks | decimal | |
+| chapter_id | FK → chapters.id | Subject/Class সরাসরি কলাম নয় — `chapter → class_subject → (subject + class)` রিলেশন দিয়ে বের করা হয় |
+| question_type | enum(`mcq`,`cq`) | শুধু MCQ ও CQ (সৃজনশীল) — true_false/short/descriptive রাখা হয়নি |
+| question_text | text (rich text, CKEditor output) | MCQ-এর জন্য মূল প্রশ্ন, CQ-এর জন্য **উদ্দীপক (stimulus)** |
+| question_image | string, nullable | উদ্দীপক/প্রশ্নের সাথে আলাদা ডায়াগ্রাম/ছবি (path) |
+| options | JSON, nullable | **শুধু MCQ**: `[{"id":"a","text":"...","image":null}, ...]` |
+| correct_answer | text, nullable | **শুধু MCQ**: সঠিক option-এর `id` (যেমন `"b"`) |
+| marks | decimal | MCQ-এর জন্য সরাসরি মার্কস; CQ-এর জন্য সাব-পার্টগুলোর যোগফল (auto-synced) |
 | difficulty | enum(`easy`,`medium`,`hard`) | |
 | **status** | enum(`pending`,`approved`,`rejected`) | ⭐ মূল ফিল্ড |
 | created_by | FK → users.id (admin/teacher/staff) | |
@@ -110,6 +168,19 @@
 | version | int, default 1 | |
 | is_latest | boolean, default true | |
 | created_at / updated_at | timestamp | |
+
+**question_cq_parts** (শুধু `question_type = 'cq'`-এর জন্য, প্রতি CQ-তে ৪টা row)
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| question_id | FK → questions.id | |
+| part_type | enum(`knowledge`,`comprehension`,`application`,`higher_application`) | জ্ঞানমূলক/অনুধাবনমূলক/প্রয়োগ/উচ্চতর দক্ষতা |
+| part_order | int | ১, ২, ৩, ৪ ক্রম |
+| part_text | text (rich text, CKEditor output) | সাব-প্রশ্নের টেক্সট |
+| part_image | string, nullable | ওই সাব-প্রশ্নের নিজস্ব ছবি/ডায়াগ্রাম |
+| marks | decimal | সাধারণত ১, ২, ৩, ৪ |
+
+> CQ-এর `questions.marks` = তার ৪টা `question_cq_parts.marks`-এর যোগফল, model observer দিয়ে auto-sync হবে। Versioning-এ নতুন version তৈরি হলে `question_cq_parts`-এর ৪টা row-ও নতুন `question_id`-এর সাথে কপি হয়ে যাবে, পুরনো version-এর parts অক্ষত থাকে।
 
 > Versioning নিয়ম আগের মতোই অক্ষত: approved প্রশ্ন এডিট করলে নতুন pending row তৈরি হয় (`version+1`), পুরনো row `is_latest=false` হয়ে যায় কিন্তু delete হয় না — পুরনো exam-এর data ভাঙে না। Approved pool query সবসময়: `WHERE status='approved' AND is_latest=true`।
 
@@ -122,6 +193,69 @@
 | performed_by | FK → users.id |
 | reason | text |
 | created_at | timestamp |
+
+---
+
+### Board Question Papers
+
+> Board প্রশ্ন সাধারণ MCQ/CQ প্রশ্নপুলের (`questions`/`question_cq_parts`) সাথে মেশে না — এটা সম্পূর্ণ আলাদা **পুরো প্রশ্নপত্র (paper)** হিসেবে ডিজাইন করা, যার নিজস্ব approval workflow ও টেবিল সেট আছে। কাঠামো ইচ্ছাকৃতভাবে `questions`-এর মতোই (text/image/options/marks) — normalization-এর দিক থেকে কিছুটা ডুপ্লিকেট, কিন্তু দুই সিস্টেমের approval/versioning লজিক আলাদা রাখাই এখানে সহজ ও পরিষ্কার।
+
+**boards**
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| name | string | পুরো নাম, যেমন "রাজশাহী শিক্ষা বোর্ড" |
+| short_name | string | সংক্ষিপ্ত রূপ, যেমন "RAJ" — Admin নিজে বসাবে, dropdown/badge-এ কম জায়গায় দেখানোর জন্য |
+| order_index | int, default 0 | |
+
+> `year`-এর জন্য আলাদা কোনো "সংক্ষিপ্ত রূপ" কলাম লাগবে না — `board_question_papers.year` একটা সাধারণ integer (যেমন `2023`), প্রয়োজনে shorthand (`23`) মডেল accessor দিয়ে কোড থেকেই বের করা হবে, ডাটাবেজে ডুপ্লিকেট স্টোর করার দরকার নেই।
+
+**board_question_papers** (একটা নির্দিষ্ট বোর্ড + সাল + subject-এর পুরো প্রশ্নপত্র)
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| board_id | FK → boards.id | কোন বোর্ড |
+| class_subject_id | FK → class_subjects.id | কোন class + subject-এর প্রশ্নপত্র |
+| year | year/int | যেমন 2023 |
+| status | enum(`pending`,`approved`,`rejected`) | পুরো পেপারটা একসাথে approve/reject হবে |
+| created_by | FK → users.id | |
+| approved_by | FK → users.id, nullable | |
+| rejection_reason | text, nullable | |
+| created_at / updated_at | timestamp | |
+| — | unique(`board_id`,`class_subject_id`,`year`) | একই বোর্ড+সাল+সাবজেক্টের পেপার দুইবার তৈরি না হয় |
+
+**board_mcq_questions** (পেপারের MCQ অংশ)
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| board_question_paper_id | FK → board_question_papers.id | |
+| question_text | text (CKEditor) | |
+| question_image | string, nullable | |
+| options | JSON | `[{"id":"a","text":"...","image":null}, ...]` |
+| correct_answer | string | |
+| marks | decimal | |
+| order_index | int | পেপারে প্রশ্নের ক্রম |
+
+**board_cq_questions** (পেপারের CQ অংশ)
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| board_question_paper_id | FK → board_question_papers.id | |
+| question_text | text (CKEditor) | উদ্দীপক |
+| question_image | string, nullable | |
+| marks | decimal | সাব-পার্টের যোগফল, auto-synced |
+| order_index | int | |
+
+**board_cq_question_parts**
+| Field | Type | নোট |
+|---|---|---|
+| id | PK | |
+| board_cq_question_id | FK → board_cq_questions.id | |
+| part_type | enum(`knowledge`,`comprehension`,`application`,`higher_application`) | |
+| part_order | int | |
+| part_text | text | |
+| part_image | string, nullable | |
+| marks | decimal | |
 
 ---
 
@@ -233,7 +367,7 @@ if ($examsThisMonth >= $activePlan->monthly_exam_limit) {
 | created_by | FK → users.id | Teacher, অথবা self-practice হলে Student নিজেই |
 | exam_type | enum(`teacher_exam`,`self_practice`) | ⭐ দুই ধরনের exam আলাদা করার জন্য |
 | **generation_mode** | enum(`manual`,`auto`), nullable | শুধু `self_practice`-এর জন্য প্রযোজ্য — Student নিজে প্রশ্ন বেছেছে নাকি সিস্টেম random জেনারেট করেছে |
-| subject_id | FK → subjects.id | |
+| subject_id | FK → subjects.id | Exam এখনও subject-level-এই থাকে (chapter-level নয়) — নির্দিষ্ট chapter(গুলো) শুধু Auto-Generate-এর একটা ঐচ্ছিক ফিল্টার প্যারামিটার (সেকশন ৭ দেখুন), আলাদা কলাম না |
 | duration_minutes | int | |
 | start_time / end_time | datetime (nullable, self-practice-এ প্রযোজ্য না-ও হতে পারে) | |
 | total_marks | decimal | |
@@ -308,6 +442,7 @@ Student নিজের subscription/free-limit-এর আওতায় দু
 ### মোড ১ — Auto-Generate
 Student শুধু কিছু প্যারামিটার দেবে, সিস্টেম নিজে random প্রশ্ন বেছে exam বানিয়ে দেবে:
 - Subject (একাধিকও হতে পারে)
+- (ঐচ্ছিক) নির্দিষ্ট Chapter(গুলো) — না দিলে পুরো Subject-এর সব Chapter থেকে বাছা হবে
 - Difficulty (easy/medium/hard, বা mixed)
 - মোট প্রশ্ন সংখ্যা
 - (ঐচ্ছিক) question_type filter (mcq/short/descriptive)
@@ -315,7 +450,9 @@ Student শুধু কিছু প্যারামিটার দেবে
 ```php
 Question::where('status', 'approved')
     ->where('is_latest', true)
-    ->where('subject_id', $subjectId)
+    ->whereHas('chapter', fn ($q) => $q
+        ->where('subject_id', $subjectId)
+        ->when($chapterIds, fn ($q) => $q->whereIn('id', $chapterIds)))
     ->when($difficulty, fn($q) => $q->where('difficulty', $difficulty))
     ->inRandomOrder()
     ->limit($count)
@@ -355,8 +492,9 @@ Student লিংকে ক্লিক করলে দুটো অপশন �
 ## ৯. Module-ভিত্তিক ডিজাইন (Filament Resources & Actions, ৪-Panel)
 
 ### Admin Panel (`/admin`)
-- `QuestionResource` — সব status; `ApproveAction`/`RejectAction` (approve হলে earning trigger — Staff owner হলে)।
-- `SubjectResource`, `TeacherResource`, `StaffResource`
+- `QuestionResource` — সব status; `ApproveAction`/`RejectAction` (approve হলে earning trigger — Staff owner হলে); ফর্মে Class → Subject → Chapter cascading select।
+- `AcademicClassResource` (model: `AcademicClass`, nav label "Classes") ✅ *তৈরি হয়ে গেছে*, `SubjectResource` (class-এর অধীনে হবে — এখনো `class_id` যোগ হয়নি), `ChapterResource` (subject-এর অধীনে, এখনো তৈরি হয়নি) — তিনটাই Admin-only রেফারেন্স ডেটা ম্যানেজমেন্ট।
+- `TeacherResource`, `StaffResource`
 - `QuestionRateResource` — subject-wise rate কনফিগার
 - `StaffPayoutResource` — pending earnings দেখে batch payout মার্ক করা
 - `SubscriptionPlanResource` — প্ল্যান তৈরি/এডিট
@@ -364,19 +502,19 @@ Student লিংকে ক্লিক করলে দুটো অপশন �
 - `ExamResource` — সব exam-এর overview/report (read-only)
 
 ### Teacher Panel (`/teacher`)
-- `QuestionResource` — নিজের সব status + সবার approved pool (আগের ডিজাইনের মতোই `getEloquentQuery()` scope)
+- `QuestionResource` — নিজের সব status + সবার approved pool (আগের ডিজাইনের মতোই `getEloquentQuery()` scope); ফর্মে Class → Subject → Chapter cascading select (Class/Subject/Chapter নিজে তৈরি করতে পারবে না, শুধু Admin-এর তৈরি করা থেকে বাছবে)।
 - `ExamResource` — exam তৈরি, question picker (শুধু approved+latest), publish action **(subscription limit চেক সহ)**, share-link জেনারেট/কপি বাটন, ফলাফল/গ্রেডিং পেজ
 - `Pages\MySubscription` — বর্তমান প্ল্যান, ব্যবহার (X/Y exams this month), upgrade বাটন
 
 ### Staff Panel (`/staff`)
-- `QuestionResource` — শুধু নিজের প্রশ্ন (সব status), owner-only scope
+- `QuestionResource` — শুধু নিজের প্রশ্ন (সব status), owner-only scope; ফর্মে একই Class → Subject → Chapter cascading select।
 - `Pages\MyEarnings` — subject-wise breakdown টেবিল + total approved/earned/paid, `staff_profiles` এডিট ফর্ম (bank info)
 
 ### Student Panel (`/student`)
 - `Pages\JoinExam` — share link/code দিয়ে ঢোকার এন্ট্রি পয়েন্ট (login বা guest চয়েস)
 - `Pages\TakeExamPage`, `Pages\ExamResultPage`
-- `Pages\GeneratePracticeExam` — subject/difficulty/সংখ্যা দিয়ে **Auto-Generate** মোড **(subscription limit চেক সহ)**
-- `Pages\BuildPracticeExam` — approved pool ব্রাউজ করে **Manual Selection** মোড **(subscription limit চেক সহ)**
+- `Pages\GeneratePracticeExam` — subject/(ঐচ্ছিক chapter)/difficulty/সংখ্যা দিয়ে **Auto-Generate** মোড **(subscription limit চেক সহ)**
+- `Pages\BuildPracticeExam` — approved pool ব্রাউজ করে (Class/Subject/Chapter দিয়ে ফিল্টার করে) **Manual Selection** মোড **(subscription limit চেক সহ)**
 - `Pages\MySubscription`
 - নিজের attempt/result history (`where('student_id', auth()->id())`)
 

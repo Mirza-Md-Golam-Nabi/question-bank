@@ -377,7 +377,7 @@ livewire(ListUsers::class)
 ## Project Overview
 
 এটি একটি **৪-প্যানেল Question Bank + Exam + Monetization প্ল্যাটফর্ম**:
-- **Admin Panel** — প্রশ্ন approve/reject, Staff payout, Subscription plan ম্যানেজমেন্ট
+- **Admin Panel** — প্রশ্ন/বোর্ড-পেপার approve/reject, নতুন Staff একাউন্ট approve, Staff payout, Subscription plan ম্যানেজমেন্ট
 - **Teacher Panel** — প্রশ্ন যোগ (pending), exam বানানো ও শেয়ার-লিংক জেনারেট (subscription-গেটেড)
 - **Staff Panel** — শুধু প্রশ্ন যোগ করা (content-only), নিজের earning দেখা
 - **Student Panel** — শেয়ার-লিংকে (Login/Guest) exam দেওয়া, নিজের subscription দিয়ে self-practice exam জেনারেট করা
@@ -386,7 +386,16 @@ livewire(ListUsers::class)
 
 ## ⭐ মূল বিজনেস রুলসমূহ (কখনো ভাঙা যাবে না)
 
-### ১. Question Approval Visibility
+### ১. Authentication — Google OAuth (Teacher/Staff/Student) + Filament Default (Admin/Super Admin)
+> **Teacher/Staff/Student পুরোপুরি Google OAuth-only — কোনো password ফর্ম, রেজিস্ট্রেশন পেজ, বা forget-password ফ্লো নেই। শুধু Admin/Super Admin Filament-এর ডিফল্ট email/password Login ব্যবহার করবে, আর সেখানে Registration পাবলিকলি বন্ধ।**
+
+1. Teacher/Staff/Student প্যানেলের Login page-এ শুধু "Continue with Google" বাটন — `/auth/google/redirect/{role}` → Google callback-এ email/`google_id` match করে existing user login, না পেলে নতুন `users` row তৈরি (session-এ রাখা intended role অনুযায়ী)।
+2. নতুন **Teacher/Student** একাউন্ট সাথে সাথে `status=active`।
+3. নতুন **Staff** একাউন্ট `status=pending_approval`-এ তৈরি হয় — Admin approve না করা পর্যন্ত Staff Panel middleware/policy তাকে ব্লক করবে ("অনুমোদনের অপেক্ষায়" পেজ দেখাবে), `QuestionResource`-এ কিছু করতে দেবে না।
+4. **Admin Panel-এ পাবলিক Registration বন্ধ** (`->registration(false)`) — যে কেউ সাইনআপ করে Admin হতে পারবে না। প্রথম Super Admin `SuperAdminSeeder` দিয়ে তৈরি, এরপরের Admin Super Admin নিজে `AdminResource` থেকে বানাবে।
+5. `users.password_hash` শুধু `admin`/`super_admin`-এর জন্য filled থাকবে; বাকি রোলে সবসময় `null`। `users.google_id` উল্টোটা — শুধু Teacher/Staff/Student-এ filled।
+
+### ২. Question Approval Visibility
 > **Teacher/Staff-এর তৈরি প্রশ্ন Admin approve করার আগ পর্যন্ত অন্য কোনো Teacher/Staff দেখতে বা exam-এ ব্যবহার করতে পারবে না — শুধু owner ও Admin দেখবে।**
 
 1. প্রতিটা প্রশ্নের `status`: `pending | approved | rejected`
@@ -396,31 +405,49 @@ livewire(ListUsers::class)
 5. `QuestionPolicy`-তেও owner+status ডাবল-চেক থাকবে।
 6. এই ফিল্টার মিস হলে সেটা **critical security bug**।
 
-### ২. Versioning (Approved প্রশ্ন এডিট)
+### ৩. Question Types ও Content Hierarchy
+> **শুধু দুই ধরনের প্রশ্ন: `mcq` ও `cq` (সৃজনশীল)। `true_false`/`short`/`descriptive` নেই।**
+
+1. Chain সবসময়: `academic_classes → class_subjects (pivot) → chapters → questions`।
+2. `subjects` একটা মাস্টার লিস্ট (class-নির্ভর না) — কোন class-এ কোন subject আছে সেটা `class_subjects` পিভট ট্র্যাক করে। `chapters.class_subject_id` সরাসরি `class_subjects.id`-কে পয়েন্ট করে, `subjects.id`-কে না (একই subject বিভিন্ন class-এ আলাদা chapter সেট রাখে)।
+3. CQ প্রশ্নে `questions.question_text`/`question_image` = উদ্দীপক, আর ৪টা সাব-প্রশ্ন `question_cq_parts`-এ (`knowledge`/`comprehension`/`application`/`higher_application`)।
+4. CQ-এর `questions.marks` = তার ৪টা `question_cq_parts.marks`-এর যোগফল — **`QuestionObserver`-এ auto-sync**, ম্যানুয়ালি সেট করা যাবে না।
+5. `academic_classes`/`subjects`/`class_subjects`/`chapters` — সবগুলো Admin-only reference data (`created_by` নেই, Teacher/Staff শুধু select করবে, নিজে তৈরি করতে পারবে না)।
+
+### ৪. Versioning (Approved প্রশ্ন এডিট)
 - একই `questions` টেবিলে `parent_id`, `version`, `is_latest` কলাম দিয়ে versioning।
 - Approved প্রশ্ন এডিট করলে: পুরনো row অক্ষত + `is_latest=false`, নতুন row `status=pending`, `version+=1`।
+- CQ হলে `question_cq_parts`-এর ৪টা row-ও নতুন `question_id`-এর সাথে কপি হবে, পুরনো version-এর parts অক্ষত থাকবে।
 - লজিক `QuestionObserver`-এ কেন্দ্রীভূত রাখতে হবে, কোথাও ডুপ্লিকেট করা যাবে না।
 
-### ৩. Staff Payment
+### ৫. Board Question Papers — সম্পূর্ণ আলাদা সাবসিস্টেম
+> **বোর্ড প্রশ্ন (`boards`/`board_question_papers`/`board_mcq_questions`/`board_cq_questions`/`board_cq_question_parts`) কখনো সাধারণ `questions` পুলের সাথে মিশবে না — আলাদা টেবিল, আলাদা approval workflow।**
+
+1. `board_question_papers` = একটা নির্দিষ্ট board + `class_subject_id` + `year`-এর পুরো প্রশ্নপত্র, পুরোটা একসাথে `pending`/`approved`/`rejected` হয় (individual question-level approval না)।
+2. `unique(board_id, class_subject_id, year)` — একই বোর্ড+সাল+সাবজেক্টের পেপার দুইবার তৈরি করা যাবে না।
+3. `board_cq_questions.marks` একইভাবে তার `board_cq_question_parts`-এর যোগফল থেকে auto-sync।
+4. Self-practice/Teacher exam-এর question picker-এ board question papers কখনো approved pool-এর সাথে mix করা যাবে না — এটা আলাদা browsing/UI flow।
+
+### ৬. Staff Payment
 > **Staff-এর প্রশ্ন `approved` হওয়ার মুহূর্তেই তার পারিশ্রমিক `staff_earnings` ledger-এ যোগ হবে — rejected প্রশ্নের জন্য কোনো টাকা যোগ হবে না।**
 - Rate `question_rates` টেবিল থেকে (subject-ভিত্তিক, না থাকলে default) নেওয়া হবে এবং **approve করার মুহূর্তের rate `staff_earnings.amount`-এ snapshot হিসেবে সেভ থাকবে** — পরে rate বদলালেও পুরনো entry অপরিবর্তিত থাকবে।
 - `staff_profiles.bank_account_number` ও `mobile_banking_number` **অবশ্যই `encrypted` cast দিয়ে** স্টোর করতে হবে — plain column-এ কখনো না।
 - Payout একটা batch action (`staff_payouts`), individual earning row-কে সরাসরি "paid" না বানিয়ে payout batch-এর মাধ্যমে।
 
-### ৪. Subscription / Freemium
+### ৭. Subscription / Freemium
 > **Teacher exam তৈরি/publish করার আগে, ও Student self-practice exam জেনারেট করার আগে (Auto-Generate বা Manual Selection — দুই মোডেই) — সক্রিয় subscription বা মাসিক ফ্রি-লিমিটের মধ্যে আছে কিনা চেক করতে হবে।**
 - লিমিট চেক করার সময় আলাদা counter টেবিল না রেখে সরাসরি query দিয়ে গণনা (`whereMonth`/`whereYear`) — সরল ও accurate। Auto ও Manual দুই মোডের exam-ই `exam_type='self_practice'` হওয়ায় একই কাউন্টে ধরা হবে (মোড আলাদা করে গণনা করার দরকার নেই)।
 - **Guest-রা exam attempt দেওয়ার সময় কোনো subscription চেক লাগবে না** — এটা Teacher-এর subscription-এর আওতায় আগেই কভার হয়ে গেছে (exam publish করার সময়েই চেক হয়েছে)।
 - Payment gateway callback-এ **idempotency** মাথায় রাখতে হবে — দুইবার callback এলে যেন ডাবল subscription active না হয়।
 
-### ৫. Exam Sharing (Guest + Login)
+### ৮. Exam Sharing (Guest + Login)
 > **শেয়ার-লিংকে Student সবসময় দুটো অপশন পাবে: Login করে ঢোকা অথবা Guest হিসেবে (শুধু নাম দিয়ে) ঢোকা — এটা টগল করার কোনো সেটিং নেই, সবসময় দুটোই থাকবে।**
 - `exams.share_token` — random, যথেষ্ট লম্বা (কমপক্ষে ৩২ ক্যারেক্টার), অনুমানযোগ্য না।
-- Guest route Filament panel-এর বাইরে, plain Laravel/Livewire route — কারণ unauthenticated।
+- Guest route Filament panel-এর বাইরে, plain Laravel/Livewire route — কারণ unauthenticated (Google OAuth guard-এর সাথে মিশবে না)।
 - Guest submission route-এ **rate limiting বাধ্যতামূলক** (spam/multiple-attempt ঠেকাতে)।
 - Guest attempt-এর ফলাফল শুধু submit করার সাথে সাথেই দেখানো হবে (পরে ফিরে দেখার অ্যাকাউন্ট নেই) — `guest_contact` থাকলে future-এ email/SMS পাঠানোর সুযোগ রাখা যায়।
 
-### ৬. Self-Practice Exam — দুই মোডই বাধ্যতামূলক
+### ৯. Self-Practice Exam — দুই মোডই বাধ্যতামূলক
 > **Student self-practice exam বানাতে পারবে দুইভাবে: Auto-Generate (সিস্টেম subject/difficulty/সংখ্যা অনুযায়ী random প্রশ্ন বেছে দেবে) এবং Manual Selection (Student নিজে approved pool থেকে প্রশ্ন বেছে নেবে)। দুটোই থাকতে হবে, একটা বাদ দেওয়া যাবে না।**
 - `exams.generation_mode` ফিল্ড (`manual`/`auto`) দিয়ে আলাদা করা হবে, দুটোই `exam_type='self_practice'`।
 - Auto মোডের random selection query সবসময় `status='approved' AND is_latest=true` ফিল্টার সহ (approval rule এখানেও প্রযোজ্য)।
@@ -431,19 +458,20 @@ livewire(ListUsers::class)
 
 | Role | পারে | পারে না |
 |---|---|---|
-| Admin | সব প্রশ্ন দেখা/approve/reject, Staff payout, Subscription plan ম্যানেজ | Student হিসেবে exam দেওয়া |
+| Super Admin / Admin | সব প্রশ্ন/বোর্ড-পেপার দেখা/approve/reject, নতুন Admin ও Staff approve, Staff payout, Subscription plan ম্যানেজ | Student হিসেবে exam দেওয়া, Google flow দিয়ে সাইনআপ |
 | Teacher | নিজের প্রশ্ন CRUD, approved pool দেখা, exam তৈরি/শেয়ার (subscription-গেটেড) | Staff earning দেখা, অন্যের pending প্রশ্ন দেখা |
-| Staff | নিজের প্রশ্ন CRUD (pending/rejected), নিজের earning দেখা | exam তৈরি করা, অন্যের প্রশ্ন দেখা, approved pool ব্রাউজ করা |
+| Staff | নিজের প্রশ্ন CRUD (pending/rejected), নিজের earning দেখা — Admin approve করার আগে **কিছুই না** (`status=pending_approval`) | exam তৈরি করা, অন্যের প্রশ্ন দেখা, approved pool ব্রাউজ করা |
 | Student (Login) | নিজের attempt/result, নিজের subscription দিয়ে self-practice exam | প্রশ্ন দেখা exam-এর বাইরে, অন্যের result দেখা |
 | Student (Guest) | শুধু নির্দিষ্ট share-link-এর exam attempt দেওয়া | self-practice exam, লগইন-নির্ভর যেকোনো ফিচার |
 
 ## Tech Stack
 
 - Backend: **Laravel 11**
-- Panel/Admin framework: **Filament v5** (Livewire v4-ভিত্তিক), ৪টা Panel Provider (`/admin`, `/teacher`, `/staff`, `/student`)
+- Panel/Admin framework: **Filament v5** (Livewire v4-ভিত্তিক, `Filament\Schemas` namespace), ৪টা Panel Provider (`/admin`, `/teacher`, `/staff`, `/student`)
 - Database: **MySQL**
 - Role/Permission: **Spatie `laravel-permission`** + **Filament Shield**
-- Rich Text: **CKEditor 5** + math plugin (KaTeX) — Bangla plain text, math শুধু inline widget-এ (আগের আলোচনা দেখুন)
+- Authentication: **Laravel Socialite** (Google OAuth — Teacher/Staff/Student), Filament ডিফল্ট auth (Admin/Super Admin, Registration বন্ধ)
+- Rich Text: **CKEditor 5** + math plugin (KaTeX) — Bangla plain text, math শুধু inline widget-এ (MathLive বাদ দেওয়া হয়েছে বাংলা conjunct/spacing সমস্যার কারণে)
 - Encryption: Laravel `encrypted` cast (bank info-র জন্য)
 - Payment Gateway: **এখনো চূড়ান্ত হয়নি** — SSLCommerz/bKash/Nagad-এর মধ্যে যেটা ঠিক হবে এখানে আপডেট করুন
 - Reports: `maatwebsite/laravel-excel`
@@ -454,50 +482,70 @@ livewire(ListUsers::class)
 ```
 app/
   Providers/Filament/
-    AdminPanelProvider.php
-    TeacherPanelProvider.php
-    StaffPanelProvider.php
-    StudentPanelProvider.php
+    AdminPanelProvider.php      ← registration(false)
+    TeacherPanelProvider.php    ← Google-only login
+    StaffPanelProvider.php      ← Google-only login
+    StudentPanelProvider.php    ← Google-only login
   Filament/
     Admin/
       Resources/
         QuestionResource.php
+        AcademicClassResource.php   ✅ তৈরি হয়ে গেছে
+        SubjectResource.php
+        ChapterResource.php
+        BoardResource.php
+        BoardQuestionPaperResource.php
         TeacherResource.php
-        StaffResource.php
+        StaffResource.php            ← approve action (pending_approval → active)
         QuestionRateResource.php
         StaffPayoutResource.php
         SubscriptionPlanResource.php
         SubscriptionResource.php
         PaymentResource.php
         ExamResource.php
+      Pages/
+        Auth/Login.php               ← Filament default (password)
     Teacher/
       Resources/
         QuestionResource.php
         ExamResource.php
       Pages/
+        Auth/Login.php               ← custom, "Continue with Google" only
         MySubscription.php
     Staff/
       Resources/
         QuestionResource.php
       Pages/
+        Auth/Login.php               ← custom, "Continue with Google" only
         MyEarnings.php
+        PendingApprovalNotice.php    ← status=pending_approval হলে দেখানো হবে
     Student/
       Pages/
-        JoinExam.php          ← share-link entry (login/guest choice)
+        Auth/Login.php               ← custom, "Continue with Google" only
+        JoinExam.php                 ← share-link entry (login/guest choice)
         TakeExamPage.php
         ExamResultPage.php
-        GeneratePracticeExam.php   ← Auto-Generate মোড
-        BuildPracticeExam.php     ← Manual Selection মোড
+        GeneratePracticeExam.php     ← Auto-Generate মোড
+        BuildPracticeExam.php        ← Manual Selection মোড
         MySubscription.php
   Models/
-    User.php
-    Question.php               ← parent_id/version/is_latest
+    User.php                     ← google_id, avatar, status
+    AcademicClass.php
     Subject.php
-    Exam.php                   ← share_token, exam_type
-    ExamAttempt.php             ← nullable student_id, is_guest, guest_name
-    AttemptAnswer.php
+    ClassSubject.php
+    Chapter.php
+    Question.php                 ← parent_id/version/is_latest, question_type(mcq|cq)
+    QuestionCqPart.php
     QuestionApprovalLog.php
-    StaffProfile.php            ← encrypted bank fields
+    Board.php
+    BoardQuestionPaper.php
+    BoardMcqQuestion.php
+    BoardCqQuestion.php
+    BoardCqQuestionPart.php
+    Exam.php                     ← share_token, exam_type, generation_mode
+    ExamAttempt.php               ← nullable student_id, is_guest, guest_name
+    AttemptAnswer.php
+    StaffProfile.php              ← encrypted bank fields
     QuestionRate.php
     StaffEarning.php
     StaffPayout.php
@@ -506,15 +554,19 @@ app/
     Payment.php
   Policies/
     QuestionPolicy.php
-    ExamPolicy.php               ← subscription/limit check এখানেও রাখা যায়
+    BoardQuestionPaperPolicy.php
+    ExamPolicy.php                 ← subscription/limit check এখানেও রাখা যায়
     StaffEarningPolicy.php
   Observers/
-    QuestionObserver.php         ← versioning + approve হলে earning trigger
+    QuestionObserver.php           ← versioning + CQ marks auto-sync + approve হলে earning trigger
+    BoardCqQuestionObserver.php    ← CQ marks auto-sync (board version)
   Http/Controllers/
-    GuestExamController.php      ← unauthenticated guest attempt flow (Filament-এর বাইরে)
+    Auth/GoogleAuthController.php  ← redirect + callback (role-aware, find-or-create)
+    GuestExamController.php        ← unauthenticated guest attempt flow (Filament-এর বাইরে)
 database/
   migrations/
   seeders/
+    SuperAdminSeeder.php
 System-Design.md
 CLAUDE.md
 ```
@@ -523,7 +575,9 @@ CLAUDE.md
 
 - **Filament v5 কনভেনশন মেনে চলুন** — v3-এর পুরনো Form/Table syntax v4/v5-এ কাজ নাও করতে পারে; কোড লেখার আগে official v5 docs চেক করুন।
 - প্রতিটা নতুন Resource/Page লেখার আগে কোন role/panel-এর জন্য তা ঠিক করে সেই অনুযায়ী middleware/policy লাগান।
+- Teacher/Staff/Student প্যানেলে কখনো password-based login/registration কম্পোনেন্ট যোগ করবেন না — Google OAuth-ই একমাত্র পথ।
 - আর্থিক লজিক (`staff_earnings`, `payments`) কখনো UI/controller-এ ছড়িয়ে না রেখে Observer/Service class-এ কেন্দ্রীভূত রাখুন — টাকার হিসাব দুই জায়গায় লেখা থাকলে একটা জায়গা মিস হয়ে বাগ হওয়ার ঝুঁকি বেশি।
+- CQ marks calculation (`questions` ও `board_cq_questions` দুই জায়গাতেই) Observer-এ রাখুন, ফর্ম submit handler-এ ম্যানুয়ালি যোগ করবেন না।
 - সংবেদনশীল ডেটা (bank info) কখনো log/dump/exception message-এ প্লেইন টেক্সটে না যায় সেটা নিশ্চিত করুন।
 - Guest-related কোড Filament-এর auth boundary-র বাইরে রাখুন — Filament panel middleware-এর ভেতরে guest access কখনো ঢোকাবেন না।
 
@@ -532,7 +586,7 @@ CLAUDE.md
 ```bash
 composer install
 php artisan migrate
-php artisan db:seed
+php artisan db:seed              # SuperAdminSeeder সহ
 php artisan serve
 php artisan test
 php artisan make:filament-panel <name>
@@ -542,24 +596,33 @@ php artisan make:observer QuestionObserver --model=Question
 
 ## Testing Priorities
 
-1. **Question visibility:** Teacher A/Staff A-এর প্রশ্ন Teacher B/Staff B-এর কাছে অদৃশ্য থাকে যতক্ষণ না approve হয়।
-2. **Versioning:** Approved প্রশ্ন এডিট করলে নতুন pending row তৈরি হয়, পুরনো exam-গুলো ভাঙে না।
-3. **Staff earning:** প্রশ্ন approve হলেই ঠিক rate অনুযায়ী `staff_earnings` row তৈরি হয়; reject হলে হয় না; rate পরে বদলালেও পুরনো entry-র amount অপরিবর্তিত থাকে।
-4. **Payout:** batch payout করলে সংশ্লিষ্ট সব earning `paid` হয়ে যায়, দ্বিতীয়বার payout করলে ডাবল পেমেন্ট না হয়।
-5. **Subscription limit:** ফ্রি লিমিট (যেমন ৩টা/মাস) শেষ হলে নতুন exam/practice-exam তৈরি ব্লক হয়; পরের মাসে আবার রিসেট হয় (কোনো cron/reset job ছাড়াই, কারণ query মাস অনুযায়ী গণনা করে)।
-6. **Self-practice দুই মোড:** Auto-Generate শুধু approved+latest প্রশ্ন থেকে random বাছে; Manual Selection-এ Student শুধু approved+latest প্রশ্ন দেখতে/বাছতে পারে (pending/rejected কখনো না); দুই মোডের exam-ই একসাথে monthly limit-এ গোনা হয়।
-7. **Payment idempotency:** একই gateway callback দুইবার এলে ডাবল subscription/payment তৈরি না হয়।
-8. **Exam sharing:** share_token দিয়ে Login ও Guest দুই পথেই attempt দেওয়া যায়; link expire/deactivate হলে ব্লক হয়; guest submission rate-limited।
-9. **Non-approved question:** exam-এ attach করার চেষ্টা (UI ও সরাসরি Eloquent/Tinker দুইভাবেই) ব্লক হয়।
+1. **Google auth flow:** নতুন email দিয়ে প্রথমবার Google login করলে সঠিক role-এ user তৈরি হয় (Teacher/Student → active, Staff → pending_approval); existing email হলে নতুন row তৈরি না হয়ে login হয়; role mismatch (Student একাউন্ট দিয়ে Teacher panel-এ ঢোকার চেষ্টা) ব্লক হয়।
+2. **Staff pending approval:** নতুন Staff একাউন্ট approve না হওয়া পর্যন্ত Staff Panel-এর কোনো action করতে পারে না; Admin approve করার পর সব কাজ করতে পারে।
+3. **Question visibility:** Teacher A/Staff A-এর প্রশ্ন Teacher B/Staff B-এর কাছে অদৃশ্য থাকে যতক্ষণ না approve হয়।
+4. **Versioning:** Approved প্রশ্ন এডিট করলে নতুন pending row তৈরি হয় (CQ হলে parts-ও কপি হয়), পুরনো exam-গুলো ভাঙে না।
+5. **CQ marks sync:** `question_cq_parts`/`board_cq_question_parts`-এর marks বদলালে parent `questions.marks`/`board_cq_questions.marks` automatically আপডেট হয়।
+6. **Board question paper:** পুরো পেপার একসাথে approve/reject হয় (individual question-level না); approved board question কখনো সাধারণ approved pool/self-practice-এ মিশে যায় না।
+7. **Staff earning:** প্রশ্ন approve হলেই ঠিক rate অনুযায়ী `staff_earnings` row তৈরি হয়; reject হলে হয় না; rate পরে বদলালেও পুরনো entry-র amount অপরিবর্তিত থাকে।
+8. **Payout:** batch payout করলে সংশ্লিষ্ট সব earning `paid` হয়ে যায়, দ্বিতীয়বার payout করলে ডাবল পেমেন্ট না হয়।
+9. **Subscription limit:** ফ্রি লিমিট (যেমন ৩টা/মাস) শেষ হলে নতুন exam/practice-exam তৈরি ব্লক হয়; পরের মাসে আবার রিসেট হয় (কোনো cron/reset job ছাড়াই, কারণ query মাস অনুযায়ী গণনা করে)।
+10. **Self-practice দুই মোড:** Auto-Generate শুধু approved+latest প্রশ্ন থেকে random বাছে; Manual Selection-এ Student শুধু approved+latest প্রশ্ন দেখতে/বাছতে পারে (pending/rejected কখনো না); দুই মোডের exam-ই একসাথে monthly limit-এ গোনা হয়।
+11. **Payment idempotency:** একই gateway callback দুইবার এলে ডাবল subscription/payment তৈরি না হয়।
+12. **Exam sharing:** share_token দিয়ে Login ও Guest দুই পথেই attempt দেওয়া যায়; link expire/deactivate হলে ব্লক হয়; guest submission rate-limited।
+13. **Non-approved question:** exam-এ attach করার চেষ্টা (UI ও সরাসরি Eloquent/Tinker দুইভাবেই) ব্লক হয়।
+14. **Admin registration:** `/admin` panel-এর পাবলিক registration route accessible না (404/disabled)।
 
 ## যা করা যাবে না
 
+- Teacher/Staff/Student প্যানেলে কোনো password-based login/registration/forget-password ফর্ম যোগ করা যাবে না — শুধু Google OAuth।
+- Admin Panel-এ public registration কখনো খোলা রাখা যাবে না।
 - Question visibility-এর approval-check শুধু frontend-এ রাখা যাবে না।
 - Bank account/mobile banking নম্বর কখনো plain (unencrypted) column-এ রাখা যাবে না।
 - Rejected প্রশ্নের জন্য কোনো `staff_earnings` তৈরি করা যাবে না।
+- Board question paper-এর কোনো অংশ সাধারণ `questions` পুল/approved pool/self-practice-এর সাথে মেশানো যাবে না।
 - Guest exam attempt route rate-limit ছাড়া open রাখা যাবে না।
 - Subscription limit চেক bypass করে "quick fix" হিসেবে exam creation খোলা রাখা যাবে না।
 - Payment/payout সংক্রান্ত কোনো অ্যাকশন log/audit trail ছাড়া করা যাবে না।
 - Self-practice exam থেকে Auto-Generate বা Manual Selection — কোনো একটা মোড বাদ দিয়ে শুধু একটা রাখা যাবে না, দুটোই থাকতে হবে।
+- CQ-এর marks কোনো ফর্মে ম্যানুয়ালি টাইপ করানো যাবে না — সবসময় parts থেকে auto-calculate।
 
 </question-bank-guidelines>
