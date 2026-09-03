@@ -2,6 +2,9 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Admin\Pages\Auth\Login;
+use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\QuestionEditorAssets;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -23,14 +26,21 @@ class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        return QuestionEditorAssets::registerOn($panel
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->viteTheme('resources/css/filament/admin/theme.css')
+            ->login(Login::class)
+            // No ->registration() call: public sign-up stays disabled for
+            // Admin/Super Admin. The first Super Admin comes from
+            // SuperAdminSeeder; further admins are created from inside the
+            // panel itself (AdminResource).
+            ->passwordReset()
             ->colors([
                 'primary' => Color::Amber,
             ])
+            ->navigationGroups(NavigationGroup::class)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -54,6 +64,6 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ]));
     }
 }

@@ -156,8 +156,8 @@
 | question_type | enum(`mcq`,`cq`) | শুধু MCQ ও CQ (সৃজনশীল) — true_false/short/descriptive রাখা হয়নি |
 | question_text | text (rich text, CKEditor output) | MCQ-এর জন্য মূল প্রশ্ন, CQ-এর জন্য **উদ্দীপক (stimulus)** |
 | question_image | string, nullable | উদ্দীপক/প্রশ্নের সাথে আলাদা ডায়াগ্রাম/ছবি (path) |
-| options | JSON, nullable | **শুধু MCQ**: `[{"id":"a","text":"...","image":null}, ...]` |
-| correct_answer | text, nullable | **শুধু MCQ**: সঠিক option-এর `id` (যেমন `"b"`) |
+| options | JSON, nullable | **শুধু MCQ**: `[{"option":"...","image":null}, ...]` — কোনো আলাদা key/id নেই, option-এর টেক্সটই তার নিজের identifier |
+| correct_answer | text, nullable | **শুধু MCQ**: সঠিক option-এর `option` টেক্সট (হুবহু), key/index না — এতে Repeater reorder করলেও সঠিক উত্তর ঠিক থাকে |
 | marks | decimal | MCQ-এর জন্য সরাসরি মার্কস; CQ-এর জন্য সাব-পার্টগুলোর যোগফল (auto-synced) |
 | difficulty | enum(`easy`,`medium`,`hard`) | |
 | **status** | enum(`pending`,`approved`,`rejected`) | ⭐ মূল ফিল্ড |
@@ -231,8 +231,8 @@
 | board_question_paper_id | FK → board_question_papers.id | |
 | question_text | text (CKEditor) | |
 | question_image | string, nullable | |
-| options | JSON | `[{"id":"a","text":"...","image":null}, ...]` |
-| correct_answer | string | |
+| options | JSON | `[{"option":"...","image":null}, ...]` |
+| correct_answer | string | সঠিক option-এর `option` টেক্সট (হুবহু) |
 | marks | decimal | |
 | order_index | int | পেপারে প্রশ্নের ক্রম |
 

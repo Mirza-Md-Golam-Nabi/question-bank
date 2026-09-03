@@ -1,0 +1,76 @@
+Skip to content
+Laravel
+Dashboard
+Question Bank
+Board Question Papers
+Boards
+Questions
+Subjects
+People
+Users
+Users
+Payroll
+Question Rates
+Staff Payouts
+Billing
+Payments
+Subscription Plans
+Subscriptions
+Questions
+Create
+Create Question
+Editor*
+
+Rich Text
+
+CKEditor (গণিত সহ)
+
+Question text*
+
+Full flow question text, typed via CKEditor.
+
+Diagram / image (optional)
+Drag & Drop your files or Browse
+Class*
+Select an option
+Class 3
+Class 4
+Class 5
+Class 6
+Class 7
+Class 8
+Class 9 / Class 10
+Class 11 / Class 12
+Subject*
+Select an option
+Mathematics
+Bangla
+English
+Chapter*
+Select an option
+Question type*
+
+MCQ
+
+CQ (সৃজনশীল)
+
+Difficulty*
+Easy
+Marks*
+Options*
+Option*
+Correct answer
+Add image
+Option*
+Correct answer
+Add image
+Option*
+Correct answer
+Add image
+Option*
+Correct answer
+Add image
+Add option
+Create
+Create & create another
+Cancel

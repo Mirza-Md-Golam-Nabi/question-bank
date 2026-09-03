@@ -1,0 +1,11 @@
+<?php
+
+namespace App\Filament\Teacher\Pages;
+
+use App\Filament\Support\Pages\MySubscriptionPage;
+use Filament\Support\Icons\Heroicon;
+
+class MySubscription extends MySubscriptionPage
+{
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
+}

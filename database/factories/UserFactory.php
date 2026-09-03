@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -30,6 +32,8 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'role' => UserRole::Student,
+            'status' => UserStatus::Active,
         ];
     }
 
@@ -41,5 +45,47 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    public function superAdmin(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::SuperAdmin]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Admin]);
+    }
+
+    public function teacher(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Teacher]);
+    }
+
+    public function staff(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Staff]);
+    }
+
+    public function student(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Student]);
+    }
+
+    /**
+     * A Google OAuth-authenticated user — no password, has a google_id.
+     */
+    public function googleAuthenticated(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'password' => null,
+            'google_id' => (string) fake()->unique()->numerify('##################'),
+            'avatar' => fake()->imageUrl(),
+        ]);
+    }
+
+    public function pendingApproval(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => UserStatus::PendingApproval]);
     }
 }
