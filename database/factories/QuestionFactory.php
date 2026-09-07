@@ -19,19 +19,16 @@ class QuestionFactory extends Factory
 
     public function definition(): array
     {
-        $correctOption = fake()->unique()->word();
-
         return [
             'chapter_id' => Chapter::factory(),
             'question_type' => QuestionType::Mcq,
             'question_text' => '<p>'.fake()->sentence().'?</p>',
             'options' => [
-                ['option' => $correctOption, 'image' => null],
-                ['option' => fake()->unique()->word(), 'image' => null],
-                ['option' => fake()->unique()->word(), 'image' => null],
-                ['option' => fake()->unique()->word(), 'image' => null],
+                ['option' => fake()->unique()->word(), 'image' => null, 'is_correct' => true],
+                ['option' => fake()->unique()->word(), 'image' => null, 'is_correct' => false],
+                ['option' => fake()->unique()->word(), 'image' => null, 'is_correct' => false],
+                ['option' => fake()->unique()->word(), 'image' => null, 'is_correct' => false],
             ],
-            'correct_answer' => $correctOption,
             'marks' => 1,
             'difficulty' => Difficulty::Easy,
             // No explicit 'status' here on purpose — QuestionObserver decides
@@ -48,7 +45,6 @@ class QuestionFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'question_type' => QuestionType::Cq,
             'options' => null,
-            'correct_answer' => null,
             'marks' => 0,
         ]);
     }

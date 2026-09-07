@@ -35,7 +35,13 @@ it('returns the inactive page for an unknown share token', function () {
 
 it('lets a guest start and submit an attempt without logging in', function () {
     $exam = Exam::factory()->published()->create();
-    $question = Question::factory()->approved()->for(Chapter::factory())->create(['correct_answer' => 'a', 'marks' => 2]);
+    $question = Question::factory()->approved()->for(Chapter::factory())->create([
+        'options' => [
+            ['option' => 'a', 'image' => null, 'is_correct' => true],
+            ['option' => 'b', 'image' => null, 'is_correct' => false],
+        ],
+        'marks' => 2,
+    ]);
     $exam->questions()->attach([$question->id => ['order_index' => 1, 'marks_override' => null]]);
 
     $startResponse = $this->post("/exam/{$exam->share_token}/start", [

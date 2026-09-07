@@ -55,7 +55,7 @@ it('creates a board question paper with mcq and cq questions, auto-summing cq ma
 
     expect($paper->status)->toBe(QuestionStatus::Pending);
     expect($paper->mcqQuestions)->toHaveCount(1);
-    expect($paper->mcqQuestions->first()->correct_answer)->toBe('Two');
+    expect(collect($paper->mcqQuestions->first()->options)->firstWhere('is_correct', true)['option'])->toBe('Two');
     expect($paper->cqQuestions)->toHaveCount(1);
     expect((float) $paper->cqQuestions->first()->marks)->toBe(10.0);
 });

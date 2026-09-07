@@ -28,6 +28,7 @@ class TeacherPanelProvider extends PanelProvider
         return QuestionEditorAssets::registerOn($panel
             ->id('teacher')
             ->path('teacher')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
             ->colors([
                 'primary' => Color::Blue,

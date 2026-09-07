@@ -29,9 +29,10 @@ class StaffPanelProvider extends PanelProvider
         return QuestionEditorAssets::registerOn($panel
             ->id('staff')
             ->path('staff')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
             ->colors([
-                'primary' => Color::Emerald,
+                'primary' => Color::Amber,
             ])
             ->navigationGroups(NavigationGroup::class)
             ->discoverResources(in: app_path('Filament/Staff/Resources'), for: 'App\Filament\Staff\Resources')

@@ -62,15 +62,16 @@ class QuestionInfolist
                     RepeatableEntry::make('options')
                         ->hiddenLabel()
                         ->schema([
-                            TextEntry::make('option')->hiddenLabel(),
+                            TextEntry::make('option')->hiddenLabel()->html(),
+                            TextEntry::make('is_correct')
+                                ->hiddenLabel()
+                                ->visible(fn (?bool $state) => (bool) $state)
+                                ->formatStateUsing(fn () => '✓ সঠিক উত্তর')
+                                ->badge()
+                                ->color('success'),
                         ])
                         ->grid(4)
                         ->columnSpanFull(),
-
-                    TextEntry::make('correct_answer')
-                        ->label('Correct answer')
-                        ->badge()
-                        ->color('success'),
                 ]),
 
             Section::make('CQ Parts')

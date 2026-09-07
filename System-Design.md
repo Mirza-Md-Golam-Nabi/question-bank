@@ -125,7 +125,7 @@
 | google_id | string, unique, nullable | Google-এর `sub` — শুধু Teacher/Staff/Student-দের জন্য filled |
 | avatar | string, nullable | Google প্রোফাইল ছবির URL |
 | role | enum(`super_admin`,`admin`,`teacher`,`staff`,`student`) | |
-| status | enum(`pending_approval`,`active`,`suspended`) | নিচে "Authentication" সেকশনে বিস্তারিত |
+| status | enum(`pending`,`active`,`suspended`,`permanent_suspend`) | নিচে "Authentication" সেকশনে বিস্তারিত |
 | email_verified_at | timestamp, nullable | Google callback-এ auto-set; Admin/Super Admin Filament-এর normal flow অনুযায়ী |
 | created_at | timestamp | |
 
@@ -140,7 +140,9 @@
    - **না পাওয়া গেলে** → নতুন `users` row তৈরি (session-এ রাখা intended role অনুযায়ী `role` সেট), `google_id`/`avatar`/`email_verified_at` ফিল করে দেয়া হয়।
 3. **Status অনুযায়ী আচরণ:**
    - `role = teacher` অথবা `role = student` → নতুন একাউন্ট সাথে সাথে `status = active`, সরাসরি প্যানেলে ঢুকে যাবে।
-   - `role = staff` → নতুন একাউন্ট `status = pending_approval`-এ তৈরি হবে — লগইন হবে (authenticated) কিন্তু Staff Panel middleware/policy-তে চেক করে "আপনার একাউন্ট Admin অনুমোদনের অপেক্ষায় আছে" পেজ দেখানো হবে, `QuestionResource`-এ কিছু করতে পারবে না যতক্ষণ না Admin `AdminResource`-এ গিয়ে approve করে `status = active` করে দেয়।
+   - `role = staff` → নতুন একাউন্ট `status = pending`-এ তৈরি হবে — লগইন হবে (authenticated) কিন্তু Staff Panel middleware/policy-তে চেক করে "আপনার একাউন্ট Admin অনুমোদনের অপেক্ষায় আছে" পেজ দেখানো হবে, `QuestionResource`-এ কিছু করতে পারবে না যতক্ষণ না Admin `AdminResource`-এ গিয়ে approve করে `status = active` করে দেয়।
+   - **`status = suspended`** (Teacher/Staff দুই রোলেই প্রযোজ্য) → প্যানেলে লগইন করতে পারবে, Dashboard ও (Staff-এর ক্ষেত্রে) Earning পেজ দেখতে পারবে, কিন্তু নতুন প্রশ্ন **add করতে পারবে না** (`QuestionPolicy::create()` শুধু `status = active`-কে অনুমতি দেয়)।
+   - **`status = permanent_suspend`** → `User::canAccessPanel()`-এ হার্ডকোড থাকা চেক অনুযায়ী পুরো প্যানেলে ঢোকাই ব্লক হয়ে যায় (403), যেকোনো request-এই।
 
 **Admin/Super Admin:**
 - একাউন্ট Google flow-এর সম্পূর্ণ বাইরে, `password_hash` filled থাকবে, `google_id` সবসময় `null`।
@@ -156,8 +158,7 @@
 | question_type | enum(`mcq`,`cq`) | শুধু MCQ ও CQ (সৃজনশীল) — true_false/short/descriptive রাখা হয়নি |
 | question_text | text (rich text, CKEditor output) | MCQ-এর জন্য মূল প্রশ্ন, CQ-এর জন্য **উদ্দীপক (stimulus)** |
 | question_image | string, nullable | উদ্দীপক/প্রশ্নের সাথে আলাদা ডায়াগ্রাম/ছবি (path) |
-| options | JSON, nullable | **শুধু MCQ**: `[{"option":"...","image":null}, ...]` — কোনো আলাদা key/id নেই, option-এর টেক্সটই তার নিজের identifier |
-| correct_answer | text, nullable | **শুধু MCQ**: সঠিক option-এর `option` টেক্সট (হুবহু), key/index না — এতে Repeater reorder করলেও সঠিক উত্তর ঠিক থাকে |
+| options | JSON, nullable | **শুধু MCQ**: `[{"option":"...","image":null,"is_correct":bool}, ...]` — সঠিক উত্তর প্রতিটা option-এর নিজের `is_correct` flag দিয়ে চিহ্নিত (আলাদা `correct_answer` কলাম নেই — content-matching-এর ঝুঁকি এড়াতে ও Repeater reorder করলেও ঠিক থাকার জন্য) |
 | marks | decimal | MCQ-এর জন্য সরাসরি মার্কস; CQ-এর জন্য সাব-পার্টগুলোর যোগফল (auto-synced) |
 | difficulty | enum(`easy`,`medium`,`hard`) | |
 | **status** | enum(`pending`,`approved`,`rejected`) | ⭐ মূল ফিল্ড |
@@ -231,8 +232,7 @@
 | board_question_paper_id | FK → board_question_papers.id | |
 | question_text | text (CKEditor) | |
 | question_image | string, nullable | |
-| options | JSON | `[{"option":"...","image":null}, ...]` |
-| correct_answer | string | সঠিক option-এর `option` টেক্সট (হুবহু) |
+| options | JSON | `[{"option":"...","image":null,"is_correct":bool}, ...]` — সঠিক উত্তর প্রতিটা option-এর নিজের `is_correct` flag দিয়ে চিহ্নিত (নিয়মিত `questions` টেবিলের মতোই — আলাদা `correct_answer` কলাম নেই) |
 | marks | decimal | |
 | order_index | int | পেপারে প্রশ্নের ক্রম |
 

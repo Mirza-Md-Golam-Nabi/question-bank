@@ -61,8 +61,16 @@ class QuestionFormSchema
                         Group::make()
                             ->live()
                             ->schema(fn (Get $get) => [
+                                // ->viewData() takes a Closure specifically
+                                // so it stays lazy: calling $get() eagerly
+                                // here (a plain array) reads a FileUpload's
+                                // live state mid-hydration, which — isolated
+                                // by bisection — corrupts this form's later
+                                // default-state hydration and silently drops
+                                // the `options` Repeater's ->defaultItems(4)
+                                // to zero on first load.
                                 View::make('filament.forms.components.question-preview')
-                                    ->viewData([
+                                    ->viewData(fn (Get $get) => [
                                         'html' => static::resolvePreviewHtml($get('question_text')),
                                         'imageUrl' => static::resolveUploadedFileUrl($get('question_image')),
                                     ]),
@@ -100,7 +108,13 @@ class QuestionFormSchema
                         Radio::make('editor_mode')
                             ->label('Editor')
                             ->options(EditorMode::class)
-                            ->default(EditorMode::RichText)
+                            // Defaults to whichever editor this user saved a
+                            // question with last time (EditorModePreference),
+                            // falling back to Rich Text the very first time.
+                            // Only applies on Create — editing an existing
+                            // question fills this from the record itself,
+                            // overriding this default entirely.
+                            ->default(fn () => EditorModePreference::for(auth()->user()))
                             ->live()
                             ->inline()
                             ->inlineLabel(false)
@@ -211,8 +225,9 @@ class QuestionFormSchema
     protected static function mcqOptionComponents(): array
     {
         return [
-            TextInput::make('option')
+            CkEditorField::make('option')
                 ->label('Option')
+                ->compact()
                 ->required()
                 ->columnSpanFull(),
 

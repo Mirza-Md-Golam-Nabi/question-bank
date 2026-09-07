@@ -3,12 +3,15 @@
 namespace App\Filament\Support\Concerns;
 
 use App\Enums\CqPartType;
+use App\Enums\EditorMode;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
+use App\Filament\Support\EditorModePreference;
 use App\Models\Question;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Shared by every panel's CreateQuestion/EditQuestion pages: extracting the
@@ -42,15 +45,11 @@ trait HandlesQuestionForm
             }
         }
 
-        // The MCQ options Repeater has no separate `correct_answer` field —
-        // each option carries its own `is_correct` checkbox instead. Since
-        // that's not a real persisted column, it's derived here (once, in
-        // plain PHP) rather than via a per-field Filament hydration hook.
         if ($record?->question_type === QuestionType::Mcq) {
             $data['options'] = collect($record->options)
                 ->map(fn (array $option) => [
                     ...$option,
-                    'is_correct' => $option['option'] === $record->correct_answer,
+                    'is_correct' => (bool) ($option['is_correct'] ?? false),
                     'has_image' => filled($option['image'] ?? null),
                 ])
                 ->all();
@@ -91,11 +90,10 @@ trait HandlesQuestionForm
     }
 
     /**
-     * The MCQ options Repeater carries a per-option `is_correct` checkbox
-     * instead of a separate `correct_answer` field — this derives
-     * `correct_answer` from whichever option is checked (the form's own
-     * validation rule guarantees exactly one is), then strips `is_correct`
-     * so only `option`/`image` land in the persisted `options` JSON.
+     * The MCQ options Repeater's per-option `is_correct` checkbox is kept
+     * as-is on each `options` entry (the form's own validation rule
+     * guarantees exactly one is checked) — this just strips the UI-only
+     * `has_image` flag so only `option`/`image`/`is_correct` are persisted.
      *
      * @param  array<string, mixed>  $data
      */
@@ -107,14 +105,27 @@ trait HandlesQuestionForm
             return;
         }
 
-        $options = collect($data['options'] ?? []);
-
-        $data['correct_answer'] = $options->first(fn (array $option) => (bool) ($option['is_correct'] ?? false))['option'] ?? null;
-
-        $data['options'] = $options
-            ->map(fn (array $option) => Arr::only($option, ['option', 'image']))
+        $data['options'] = collect($data['options'] ?? [])
+            ->map(fn (array $option) => Arr::only($option, ['option', 'image', 'is_correct']))
             ->values()
             ->all();
+    }
+
+    /**
+     * Saves whichever editor (Rich Text vs CKEditor) was used this time as
+     * this user's preference (EditorModePreference), so their next Create
+     * Question form defaults to it instead of always starting on Rich Text.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function rememberEditorModePreference(array $data): void
+    {
+        $editorMode = $data['editor_mode'] ?? null;
+        $editorMode = $editorMode instanceof EditorMode ? $editorMode : EditorMode::tryFrom($editorMode ?? '');
+
+        if ($editorMode) {
+            EditorModePreference::remember(Auth::user(), $editorMode);
+        }
     }
 
     protected function syncCqParts(Question $question): void

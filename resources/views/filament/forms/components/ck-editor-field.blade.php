@@ -15,11 +15,12 @@
 
                 window.createQuestionCkEditor(this.$refs.host, {
                     initialData: @js($getState() ?? ''),
+                    compact: @js($field->isCompact()),
                 });
             },
         }"
         x-on:ck-data-changed.debounce.500ms="$wire.$set($statePath, $event.detail.html)"
     >
-        <div x-ref="host" class="qb-ck-editor-host"></div>
+        <div x-ref="host" class="qb-ck-editor-host @if ($field->isCompact()) qb-ck-editor-host--compact @endif"></div>
     </div>
 </x-filament-forms::field-wrapper>

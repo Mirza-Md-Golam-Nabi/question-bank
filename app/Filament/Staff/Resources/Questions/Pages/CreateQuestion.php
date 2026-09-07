@@ -4,13 +4,14 @@ namespace App\Filament\Staff\Resources\Questions\Pages;
 
 use App\Filament\Staff\Resources\Questions\QuestionResource;
 use App\Filament\Support\Concerns\HandlesQuestionForm;
+use App\Filament\Support\Concerns\PrefillsChapterFromQuery;
 use App\Models\Question;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
 class CreateQuestion extends CreateRecord
 {
-    use HandlesQuestionForm;
+    use HandlesQuestionForm, PrefillsChapterFromQuery;
 
     protected static string $resource = QuestionResource::class;
 
@@ -18,6 +19,7 @@ class CreateQuestion extends CreateRecord
     {
         $this->cqPartsData = $this->extractCqPartsData($data);
         $this->normalizeMcqOptions($data);
+        $this->rememberEditorModePreference($data);
 
         return $data;
     }

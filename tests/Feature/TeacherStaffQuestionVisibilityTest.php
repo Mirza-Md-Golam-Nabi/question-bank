@@ -44,7 +44,7 @@ it('only lets staff see their own questions, never an approved pool from others'
 
     $this->actingAs($staffA);
 
-    livewire(StaffListQuestions::class)
+    livewire(StaffListQuestions::class, ['chapter' => $this->chapter->id])
         ->assertCanSeeTableRecords([$ownQuestion])
         ->assertCanNotSeeTableRecords([$othersApproved]);
 });

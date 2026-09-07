@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 #[Fillable([
     'chapter_id', 'topic_id', 'question_type', 'question_text', 'editor_mode', 'question_image', 'options',
-    'correct_answer', 'marks', 'difficulty', 'status', 'created_by', 'approved_by',
+    'marks', 'difficulty', 'status', 'created_by', 'approved_by',
     'rejection_reason', 'parent_id', 'version', 'is_latest',
 ])]
 #[ObservedBy(QuestionObserver::class)]
@@ -146,7 +146,7 @@ class Question extends Model
             'amount' => $amount,
         ]);
 
-        $this->creator->staffProfile?->incrementEarnings($amount);
+        StaffProfile::firstOrCreateFor($this->creator)->incrementEarnings($amount);
     }
 
     public function reject(User $rejecter, string $reason): void

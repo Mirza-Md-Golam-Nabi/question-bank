@@ -2,6 +2,9 @@
 
 namespace App\Filament\Staff\Resources\Questions;
 
+use App\Filament\Staff\Resources\Questions\Pages\BrowseChapters;
+use App\Filament\Staff\Resources\Questions\Pages\BrowseClasses;
+use App\Filament\Staff\Resources\Questions\Pages\BrowseSubjects;
 use App\Filament\Staff\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Staff\Resources\Questions\Pages\EditQuestion;
 use App\Filament\Staff\Resources\Questions\Pages\ListQuestions;
@@ -44,7 +47,10 @@ class QuestionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListQuestions::route('/'),
+            'index' => BrowseClasses::route('/'),
+            'subjects' => BrowseSubjects::route('/classes/{class}/subjects'),
+            'chapters' => BrowseChapters::route('/classes/{class}/subjects/{classSubject}/chapters'),
+            'list' => ListQuestions::route('/chapters/{chapter}/questions'),
             'create' => CreateQuestion::route('/create'),
             'edit' => EditQuestion::route('/{record}/edit'),
         ];

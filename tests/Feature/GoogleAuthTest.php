@@ -45,7 +45,7 @@ it('creates a new staff account as pending approval on first google login', func
     $user = User::where('email', 'staff@example.com')->first();
 
     expect($user->role)->toBe(UserRole::Staff);
-    expect($user->status)->toBe(UserStatus::PendingApproval);
+    expect($user->status)->toBe(UserStatus::Pending);
 });
 
 it('logs in an existing user by google_id without creating a duplicate', function () {

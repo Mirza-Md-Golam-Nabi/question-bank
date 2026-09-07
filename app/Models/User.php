@@ -42,7 +42,18 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->role->panelId() === $panel->getId();
+        return $this->role->panelId() === $panel->getId()
+            && $this->status !== UserStatus::PermanentSuspend;
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === UserStatus::Suspended;
+    }
+
+    public function isPermanentlySuspended(): bool
+    {
+        return $this->status === UserStatus::PermanentSuspend;
     }
 
     public function isSuperAdmin(): bool
@@ -52,7 +63,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function isStaffPendingApproval(): bool
     {
-        return $this->role === UserRole::Staff && $this->status === UserStatus::PendingApproval;
+        return $this->role === UserRole::Staff && $this->status === UserStatus::Pending;
     }
 
     public function staffProfile(): HasOne

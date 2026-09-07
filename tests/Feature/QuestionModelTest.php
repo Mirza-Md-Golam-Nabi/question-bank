@@ -57,7 +57,6 @@ it('creates a new pending revision instead of mutating an approved question in p
         'question_type' => $original->question_type,
         'question_text' => '<p>Edited</p>',
         'options' => $original->options,
-        'correct_answer' => $original->correct_answer,
         'marks' => $original->marks,
         'difficulty' => $original->difficulty,
     ]);

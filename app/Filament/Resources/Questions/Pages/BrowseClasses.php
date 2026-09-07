@@ -3,23 +3,20 @@
 namespace App\Filament\Resources\Questions\Pages;
 
 use App\Filament\Resources\Questions\QuestionResource;
+use App\Filament\Support\Pages\Questions\BrowseClassesPage;
 use App\Models\AcademicClass;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
-use Filament\Resources\Pages\Page;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
-class BrowseClasses extends Page
+class BrowseClasses extends BrowseClassesPage
 {
     protected static string $resource = QuestionResource::class;
 
-    protected string $view = 'filament.resources.questions.pages.browse-classes';
-
-    public function getTitle(): string
+    public function canManageContent(): bool
     {
-        return 'Classes';
+        return true;
     }
 
     protected function getHeaderActions(): array
@@ -84,13 +81,5 @@ class BrowseClasses extends Page
             ->color('danger')
             ->requiresConfirmation()
             ->action(fn (array $arguments) => AcademicClass::findOrFail($arguments['class'])->delete());
-    }
-
-    public function classes(): Collection
-    {
-        return AcademicClass::query()
-            ->withCount('classSubjects')
-            ->ordered()
-            ->get();
     }
 }

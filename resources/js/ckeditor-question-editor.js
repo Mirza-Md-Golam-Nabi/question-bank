@@ -237,17 +237,25 @@ class MathTex extends Plugin {
  * keeps this file framework-agnostic and lets the Blade template own exactly
  * how the value reaches Livewire.
  */
-window.createQuestionCkEditor = async function createQuestionCkEditor(element, { initialData = '' } = {}) {
-    const editor = await ClassicEditor.create(element, {
-        licenseKey: 'GPL',
-        plugins: [Essentials, Paragraph, Bold, Italic, Underline, Link, List, BlockQuote, Undo, MathTex],
-        toolbar: [
+window.createQuestionCkEditor = async function createQuestionCkEditor(element, { initialData = '', compact = false } = {}) {
+    // Compact mode (MCQ options): same plugin set — so pasted rich content
+    // still upcasts cleanly — but a stripped-down toolbar, since a one-line
+    // option has no real use for headings/lists/links and a full toolbar
+    // would overwhelm its narrow column.
+    const toolbar = compact
+        ? ['bold', 'italic', '|', 'insertMathTex']
+        : [
             'undo', 'redo', '|',
             'bold', 'italic', 'underline', '|',
             'bulletedList', 'numberedList', '|',
             'blockQuote', 'link', '|',
             'insertMathTex',
-        ],
+        ];
+
+    const editor = await ClassicEditor.create(element, {
+        licenseKey: 'GPL',
+        plugins: [Essentials, Paragraph, Bold, Italic, Underline, Link, List, BlockQuote, Undo, MathTex],
+        toolbar,
         initialData: initialData || '',
     });
 
@@ -272,7 +280,14 @@ window.createQuestionCkEditor = async function createQuestionCkEditor(element, {
  * never need the ~1.5MB CKEditor+MathLive bundle.
  */
 window.renderKatexEmbeds = function renderKatexEmbeds(root = document) {
-    root.querySelectorAll('.qb-katex-embed:not(.qb-katex-embed--rendered)').forEach((el) => {
+    // Livewire's `morph.added`/`morph.updated` hooks pass the exact element
+    // that was patched, which can itself be a `.qb-katex-embed` span rather
+    // than a container around one — querySelectorAll alone only searches
+    // descendants, so it would silently skip that case.
+    const isEmbed = root instanceof Element && root.matches('.qb-katex-embed:not(.qb-katex-embed--rendered)');
+    const targets = isEmbed ? [root] : root.querySelectorAll('.qb-katex-embed:not(.qb-katex-embed--rendered)');
+
+    targets.forEach((el) => {
         const latex = el.textContent;
         el.classList.add('qb-katex-embed--rendered');
         el.innerHTML = '';
@@ -303,4 +318,18 @@ document.addEventListener('livewire:navigated', scheduleRenderKatexEmbeds);
 new MutationObserver(scheduleRenderKatexEmbeds).observe(document.body, {
     childList: true,
     subtree: true,
+});
+
+// Belt-and-suspenders for Filament's action modals (e.g. the Question
+// "View" action): their content lives inside a `wire:partial` region
+// (see vendor/filament/actions/.../components/modals.blade.php) that
+// Livewire patches in place rather than always inserting fresh nodes —
+// the MutationObserver above can miss that patch entirely, which is why
+// math inside a freshly opened View-question modal was showing as raw
+// LaTeX text instead of rendering. Livewire's own `morph.updated`/
+// `morph.added` hooks fire for every element Livewire touches during a
+// render, so they catch this reliably regardless of the exact DOM diff.
+document.addEventListener('livewire:init', () => {
+    Livewire.hook('morph.added', ({ el }) => window.renderKatexEmbeds(el));
+    Livewire.hook('morph.updated', ({ el }) => window.renderKatexEmbeds(el));
 });

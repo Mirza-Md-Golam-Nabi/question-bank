@@ -18,7 +18,7 @@
                         @foreach ($question->options as $option)
                             <label class="flex items-center gap-2">
                                 <input type="radio" name="answers[{{ $question->id }}]" value="{{ $option['option'] }}">
-                                <span>{{ $option['option'] }}</span>
+                                <span>{!! $option['option'] !!}</span>
                             </label>
                         @endforeach
                     </div>

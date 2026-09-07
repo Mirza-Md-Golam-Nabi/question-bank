@@ -13,8 +13,20 @@ beforeEach(function () {
 
 it('auto-grades mcq answers and sums the correct ones into total_score', function () {
     $exam = Exam::factory()->create();
-    $correctQuestion = Question::factory()->for(Chapter::factory())->approved()->create(['correct_answer' => 'a', 'marks' => 2]);
-    $wrongQuestion = Question::factory()->for(Chapter::factory())->approved()->create(['correct_answer' => 'b', 'marks' => 3]);
+    $correctQuestion = Question::factory()->for(Chapter::factory())->approved()->create([
+        'options' => [
+            ['option' => 'a', 'image' => null, 'is_correct' => true],
+            ['option' => 'b', 'image' => null, 'is_correct' => false],
+        ],
+        'marks' => 2,
+    ]);
+    $wrongQuestion = Question::factory()->for(Chapter::factory())->approved()->create([
+        'options' => [
+            ['option' => 'a', 'image' => null, 'is_correct' => false],
+            ['option' => 'b', 'image' => null, 'is_correct' => true],
+        ],
+        'marks' => 3,
+    ]);
 
     $exam->questions()->attach([
         $correctQuestion->id => ['order_index' => 1, 'marks_override' => null],
@@ -35,7 +47,13 @@ it('auto-grades mcq answers and sums the correct ones into total_score', functio
 
 it('respects a marks_override when auto-grading', function () {
     $exam = Exam::factory()->create();
-    $question = Question::factory()->for(Chapter::factory())->approved()->create(['correct_answer' => 'a', 'marks' => 2]);
+    $question = Question::factory()->for(Chapter::factory())->approved()->create([
+        'options' => [
+            ['option' => 'a', 'image' => null, 'is_correct' => true],
+            ['option' => 'b', 'image' => null, 'is_correct' => false],
+        ],
+        'marks' => 2,
+    ]);
 
     $exam->questions()->attach([$question->id => ['order_index' => 1, 'marks_override' => 10]]);
 

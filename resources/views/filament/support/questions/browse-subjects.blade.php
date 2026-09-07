@@ -11,22 +11,13 @@
     @endphp
 
     <div>
-        <a
-            href="{{ \App\Filament\Resources\Questions\QuestionResource::getUrl('index') }}"
-            wire:navigate
-            class="mb-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary-600 dark:text-gray-400 lg:mb-4 lg:text-sm"
-        >
-            <x-filament::icon icon="heroicon-m-arrow-left" class="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-            Back to classes
-        </a>
-
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
             @forelse ($this->subjects() as $index => $classSubject)
                 @php $gradient = $gradients[$index % count($gradients)]; @endphp
 
                 <div class="group relative flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-gray-900">
                     <a
-                        href="{{ \App\Filament\Resources\Questions\QuestionResource::getUrl('chapters', ['class' => $this->class->id, 'classSubject' => $classSubject->id]) }}"
+                        href="{{ $this->getResource()::getUrl('chapters', ['class' => $this->class->id, 'classSubject' => $classSubject->id]) }}"
                         wire:navigate
                         class="absolute inset-0 z-0"
                         aria-label="{{ $classSubject->subject->name }}"
@@ -56,34 +47,36 @@
                         </div>
                     </div>
 
-                    <div class="absolute right-1.5 top-1.5 z-20 lg:right-2 lg:top-2">
-                        <x-filament::dropdown placement="bottom-end">
-                            <x-slot name="trigger">
-                                <button
-                                    type="button"
-                                    class="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-gray-600 opacity-100 backdrop-blur transition hover:bg-white md:opacity-0 md:group-hover:opacity-100 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:bg-gray-900 lg:h-8 lg:w-8"
-                                >
-                                    <x-filament::icon icon="heroicon-m-ellipsis-vertical" class="h-4 w-4" />
-                                </button>
-                            </x-slot>
+                    @if ($this->canManageContent())
+                        <div class="absolute right-1.5 top-1.5 z-20 lg:right-2 lg:top-2">
+                            <x-filament::dropdown placement="bottom-end">
+                                <x-slot name="trigger">
+                                    <button
+                                        type="button"
+                                        class="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-gray-600 opacity-100 backdrop-blur transition hover:bg-white md:opacity-0 md:group-hover:opacity-100 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:bg-gray-900 lg:h-8 lg:w-8"
+                                    >
+                                        <x-filament::icon icon="heroicon-m-ellipsis-vertical" class="h-4 w-4" />
+                                    </button>
+                                </x-slot>
 
-                            <x-filament::dropdown.list>
-                                <x-filament::dropdown.list.item
-                                    icon="heroicon-o-arrows-up-down"
-                                    wire:click="mountAction('editSubjectOrder', { classSubject: {{ $classSubject->id }} })"
-                                >
-                                    Change order
-                                </x-filament::dropdown.list.item>
-                                <x-filament::dropdown.list.item
-                                    icon="heroicon-o-x-mark"
-                                    color="danger"
-                                    wire:click="mountAction('detachSubject', { classSubject: {{ $classSubject->id }} })"
-                                >
-                                    Remove
-                                </x-filament::dropdown.list.item>
-                            </x-filament::dropdown.list>
-                        </x-filament::dropdown>
-                    </div>
+                                <x-filament::dropdown.list>
+                                    <x-filament::dropdown.list.item
+                                        icon="heroicon-o-arrows-up-down"
+                                        wire:click="mountAction('editSubjectOrder', { classSubject: {{ $classSubject->id }} })"
+                                    >
+                                        Change order
+                                    </x-filament::dropdown.list.item>
+                                    <x-filament::dropdown.list.item
+                                        icon="heroicon-o-x-mark"
+                                        color="danger"
+                                        wire:click="mountAction('detachSubject', { classSubject: {{ $classSubject->id }} })"
+                                    >
+                                        Remove
+                                    </x-filament::dropdown.list.item>
+                                </x-filament::dropdown.list>
+                            </x-filament::dropdown>
+                        </div>
+                    @endif
                 </div>
             @empty
                 <div class="col-span-full">

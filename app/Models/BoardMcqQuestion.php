@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'board_question_paper_id', 'question_text', 'question_image',
-    'options', 'correct_answer', 'marks', 'order_index',
+    'options', 'marks', 'order_index',
 ])]
 class BoardMcqQuestion extends Model
 {

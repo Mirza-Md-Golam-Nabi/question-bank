@@ -18,6 +18,7 @@ class CreateQuestion extends CreateRecord
     {
         $this->cqPartsData = $this->extractCqPartsData($data);
         $this->normalizeMcqOptions($data);
+        $this->rememberEditorModePreference($data);
 
         return $data;
     }

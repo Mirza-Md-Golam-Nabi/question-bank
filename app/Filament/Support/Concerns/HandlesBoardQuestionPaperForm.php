@@ -32,14 +32,10 @@ trait HandlesBoardQuestionPaperForm
         $data['mcq_questions'] = $record->mcqQuestions->map(fn ($mcq) => [
             'question_text' => $mcq->question_text,
             'question_image' => $mcq->question_image,
-            // The options Repeater has no separate `correct_answer` field —
-            // each option carries its own `is_correct` checkbox instead, so
-            // it's derived here (once, in plain PHP) from the persisted
-            // `correct_answer` rather than via a per-field hydration hook.
             'options' => collect($mcq->options)
                 ->map(fn (array $option) => [
                     ...$option,
-                    'is_correct' => $option['option'] === $mcq->correct_answer,
+                    'is_correct' => (bool) ($option['is_correct'] ?? false),
                     'has_image' => filled($option['image'] ?? null),
                 ])
                 ->all(),
@@ -75,12 +71,8 @@ trait HandlesBoardQuestionPaperForm
 
         $normalizedMcqQuestions = collect($mcqQuestions)
             ->map(function (array $mcqQuestion) {
-                $options = collect($mcqQuestion['options'] ?? []);
-
-                $mcqQuestion['correct_answer'] = $options->first(fn (array $option) => (bool) ($option['is_correct'] ?? false))['option'] ?? null;
-
-                $mcqQuestion['options'] = $options
-                    ->map(fn (array $option) => Arr::only($option, ['option', 'image']))
+                $mcqQuestion['options'] = collect($mcqQuestion['options'] ?? [])
+                    ->map(fn (array $option) => Arr::only($option, ['option', 'image', 'is_correct']))
                     ->values()
                     ->all();
 

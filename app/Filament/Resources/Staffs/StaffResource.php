@@ -25,6 +25,8 @@ class StaffResource extends Resource
 {
     protected static ?string $model = User::class;
 
+    protected static ?string $navigationLabel = 'Staffs';
+
     protected static ?string $slug = 'staffs';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
@@ -55,12 +57,37 @@ class StaffResource extends Resource
                 Action::make('approve')
                     ->label('Approve')
                     ->color('success')
+                    ->iconButton()
                     ->icon('heroicon-o-check-circle')
-                    ->visible(fn (User $record) => $record->status === UserStatus::PendingApproval)
+                    ->visible(fn (User $record) => $record->status === UserStatus::Pending)
                     ->requiresConfirmation()
                     ->action(fn (User $record) => $record->update(['status' => UserStatus::Active])),
-                EditAction::make(),
-                DeleteAction::make(),
+                Action::make('suspend')
+                    ->label('Suspend')
+                    ->color('warning')
+                    ->iconButton()
+                    ->icon('heroicon-o-pause-circle')
+                    ->visible(fn (User $record) => $record->status === UserStatus::Active)
+                    ->requiresConfirmation()
+                    ->action(fn (User $record) => $record->update(['status' => UserStatus::Suspended])),
+                Action::make('permanentSuspend')
+                    ->label('Permanent Suspend')
+                    ->color('danger')
+                    ->iconButton()
+                    ->icon('heroicon-o-no-symbol')
+                    ->visible(fn (User $record) => $record->status !== UserStatus::PermanentSuspend)
+                    ->requiresConfirmation()
+                    ->action(fn (User $record) => $record->update(['status' => UserStatus::PermanentSuspend])),
+                Action::make('reactivate')
+                    ->label('Reactivate')
+                    ->color('success')
+                    ->iconButton()
+                    ->icon('heroicon-o-arrow-path')
+                    ->visible(fn (User $record) => in_array($record->status, [UserStatus::Suspended, UserStatus::PermanentSuspend], strict: true))
+                    ->requiresConfirmation()
+                    ->action(fn (User $record) => $record->update(['status' => UserStatus::Active])),
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

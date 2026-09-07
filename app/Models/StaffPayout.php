@@ -70,7 +70,7 @@ class StaffPayout extends Model
                 ->whereKey($pendingEarnings->pluck('id'))
                 ->update(['status' => StaffEarningStatus::Paid, 'payout_id' => $payout->id]);
 
-            $staff->staffProfile?->increment('total_paid', $totalAmount);
+            StaffProfile::firstOrCreateFor($staff)->increment('total_paid', $totalAmount);
 
             return $payout;
         });

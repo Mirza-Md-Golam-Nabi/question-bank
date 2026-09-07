@@ -391,9 +391,10 @@ livewire(ListUsers::class)
 
 1. Teacher/Staff/Student প্যানেলের Login page-এ শুধু "Continue with Google" বাটন — `/auth/google/redirect/{role}` → Google callback-এ email/`google_id` match করে existing user login, না পেলে নতুন `users` row তৈরি (session-এ রাখা intended role অনুযায়ী)।
 2. নতুন **Teacher/Student** একাউন্ট সাথে সাথে `status=active`।
-3. নতুন **Staff** একাউন্ট `status=pending_approval`-এ তৈরি হয় — Admin approve না করা পর্যন্ত Staff Panel middleware/policy তাকে ব্লক করবে ("অনুমোদনের অপেক্ষায়" পেজ দেখাবে), `QuestionResource`-এ কিছু করতে দেবে না।
+3. নতুন **Staff** একাউন্ট `status=pending`-এ তৈরি হয় — Admin approve না করা পর্যন্ত Staff Panel middleware/policy তাকে ব্লক করবে ("অনুমোদনের অপেক্ষায়" পেজ দেখাবে), `QuestionResource`-এ কিছু করতে দেবে না।
 4. **Admin Panel-এ পাবলিক Registration বন্ধ** (`->registration(false)`) — যে কেউ সাইনআপ করে Admin হতে পারবে না। প্রথম Super Admin `SuperAdminSeeder` দিয়ে তৈরি, এরপরের Admin Super Admin নিজে `AdminResource` থেকে বানাবে।
 5. `users.password_hash` শুধু `admin`/`super_admin`-এর জন্য filled থাকবে; বাকি রোলে সবসময় `null`। `users.google_id` উল্টোটা — শুধু Teacher/Staff/Student-এ filled।
+6. **`users.status` চারটা মান নিতে পারে:** `pending` (Staff-এর জন্য, Admin approve-এর অপেক্ষায়), `active`, `suspended`, `permanent_suspend`। Teacher/Staff দুই ক্ষেত্রেই Admin `suspended` করলে প্যানেলে ঢুকতে পারবে (Dashboard/Earning-এর মতো নিজের পেজ দেখতে পারবে), কিন্তু নতুন প্রশ্ন **add করতে পারবে না** (`QuestionPolicy::create()`-এ হার্ডকোড থাকবে)। `permanent_suspend` করলে পুরো প্যানেলে ঢোকাই ব্লক (`User::canAccessPanel()`-এ হার্ডকোড)।
 
 ### ২. Question Approval Visibility
 > **Teacher/Staff-এর তৈরি প্রশ্ন Admin approve করার আগ পর্যন্ত অন্য কোনো Teacher/Staff দেখতে বা exam-এ ব্যবহার করতে পারবে না — শুধু owner ও Admin দেখবে।**
@@ -460,7 +461,7 @@ livewire(ListUsers::class)
 |---|---|---|
 | Super Admin / Admin | সব প্রশ্ন/বোর্ড-পেপার দেখা/approve/reject, নতুন Admin ও Staff approve, Staff payout, Subscription plan ম্যানেজ | Student হিসেবে exam দেওয়া, Google flow দিয়ে সাইনআপ |
 | Teacher | নিজের প্রশ্ন CRUD, approved pool দেখা, exam তৈরি/শেয়ার (subscription-গেটেড) | Staff earning দেখা, অন্যের pending প্রশ্ন দেখা |
-| Staff | নিজের প্রশ্ন CRUD (pending/rejected), নিজের earning দেখা — Admin approve করার আগে **কিছুই না** (`status=pending_approval`) | exam তৈরি করা, অন্যের প্রশ্ন দেখা, approved pool ব্রাউজ করা |
+| Staff | নিজের প্রশ্ন CRUD (pending/rejected), নিজের earning দেখা — Admin approve করার আগে **কিছুই না** (`status=pending`); `suspended` হলে Dashboard/Earning দেখা যায় কিন্তু প্রশ্ন add করা যায় না | exam তৈরি করা, অন্যের প্রশ্ন দেখা, approved pool ব্রাউজ করা, `permanent_suspend` হলে প্যানেলে ঢোকা |
 | Student (Login) | নিজের attempt/result, নিজের subscription দিয়ে self-practice exam | প্রশ্ন দেখা exam-এর বাইরে, অন্যের result দেখা |
 | Student (Guest) | শুধু নির্দিষ্ট share-link-এর exam attempt দেওয়া | self-practice exam, লগইন-নির্ভর যেকোনো ফিচার |
 
@@ -496,7 +497,7 @@ app/
         BoardResource.php
         BoardQuestionPaperResource.php
         TeacherResource.php
-        StaffResource.php            ← approve action (pending_approval → active)
+        StaffResource.php            ← approve/suspend/permanentSuspend/reactivate actions
         QuestionRateResource.php
         StaffPayoutResource.php
         SubscriptionPlanResource.php
@@ -518,7 +519,7 @@ app/
       Pages/
         Auth/Login.php               ← custom, "Continue with Google" only
         MyEarnings.php
-        PendingApprovalNotice.php    ← status=pending_approval হলে দেখানো হবে
+        PendingApprovalNotice.php    ← status=pending হলে দেখানো হবে
     Student/
       Pages/
         Auth/Login.php               ← custom, "Continue with Google" only
@@ -596,7 +597,7 @@ php artisan make:observer QuestionObserver --model=Question
 
 ## Testing Priorities
 
-1. **Google auth flow:** নতুন email দিয়ে প্রথমবার Google login করলে সঠিক role-এ user তৈরি হয় (Teacher/Student → active, Staff → pending_approval); existing email হলে নতুন row তৈরি না হয়ে login হয়; role mismatch (Student একাউন্ট দিয়ে Teacher panel-এ ঢোকার চেষ্টা) ব্লক হয়।
+1. **Google auth flow:** নতুন email দিয়ে প্রথমবার Google login করলে সঠিক role-এ user তৈরি হয় (Teacher/Student → active, Staff → pending); existing email হলে নতুন row তৈরি না হয়ে login হয়; role mismatch (Student একাউন্ট দিয়ে Teacher panel-এ ঢোকার চেষ্টা) ব্লক হয়। Suspended Teacher/Staff Dashboard/Earning দেখতে পারে কিন্তু প্রশ্ন add করতে পারে না; permanently suspended হলে প্যানেলে ঢোকাই ব্লক হয়।
 2. **Staff pending approval:** নতুন Staff একাউন্ট approve না হওয়া পর্যন্ত Staff Panel-এর কোনো action করতে পারে না; Admin approve করার পর সব কাজ করতে পারে।
 3. **Question visibility:** Teacher A/Staff A-এর প্রশ্ন Teacher B/Staff B-এর কাছে অদৃশ্য থাকে যতক্ষণ না approve হয়।
 4. **Versioning:** Approved প্রশ্ন এডিট করলে নতুন pending row তৈরি হয় (CQ হলে parts-ও কপি হয়), পুরনো exam-গুলো ভাঙে না।

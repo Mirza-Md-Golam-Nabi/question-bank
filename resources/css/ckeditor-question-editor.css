@@ -125,3 +125,9 @@
     font-style: italic;
     color: #9ca3af;
 }
+
+/* MCQ option editor (CkEditorField ->compact()) — short single-line content,
+   so it gets a much shorter editing area than the full question/CQ editors. */
+.qb-ck-editor-host--compact .ck-editor__editable {
+    min-height: 2.5rem;
+}

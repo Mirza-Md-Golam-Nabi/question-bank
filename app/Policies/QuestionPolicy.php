@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Enums\QuestionStatus;
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\Question;
 use App\Models\User;
 
@@ -17,6 +18,15 @@ class QuestionPolicy
     public function view(User $user, Question $question): bool
     {
         return $this->isOwner($user, $question) || $this->isVisibleApproved($question) || $this->isAdmin($user);
+    }
+
+    /**
+     * A suspended Teacher/Staff keeps read access to their existing
+     * questions but may not add new ones.
+     */
+    public function create(User $user): bool
+    {
+        return $user->status === UserStatus::Active;
     }
 
     public function update(User $user, Question $question): bool

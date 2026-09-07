@@ -3,34 +3,22 @@
 namespace App\Filament\Resources\Questions\Pages;
 
 use App\Filament\Resources\Questions\QuestionResource;
-use App\Models\AcademicClass;
+use App\Filament\Support\Pages\Questions\BrowseSubjectsPage;
 use App\Models\ClassSubject;
 use App\Models\Subject;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Resources\Pages\Page;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
-class BrowseSubjects extends Page
+class BrowseSubjects extends BrowseSubjectsPage
 {
     protected static string $resource = QuestionResource::class;
 
-    protected string $view = 'filament.resources.questions.pages.browse-subjects';
-
-    public AcademicClass|int|string $class;
-
-    public function mount(int|string $class): void
+    public function canManageContent(): bool
     {
-        $this->class = AcademicClass::findOrFail($class);
-    }
-
-    public function getTitle(): string|Htmlable
-    {
-        return "{$this->class->name} — Subjects";
+        return true;
     }
 
     protected function getHeaderActions(): array
@@ -106,18 +94,5 @@ class BrowseSubjects extends Page
             ->color('danger')
             ->requiresConfirmation()
             ->action(fn (array $arguments) => ClassSubject::findOrFail($arguments['classSubject'])->delete());
-    }
-
-    public function subjects(): Collection
-    {
-        return ClassSubject::query()
-            ->where('academic_class_id', $this->class->id)
-            ->with('subject')
-            ->withCount([
-                'chapters',
-                'questions as questions_count' => fn ($query) => $query->where('is_latest', true),
-            ])
-            ->ordered()
-            ->get();
     }
 }

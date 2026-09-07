@@ -22,6 +22,8 @@ class TeacherResource extends Resource
 {
     protected static ?string $model = User::class;
 
+    protected static ?string $navigationLabel = 'Teachers';
+
     protected static ?string $slug = 'teachers';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAcademicCap;

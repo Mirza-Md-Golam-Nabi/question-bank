@@ -12,7 +12,14 @@ import 'katex/dist/katex.min.css';
  * math.
  */
 window.renderKatexEmbeds = function renderKatexEmbeds(root = document) {
-    root.querySelectorAll('.qb-katex-embed:not(.qb-katex-embed--rendered)').forEach((el) => {
+    // Livewire's `morph.added`/`morph.updated` hooks pass the exact element
+    // that was patched, which can itself be a `.qb-katex-embed` span rather
+    // than a container around one — querySelectorAll alone only searches
+    // descendants, so it would silently skip that case.
+    const isEmbed = root instanceof Element && root.matches('.qb-katex-embed:not(.qb-katex-embed--rendered)');
+    const targets = isEmbed ? [root] : root.querySelectorAll('.qb-katex-embed:not(.qb-katex-embed--rendered)');
+
+    targets.forEach((el) => {
         const latex = el.textContent;
         el.classList.add('qb-katex-embed--rendered');
         el.innerHTML = '';
@@ -50,4 +57,13 @@ document.addEventListener('livewire:navigated', scheduleRenderKatexEmbeds);
 new MutationObserver(scheduleRenderKatexEmbeds).observe(document.body, {
     childList: true,
     subtree: true,
+});
+
+// Belt-and-suspenders for Filament action modals rendered inside a
+// `wire:partial` region, which Livewire can patch in place in a way the
+// MutationObserver above misses — see ckeditor-question-editor.js for the
+// full explanation. A no-op on pages with no Livewire (the guest exam flow).
+document.addEventListener('livewire:init', () => {
+    Livewire.hook('morph.added', ({ el }) => window.renderKatexEmbeds(el));
+    Livewire.hook('morph.updated', ({ el }) => window.renderKatexEmbeds(el));
 });

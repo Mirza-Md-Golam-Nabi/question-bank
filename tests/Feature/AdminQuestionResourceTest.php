@@ -50,6 +50,13 @@ it('still applies every field\'s default value when arriving from a chapter\'s "
         ]);
 });
 
+it('shows 4 default mcq option rows on the create page', function () {
+    $test = livewire(CreateQuestion::class);
+    $test->html();
+
+    expect($test->instance()->data['options'] ?? [])->toHaveCount(4);
+});
+
 it('shows the question preview panel in both editor modes', function () {
     livewire(CreateQuestion::class)
         ->assertSee('qb-question-preview', escape: false)
@@ -92,6 +99,79 @@ it('renders the uploaded diagram image inside the preview panel', function () {
 });
 
 it('defaults question_text to the Rich Text editor', function () {
+    livewire(CreateQuestion::class)
+        ->assertFormSet(['editor_mode' => EditorMode::RichText]);
+});
+
+it('remembers the last editor a user saved a question with and defaults new questions to it', function () {
+    $classSubject = ClassSubject::find($this->chapter->class_subject_id);
+
+    livewire(CreateQuestion::class)
+        ->fillForm([
+            'academic_class_id' => $classSubject->academic_class_id,
+            'class_subject_id' => $classSubject->id,
+            'chapter_id' => $this->chapter->id,
+            'question_type' => 'mcq',
+            'editor_mode' => 'ckeditor',
+            'difficulty' => 'easy',
+            'question_text' => '<p>Question one</p>',
+            'marks' => 1,
+            'options' => [
+                ['option' => '3', 'is_correct' => false],
+                ['option' => '4', 'is_correct' => true],
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    livewire(CreateQuestion::class)
+        ->assertFormSet(['editor_mode' => EditorMode::CkEditor]);
+
+    livewire(CreateQuestion::class)
+        ->fillForm([
+            'academic_class_id' => $classSubject->academic_class_id,
+            'class_subject_id' => $classSubject->id,
+            'chapter_id' => $this->chapter->id,
+            'question_type' => 'mcq',
+            'editor_mode' => 'richtext',
+            'difficulty' => 'easy',
+            'question_text' => '<p>Question two</p>',
+            'marks' => 1,
+            'options' => [
+                ['option' => '3', 'is_correct' => false],
+                ['option' => '4', 'is_correct' => true],
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    livewire(CreateQuestion::class)
+        ->assertFormSet(['editor_mode' => EditorMode::RichText]);
+});
+
+it('does not leak one user\'s editor preference into another user\'s default', function () {
+    $classSubject = ClassSubject::find($this->chapter->class_subject_id);
+
+    livewire(CreateQuestion::class)
+        ->fillForm([
+            'academic_class_id' => $classSubject->academic_class_id,
+            'class_subject_id' => $classSubject->id,
+            'chapter_id' => $this->chapter->id,
+            'question_type' => 'mcq',
+            'editor_mode' => 'ckeditor',
+            'difficulty' => 'easy',
+            'question_text' => '<p>Question</p>',
+            'marks' => 1,
+            'options' => [
+                ['option' => '3', 'is_correct' => false],
+                ['option' => '4', 'is_correct' => true],
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $this->actingAs(User::factory()->admin()->create());
+
     livewire(CreateQuestion::class)
         ->assertFormSet(['editor_mode' => EditorMode::RichText]);
 });
@@ -168,7 +248,7 @@ it('creates an auto-approved mcq question as admin', function () {
     expect($question->status)->toBe(QuestionStatus::Approved);
     expect($question->approved_by)->toBe($this->admin->id);
     expect($question->options)->toHaveCount(2);
-    expect($question->correct_answer)->toBe('4');
+    expect(collect($question->options)->firstWhere('is_correct', true)['option'])->toBe('4');
 });
 
 it('creates a cq question with 4 parts and auto-sums the marks', function () {
@@ -236,12 +316,7 @@ it('turns an edit of an approved question into a new pending revision', function
             'difficulty' => 'easy',
             'question_text' => '<p>Edited text</p>',
             'marks' => 1,
-            'options' => collect($question->options)
-                ->map(fn (array $option) => [
-                    ...$option,
-                    'is_correct' => $option['option'] === $question->correct_answer,
-                ])
-                ->all(),
+            'options' => $question->options,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -268,10 +343,9 @@ it('opens the View action without error for an mcq question', function () {
         'editor_mode' => EditorMode::CkEditor,
         'question_text' => '<p>Pythagoras: <span class="qb-katex-embed">a^2 + b^2 = c^2</span></p>',
         'options' => [
-            ['option' => 'Three', 'image' => null],
-            ['option' => 'Four', 'image' => null],
+            ['option' => 'Three', 'image' => null, 'is_correct' => false],
+            ['option' => 'Four', 'image' => null, 'is_correct' => true],
         ],
-        'correct_answer' => 'Four',
     ]);
 
     livewire(ListQuestions::class, ['chapter' => $this->chapter->id])

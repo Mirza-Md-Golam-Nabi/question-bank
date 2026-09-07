@@ -28,6 +28,7 @@ class StudentPanelProvider extends PanelProvider
         return QuestionEditorAssets::registerKatexRendererOn($panel
             ->id('student')
             ->path('student')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
             ->colors([
                 'primary' => Color::Indigo,

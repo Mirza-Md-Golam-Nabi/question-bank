@@ -3,17 +3,9 @@
 namespace App\Filament\Staff\Resources\Questions\Pages;
 
 use App\Filament\Staff\Resources\Questions\QuestionResource;
-use Filament\Actions\CreateAction;
-use Filament\Resources\Pages\ListRecords;
+use App\Filament\Support\Pages\Questions\ListQuestionsByChapterPage;
 
-class ListQuestions extends ListRecords
+class ListQuestions extends ListQuestionsByChapterPage
 {
     protected static string $resource = QuestionResource::class;
-
-    protected function getHeaderActions(): array
-    {
-        return [
-            CreateAction::make(),
-        ];
-    }
 }

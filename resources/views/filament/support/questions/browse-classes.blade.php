@@ -16,7 +16,7 @@
 
             <div class="group relative flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-gray-900">
                 <a
-                    href="{{ \App\Filament\Resources\Questions\QuestionResource::getUrl('subjects', ['class' => $class->id]) }}"
+                    href="{{ $this->getResource()::getUrl('subjects', ['class' => $class->id]) }}"
                     wire:navigate
                     class="absolute inset-0 z-0"
                     aria-label="{{ $class->name }}"
@@ -40,39 +40,47 @@
                     </div>
                 </div>
 
-                <div class="absolute right-1.5 top-1.5 z-20 lg:right-2 lg:top-2">
-                    <x-filament::dropdown placement="bottom-end">
-                        <x-slot name="trigger">
-                            <button
-                                type="button"
-                                class="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-gray-600 opacity-100 backdrop-blur transition hover:bg-white md:opacity-0 md:group-hover:opacity-100 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:bg-gray-900 lg:h-8 lg:w-8"
-                            >
-                                <x-filament::icon icon="heroicon-m-ellipsis-vertical" class="h-4 w-4" />
-                            </button>
-                        </x-slot>
+                @if ($this->canManageContent())
+                    <div class="absolute right-1.5 top-1.5 z-20 lg:right-2 lg:top-2">
+                        <x-filament::dropdown placement="bottom-end">
+                            <x-slot name="trigger">
+                                <button
+                                    type="button"
+                                    class="flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-gray-600 opacity-100 backdrop-blur transition hover:bg-white md:opacity-0 md:group-hover:opacity-100 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:bg-gray-900 lg:h-8 lg:w-8"
+                                >
+                                    <x-filament::icon icon="heroicon-m-ellipsis-vertical" class="h-4 w-4" />
+                                </button>
+                            </x-slot>
 
-                        <x-filament::dropdown.list>
-                            <x-filament::dropdown.list.item
-                                icon="heroicon-o-pencil-square"
-                                wire:click="mountAction('editClass', { class: {{ $class->id }} })"
-                            >
-                                Edit
-                            </x-filament::dropdown.list.item>
-                            <x-filament::dropdown.list.item
-                                icon="heroicon-o-trash"
-                                color="danger"
-                                wire:click="mountAction('deleteClass', { class: {{ $class->id }} })"
-                            >
-                                Delete
-                            </x-filament::dropdown.list.item>
-                        </x-filament::dropdown.list>
-                    </x-filament::dropdown>
-                </div>
+                            <x-filament::dropdown.list>
+                                <x-filament::dropdown.list.item
+                                    icon="heroicon-o-pencil-square"
+                                    wire:click="mountAction('editClass', { class: {{ $class->id }} })"
+                                >
+                                    Edit
+                                </x-filament::dropdown.list.item>
+                                <x-filament::dropdown.list.item
+                                    icon="heroicon-o-trash"
+                                    color="danger"
+                                    wire:click="mountAction('deleteClass', { class: {{ $class->id }} })"
+                                >
+                                    Delete
+                                </x-filament::dropdown.list.item>
+                            </x-filament::dropdown.list>
+                        </x-filament::dropdown>
+                    </div>
+                @endif
             </div>
         @empty
             <div class="col-span-full">
                 <x-filament::section>
-                    <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">No classes yet. Add one to get started.</p>
+                    <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
+                        @if ($this->canManageContent())
+                            No classes yet. Add one to get started.
+                        @else
+                            No classes yet.
+                        @endif
+                    </p>
                 </x-filament::section>
             </div>
         @endforelse

@@ -15,16 +15,13 @@ class BoardMcqQuestionFactory extends Factory
 
     public function definition(): array
     {
-        $correctOption = fake()->unique()->word();
-
         return [
             'board_question_paper_id' => BoardQuestionPaper::factory(),
             'question_text' => '<p>'.fake()->sentence().'?</p>',
             'options' => [
-                ['option' => $correctOption, 'image' => null],
-                ['option' => fake()->unique()->word(), 'image' => null],
+                ['option' => fake()->unique()->word(), 'image' => null, 'is_correct' => true],
+                ['option' => fake()->unique()->word(), 'image' => null, 'is_correct' => false],
             ],
-            'correct_answer' => $correctOption,
             'marks' => 1,
             'order_index' => 0,
         ];

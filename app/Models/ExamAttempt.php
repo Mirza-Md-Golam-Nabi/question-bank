@@ -44,10 +44,11 @@ class ExamAttempt extends Model
     }
 
     /**
-     * Auto-grades every MCQ answer against the question's correct_answer and
-     * sums the result into total_score. CQ answers are left for a teacher to
-     * grade manually (obtained_marks stays whatever it already was — 0 by
-     * default) — only the MCQ portion of total_score is ever computed here.
+     * Auto-grades every MCQ answer against whichever of the question's
+     * `options` carries `is_correct` and sums the result into total_score.
+     * CQ answers are left for a teacher to grade manually (obtained_marks
+     * stays whatever it already was — 0 by default) — only the MCQ portion
+     * of total_score is ever computed here.
      */
     public function submitAndAutoGrade(): void
     {
@@ -60,7 +61,10 @@ class ExamAttempt extends Model
                 continue;
             }
 
-            $isCorrect = $answer->student_answer === $question->correct_answer;
+            $correctOption = collect($question->options)
+                ->first(fn (array $option) => (bool) ($option['is_correct'] ?? false));
+
+            $isCorrect = $correctOption && $answer->student_answer === $correctOption['option'];
             $marks = $examQuestionsById->get($question->id)?->pivot?->marks_override ?? $question->marks;
 
             $answer->update([
