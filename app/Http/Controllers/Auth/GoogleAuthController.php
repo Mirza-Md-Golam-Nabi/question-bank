@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Illuminate\Http\RedirectResponse;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -37,9 +38,12 @@ class GoogleAuthController extends Controller
             ->first();
 
         if ($user && $user->role !== $intendedRole) {
-            return redirect()
-                ->route("filament.{$intendedRole->panelId()}.auth.login")
-                ->withErrors(['email' => 'এই ইমেইলটি অন্য একটি রোলের সাথে যুক্ত।']);
+            Notification::make()
+                ->title('এই ইমেইলটি অন্য একটি রোলের সাথে যুক্ত।')
+                ->danger()
+                ->send();
+
+            return redirect()->route("filament.{$intendedRole->panelId()}.auth.login");
         }
 
         $user = $user
