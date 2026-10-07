@@ -73,7 +73,7 @@ it('refuses to run the admin-only class/subject/chapter management actions for s
     expect(fn () => livewire(BrowseClasses::class)->callAction('createClass', data: ['name' => 'Class 10', 'order_index' => 1]))
         ->toThrow(Exception::class);
 
-    expect(fn () => livewire(BrowseSubjects::class, ['class' => $class->id])->callAction('attachSubject', data: ['subject_id' => $subject->id, 'order_index' => 1]))
+    expect(fn () => livewire(BrowseSubjects::class, ['class' => $class->id])->callAction('attachSubject', data: ['subject_ids' => [$subject->id], 'order_index' => 1]))
         ->toThrow(Exception::class);
 
     expect(fn () => livewire(BrowseChapters::class, ['class' => $class->id, 'classSubject' => $classSubject->id])->callAction('createChapter', data: ['name' => 'Chapter 1', 'order_index' => 1]))

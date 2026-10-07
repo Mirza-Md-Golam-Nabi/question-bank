@@ -12,8 +12,8 @@ enum PaymentMethod: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::MobileBanking => 'Mobile Banking',
-            self::Bank => 'Bank',
+            self::MobileBanking => __('Mobile Banking'),
+            self::Bank => __('Bank'),
         };
     }
 }

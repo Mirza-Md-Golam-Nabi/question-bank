@@ -12,8 +12,8 @@ enum ExamType: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::TeacherExam => 'Teacher Exam',
-            self::SelfPractice => 'Self Practice',
+            self::TeacherExam => __('Teacher Exam'),
+            self::SelfPractice => __('Self Practice'),
         };
     }
 }

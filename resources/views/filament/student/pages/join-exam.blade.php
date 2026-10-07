@@ -3,7 +3,7 @@
         {{ $this->form }}
 
         <x-filament::button type="submit">
-            Join exam
+            {{ __('Join exam') }}
         </x-filament::button>
     </form>
 </x-filament-panels::page>

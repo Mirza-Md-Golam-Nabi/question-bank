@@ -37,7 +37,7 @@ class BoardQuestionPaperFormSchema
         return [
             Grid::make(3)->schema([
                 Select::make('board_id')
-                    ->label('Board')
+                    ->label(__('Board'))
                     ->options(fn () => Board::ordered()->pluck('name', 'id'))
                     ->searchable()
                     ->preload()
@@ -61,20 +61,20 @@ class BoardQuestionPaperFormSchema
             ),
 
             Tabs::make('Questions')->tabs([
-                Tabs\Tab::make('MCQ')->schema([
+                Tabs\Tab::make(__('MCQ'))->schema([
                     Repeater::make('mcq_questions')
-                        ->label('MCQ questions')
+                        ->label(__('MCQ questions'))
                         ->schema(static::mcqQuestionComponents())
-                        ->addActionLabel('Add MCQ question')
+                        ->addActionLabel(__('Add MCQ question'))
                         ->reorderable()
                         ->collapsible()
                         ->itemLabel(fn (array $state): ?string => strip_tags($state['question_text'] ?? '') ?: null),
                 ]),
-                Tabs\Tab::make('CQ')->schema([
+                Tabs\Tab::make(__('CQ'))->schema([
                     Repeater::make('cq_questions')
-                        ->label('CQ questions')
+                        ->label(__('CQ questions'))
                         ->schema(static::cqQuestionComponents())
-                        ->addActionLabel('Add CQ question')
+                        ->addActionLabel(__('Add CQ question'))
                         ->reorderable()
                         ->collapsible()
                         ->itemLabel(fn (array $state): ?string => strip_tags($state['question_text'] ?? '') ?: null),
@@ -89,8 +89,8 @@ class BoardQuestionPaperFormSchema
     protected static function mcqQuestionComponents(): array
     {
         return [
-            RichEditor::make('question_text')->label('Question text')->required(),
-            FileUpload::make('question_image')->label('Image (optional)')->image()->disk('public')->visibility('public')->directory('board-mcq-questions'),
+            RichEditor::make('question_text')->label(__('Question text'))->required(),
+            FileUpload::make('question_image')->label(__('Image (optional)'))->image()->disk('public')->visibility('public')->directory('board-mcq-questions'),
             Repeater::make('options')
                 ->schema(static::mcqOptionComponents())
                 ->columns(2)
@@ -110,12 +110,12 @@ class BoardQuestionPaperFormSchema
     {
         return [
             TextInput::make('option')
-                ->label('Option')
+                ->label(__('Option'))
                 ->required()
                 ->columnSpanFull(),
 
             Checkbox::make('is_correct')
-                ->label('Correct answer')
+                ->label(__('Correct answer'))
                 ->live()
                 ->afterStateUpdated(function (bool $state, Checkbox $component, Get $get, Set $set) {
                     if (! $state) {
@@ -133,12 +133,12 @@ class BoardQuestionPaperFormSchema
                 }),
 
             Checkbox::make('has_image')
-                ->label('Add image')
+                ->label(__('Add image'))
                 ->live()
                 ->dehydrated(false),
 
             FileUpload::make('image')
-                ->label('Image')
+                ->label(__('Image'))
                 ->image()
                 ->disk('public')->visibility('public')
                 ->directory('board-mcq-options')
@@ -159,7 +159,7 @@ class BoardQuestionPaperFormSchema
                 return;
             }
 
-            $fail('Mark one option as the correct answer.');
+            $fail(__('Mark one option as the correct answer.'));
         };
     }
 
@@ -169,13 +169,13 @@ class BoardQuestionPaperFormSchema
     protected static function cqQuestionComponents(): array
     {
         return [
-            RichEditor::make('question_text')->label('উদ্দীপক (Stimulus)')->required(),
-            FileUpload::make('question_image')->label('Image (optional)')->image()->disk('public')->visibility('public')->directory('board-cq-questions'),
+            RichEditor::make('question_text')->label(__('Stimulus'))->required(),
+            FileUpload::make('question_image')->label(__('Image (optional)'))->image()->disk('public')->visibility('public')->directory('board-cq-questions'),
             ...collect(CqPartType::ordered())
                 ->map(fn (CqPartType $partType) => Section::make($partType->getLabel())
                     ->schema([
-                        RichEditor::make("cq_parts.{$partType->value}.text")->label('Sub-question text')->required(),
-                        TextInput::make("cq_parts.{$partType->value}.marks")->label('Marks')->numeric()->step(0.5)->minValue(0.5)->default(1)->required(),
+                        RichEditor::make("cq_parts.{$partType->value}.text")->label(__('Sub-question text'))->required(),
+                        TextInput::make("cq_parts.{$partType->value}.marks")->label(__('Marks'))->numeric()->step(0.5)->minValue(0.5)->default(1)->required(),
                     ])
                     ->columns(2))
                 ->all(),

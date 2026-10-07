@@ -1,6 +1,6 @@
 <x-filament::section>
     <x-slot name="heading">
-        {{ __('বর্তমান রেট (প্রতি প্রশ্ন)') }}
+        {{ __('Current rates (per question)') }}
     </x-slot>
 
     <table class="fi-ta-table w-full text-start [&_*]:text-xs! lg:[&_*]:text-sm!">
@@ -18,7 +18,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td class="p-2" colspan="2">{{ __('কোনো সাবজেক্ট পাওয়া যায়নি।') }}</td>
+                    <td class="p-2" colspan="2">{{ __('No subjects found.') }}</td>
                 </tr>
             @endforelse
         </tbody>

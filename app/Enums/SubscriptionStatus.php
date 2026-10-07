@@ -13,9 +13,9 @@ enum SubscriptionStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Active => 'Active',
-            self::Expired => 'Expired',
-            self::Cancelled => 'Cancelled',
+            self::Active => __('Active'),
+            self::Expired => __('Expired'),
+            self::Cancelled => __('Cancelled'),
         };
     }
 }

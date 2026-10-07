@@ -87,3 +87,22 @@ it('shifts the affected range when a chapter moves later in the order', function
     expect($chapter2->refresh()->order_index)->toBe(1);
     expect($chapter3->refresh()->order_index)->toBe(2);
 });
+
+it('keeps the add chapter modal open with the next display order when adding another', function () {
+    $class = AcademicClass::factory()->create();
+    $subject = Subject::factory()->create();
+    $classSubject = ClassSubject::create(['academic_class_id' => $class->id, 'subject_id' => $subject->id]);
+
+    livewire(BrowseChapters::class, ['class' => $class->id, 'classSubject' => $classSubject->id])
+        ->callAction('createChapter', data: ['name' => 'Algebra', 'order_index' => 1], arguments: ['another' => true])
+        ->assertHasNoActionErrors()
+        ->assertActionHalted('createChapter')
+        ->assertSchemaStateSet(['name' => null, 'order_index' => 2])
+        ->fillForm(['name' => 'Geometry'])
+        ->callMountedAction(['another' => true])
+        ->assertHasNoActionErrors()
+        ->assertSchemaStateSet(['name' => null, 'order_index' => 3]);
+
+    expect(Chapter::where('class_subject_id', $classSubject->id)->orderBy('order_index')->pluck('order_index', 'name')->all())
+        ->toBe(['Algebra' => 1, 'Geometry' => 2]);
+});

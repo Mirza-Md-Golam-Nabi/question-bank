@@ -52,7 +52,7 @@ class QuestionFormSchema
                             ]),
 
                         FileUpload::make('question_image')
-                            ->label('Diagram / image (optional)')
+                            ->label(__('Diagram / image (optional)'))
                             ->image()
                             ->disk('public')->visibility('public')
                             ->directory('questions')
@@ -106,7 +106,7 @@ class QuestionFormSchema
                             ->visible(fn (Get $get) => $get('question_type') === QuestionType::Mcq),
 
                         Radio::make('editor_mode')
-                            ->label('Editor')
+                            ->label(__('Editor'))
                             ->options(EditorMode::class)
                             // Defaults to whichever editor this user saved a
                             // question with last time (EditorModePreference),
@@ -193,7 +193,7 @@ class QuestionFormSchema
             : RichEditor::make('question_text')->live(debounce: '500ms');
 
         return $component
-            ->label(fn (Get $get) => $get('question_type') === QuestionType::Cq ? 'উদ্দীপক (Stimulus)' : 'Question text')
+            ->label(fn (Get $get) => $get('question_type') === QuestionType::Cq ? __('Stimulus') : __('Question text'))
             ->required();
     }
 
@@ -204,11 +204,11 @@ class QuestionFormSchema
     {
         return [
             Repeater::make('options')
-                ->label('Options')
+                ->label(__('Options'))
                 ->schema(static::mcqOptionComponents())
                 ->columns(2)
                 ->grid(4)
-                ->addActionLabel('Add option')
+                ->addActionLabel(__('Add option'))
                 ->defaultItems(4)
                 ->minItems(2)
                 ->maxItems(6)
@@ -226,13 +226,13 @@ class QuestionFormSchema
     {
         return [
             CkEditorField::make('option')
-                ->label('Option')
+                ->label(__('Option'))
                 ->compact()
                 ->required()
                 ->columnSpanFull(),
 
             Checkbox::make('is_correct')
-                ->label('Correct answer')
+                ->label(__('Correct answer'))
                 ->live()
                 ->afterStateUpdated(function (bool $state, Checkbox $component, Get $get, Set $set) {
                     if (! $state) {
@@ -250,12 +250,12 @@ class QuestionFormSchema
                 }),
 
             Checkbox::make('has_image')
-                ->label('Add image')
+                ->label(__('Add image'))
                 ->live()
                 ->dehydrated(false),
 
             FileUpload::make('image')
-                ->label('Image')
+                ->label(__('Image'))
                 ->image()
                 ->disk('public')->visibility('public')
                 ->directory('question-options')
@@ -276,7 +276,7 @@ class QuestionFormSchema
                 return;
             }
 
-            $fail('Mark one option as the correct answer.');
+            $fail(__('Mark one option as the correct answer.'));
         };
     }
 
@@ -289,15 +289,15 @@ class QuestionFormSchema
             ->map(fn (CqPartType $partType) => Section::make($partType->getLabel())
                 ->schema([
                     RichEditor::make("cq_parts.{$partType->value}.text")
-                        ->label('Sub-question text')
+                        ->label(__('Sub-question text'))
                         ->required(),
                     FileUpload::make("cq_parts.{$partType->value}.image")
-                        ->label('Image (optional)')
+                        ->label(__('Image (optional)'))
                         ->image()
                         ->disk('public')->visibility('public')
                         ->directory('question-cq-parts'),
                     TextInput::make("cq_parts.{$partType->value}.marks")
-                        ->label('Marks')
+                        ->label(__('Marks'))
                         ->numeric()
                         ->step(0.5)
                         ->minValue(0.5)

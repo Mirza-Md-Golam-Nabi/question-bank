@@ -36,11 +36,11 @@
                                 <div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
                                     <span class="inline-flex items-center gap-1">
                                         <x-filament::icon icon="heroicon-o-bookmark-square" class="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
-                                        {{ $classSubject->chapters_count }} {{ \Illuminate\Support\Str::plural('Chapter', $classSubject->chapters_count) }}
+                                        {{ trans_choice(':count Chapter|:count Chapters', $classSubject->chapters_count) }}
                                     </span>
                                     <span class="inline-flex items-center gap-1">
                                         <x-filament::icon icon="heroicon-o-question-mark-circle" class="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
-                                        {{ $classSubject->questions_count }} {{ \Illuminate\Support\Str::plural('Question', $classSubject->questions_count) }}
+                                        {{ trans_choice(':count Question|:count Questions', $classSubject->questions_count) }}
                                     </span>
                                 </div>
                             </div>
@@ -64,14 +64,14 @@
                                         icon="heroicon-o-arrows-up-down"
                                         wire:click="mountAction('editSubjectOrder', { classSubject: {{ $classSubject->id }} })"
                                     >
-                                        Change order
+                                        {{ __('Change order') }}
                                     </x-filament::dropdown.list.item>
                                     <x-filament::dropdown.list.item
                                         icon="heroicon-o-x-mark"
                                         color="danger"
                                         wire:click="mountAction('detachSubject', { classSubject: {{ $classSubject->id }} })"
                                     >
-                                        Remove
+                                        {{ __('Remove') }}
                                     </x-filament::dropdown.list.item>
                                 </x-filament::dropdown.list>
                             </x-filament::dropdown>
@@ -81,7 +81,7 @@
             @empty
                 <div class="col-span-full">
                     <x-filament::section>
-                        <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">No subjects attached to this class yet.</p>
+                        <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">{{ __('No subjects attached to this class yet.') }}</p>
                     </x-filament::section>
                 </div>
             @endforelse

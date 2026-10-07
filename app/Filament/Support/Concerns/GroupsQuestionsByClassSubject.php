@@ -33,8 +33,8 @@ trait GroupsQuestionsByClassSubject
                 $classSubject = $questions->first()->chapter->classSubject;
 
                 return [
-                    'class' => $classSubject?->academicClass->name ?? 'Unknown',
-                    'subject' => $classSubject?->subject->name ?? 'Unknown',
+                    'class' => $classSubject?->academicClass->name ?? __('Unknown'),
+                    'subject' => $classSubject?->subject->name ?? __('Unknown'),
                     'count' => $questions->count(),
                 ];
             })

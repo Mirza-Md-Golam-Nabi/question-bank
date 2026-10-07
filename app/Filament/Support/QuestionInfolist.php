@@ -28,12 +28,12 @@ class QuestionInfolist
     {
         return [
             Grid::make(4)->schema([
-                TextEntry::make('chapter.classSubject.academicClass.name')->label('Class'),
-                TextEntry::make('chapter.classSubject.subject.name')->label('Subject'),
-                TextEntry::make('chapter.name')->label('Chapter'),
-                TextEntry::make('topic.name')->label('Topic')->placeholder('—'),
+                TextEntry::make('chapter.classSubject.academicClass.name')->label(__('Class')),
+                TextEntry::make('chapter.classSubject.subject.name')->label(__('Subject')),
+                TextEntry::make('chapter.name')->label(__('Chapter')),
+                TextEntry::make('topic.name')->label(__('Topic'))->placeholder('—'),
 
-                TextEntry::make('question_type')->label('Type')->badge(),
+                TextEntry::make('question_type')->label(__('Type'))->badge(),
                 TextEntry::make('difficulty')->badge(),
                 TextEntry::make('marks'),
                 TextEntry::make('status')
@@ -41,13 +41,13 @@ class QuestionInfolist
                     ->color(fn (QuestionStatus $state) => $state->getColor()),
 
                 TextEntry::make('editor_mode')
-                    ->label('Editor')
+                    ->label(__('Editor'))
                     ->badge()
                     ->color(fn (EditorMode $state) => $state === EditorMode::CkEditor ? 'warning' : 'info'),
             ]),
 
             TextEntry::make('question_text')
-                ->label(fn (Question $record) => $record->question_type === QuestionType::Cq ? 'উদ্দীপক (Stimulus)' : 'Question text')
+                ->label(fn (Question $record) => $record->question_type === QuestionType::Cq ? __('Stimulus') : __('Question text'))
                 ->html()
                 ->columnSpanFull(),
 
@@ -56,7 +56,7 @@ class QuestionInfolist
                 ->visible(fn (Question $record) => filled($record->question_image))
                 ->columnSpanFull(),
 
-            Section::make('Options')
+            Section::make(__('Options'))
                 ->visible(fn (Question $record) => $record->question_type === QuestionType::Mcq)
                 ->schema([
                     RepeatableEntry::make('options')
@@ -66,7 +66,7 @@ class QuestionInfolist
                             TextEntry::make('is_correct')
                                 ->hiddenLabel()
                                 ->visible(fn (?bool $state) => (bool) $state)
-                                ->formatStateUsing(fn () => '✓ সঠিক উত্তর')
+                                ->formatStateUsing(fn () => __('✓ Correct answer'))
                                 ->badge()
                                 ->color('success'),
                         ])
@@ -74,18 +74,18 @@ class QuestionInfolist
                         ->columnSpanFull(),
                 ]),
 
-            Section::make('CQ Parts')
+            Section::make(__('CQ Parts'))
                 ->visible(fn (Question $record) => $record->question_type === QuestionType::Cq)
                 ->schema([
                     RepeatableEntry::make('cqParts')
                         ->hiddenLabel()
                         ->schema([
-                            TextEntry::make('part_type')->label('Part')->badge(),
+                            TextEntry::make('part_type')->label(__('Part'))->badge(),
                             TextEntry::make('part_text')->hiddenLabel()->html(),
                             ImageEntry::make('part_image')
                                 ->hiddenLabel()
                                 ->visible(fn ($record) => filled($record->part_image)),
-                            TextEntry::make('marks')->label('Marks'),
+                            TextEntry::make('marks')->label(__('Marks')),
                         ]),
                 ]),
         ];

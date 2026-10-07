@@ -14,10 +14,10 @@ enum UserStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Pending => 'Pending',
-            self::Active => 'Active',
-            self::Suspended => 'Suspended',
-            self::PermanentSuspend => 'Permanent Suspend',
+            self::Pending => __('Pending'),
+            self::Active => __('Active'),
+            self::Suspended => __('Suspended'),
+            self::PermanentSuspend => __('Permanent Suspend'),
         };
     }
 }

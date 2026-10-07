@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Subjects;
 
 use App\Filament\Resources\Subjects\Pages\ManageSubjects;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\Subject;
 use BackedEnum;
@@ -19,6 +20,8 @@ use Filament\Tables\Table;
 
 class SubjectResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = Subject::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBookOpen;
@@ -30,7 +33,15 @@ class SubjectResource extends Resource
         return $schema
             ->components([
                 TextInput::make('name')
+                    ->label(__('Name (English)'))
                     ->required()
+                    ->unique(ignoreRecord: true),
+                TextInput::make('name_bn')
+                    ->label(__('Name (Bangla)'))
+                    ->unique(ignoreRecord: true),
+                TextInput::make('short_name')
+                    ->label(__('Short name'))
+                    ->maxLength(20)
                     ->unique(ignoreRecord: true),
             ]);
     }
@@ -39,13 +50,15 @@ class SubjectResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('class_subjects_count')->label('Classes')->counts('classSubjects'),
+                TextColumn::make('name')->label(__('Name (English)'))->searchable()->sortable(),
+                TextColumn::make('name_bn')->label(__('Name (Bangla)'))->searchable()->sortable(),
+                TextColumn::make('short_name')->label(__('Short name'))->badge()->searchable()->sortable(),
+                TextColumn::make('class_subjects_count')->label(__('Classes'))->counts('classSubjects'),
                 TextColumn::make('created_at')->dateTime()->sortable(),
             ])
             ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

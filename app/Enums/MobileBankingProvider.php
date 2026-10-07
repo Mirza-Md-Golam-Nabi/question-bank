@@ -13,9 +13,9 @@ enum MobileBankingProvider: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Bkash => 'bKash',
-            self::Nagad => 'Nagad',
-            self::Rocket => 'Rocket',
+            self::Bkash => __('bKash'),
+            self::Nagad => __('Nagad'),
+            self::Rocket => __('Rocket'),
         };
     }
 }

@@ -4,7 +4,7 @@
 
 @section('content')
     <h1 class="text-2xl font-bold mb-1">{{ $attempt->exam->title }}</h1>
-    <p class="text-gray-500 mb-6">{{ $attempt->exam->duration_minutes }} minutes &middot; {{ $attempt->exam->total_marks }} marks</p>
+    <p class="text-gray-500 mb-6">{{ __(':minutes minutes', ['minutes' => $attempt->exam->duration_minutes]) }} &middot; {{ __(':marks marks', ['marks' => $attempt->exam->total_marks]) }}</p>
 
     <form method="POST" action="{{ route('guest-exam.submit', $attempt) }}" class="space-y-8">
         @csrf
@@ -24,13 +24,13 @@
                     </div>
                 @else
                     <textarea name="answers[{{ $question->id }}]" rows="4" class="w-full rounded-lg border-gray-300"
-                        placeholder="Write your answer..."></textarea>
+                        placeholder="{{ __('Write your answer...') }}"></textarea>
                 @endif
             </div>
         @endforeach
 
         <button type="submit" class="rounded-lg bg-amber-500 text-white px-4 py-2 font-medium hover:bg-amber-600">
-            Submit exam
+            {{ __('Submit exam') }}
         </button>
     </form>
 @endsection

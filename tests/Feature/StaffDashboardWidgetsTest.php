@@ -35,7 +35,7 @@ it('shows the suspension notice widget\'s content for a suspended staff member',
     $this->actingAs($staff);
 
     livewire(StaffSuspensionNoticeWidget::class)
-        ->assertSee('আপনার একাউন্ট সাসপেন্ড করা হয়েছে');
+        ->assertSee('Your account has been suspended');
 });
 
 it('only allows viewing the suspension notice widget when the staff member is suspended', function () {
@@ -82,7 +82,9 @@ it('summarizes a staff member\'s own question counts, earnings, and approval rat
     $this->actingAs($staff);
 
     livewire(StaffStatsOverviewWidget::class)
-        ->assertSee('Pending 2 · Approved 1 · Rejected 1')
+        ->assertSee('Pending 2')
+        ->assertSee('Approved 1')
+        ->assertSee('Rejected 1')
         ->assertSee('৳5.00')
         ->assertSee('50.0%');
 });

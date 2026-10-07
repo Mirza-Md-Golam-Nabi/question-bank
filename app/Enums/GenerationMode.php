@@ -12,8 +12,8 @@ enum GenerationMode: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Manual => 'Manual Selection',
-            self::Auto => 'Auto-Generate',
+            self::Manual => __('Manual Selection'),
+            self::Auto => __('Auto-Generate'),
         };
     }
 }

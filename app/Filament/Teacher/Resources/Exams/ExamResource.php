@@ -2,6 +2,7 @@
 
 namespace App\Filament\Teacher\Resources\Exams;
 
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Teacher\Resources\Exams\Pages\CreateExam;
 use App\Filament\Teacher\Resources\Exams\Pages\EditExam;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ExamResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = Exam::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;

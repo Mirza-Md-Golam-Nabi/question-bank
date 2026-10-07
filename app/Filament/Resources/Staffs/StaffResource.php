@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Staffs;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Filament\Resources\Staffs\Pages\ManageStaffs;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\StaffLikeUserResourceSchema;
 use App\Models\User;
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class StaffResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = User::class;
 
     protected static ?string $navigationLabel = 'Staffs';
@@ -48,14 +51,14 @@ class StaffResource extends Resource
         return $table
             ->columns([
                 ...StaffLikeUserResourceSchema::tableColumns(),
-                TextColumn::make('staffProfile.total_questions_approved')->label('Approved'),
-                TextColumn::make('staffProfile.total_earned')->label('Earned')->money('BDT'),
-                TextColumn::make('staffProfile.total_paid')->label('Paid')->money('BDT'),
+                TextColumn::make('staffProfile.total_questions_approved')->label(__('Approved')),
+                TextColumn::make('staffProfile.total_earned')->label(__('Earned'))->money('BDT'),
+                TextColumn::make('staffProfile.total_paid')->label(__('Paid'))->money('BDT'),
             ])
             ->filters(StaffLikeUserResourceSchema::tableFilters())
             ->recordActions([
                 Action::make('approve')
-                    ->label('Approve')
+                    ->label(__('Approve'))
                     ->color('success')
                     ->iconButton()
                     ->icon('heroicon-o-check-circle')
@@ -63,7 +66,7 @@ class StaffResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (User $record) => $record->update(['status' => UserStatus::Active])),
                 Action::make('suspend')
-                    ->label('Suspend')
+                    ->label(__('Suspend'))
                     ->color('warning')
                     ->iconButton()
                     ->icon('heroicon-o-pause-circle')
@@ -71,7 +74,7 @@ class StaffResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (User $record) => $record->update(['status' => UserStatus::Suspended])),
                 Action::make('permanentSuspend')
-                    ->label('Permanent Suspend')
+                    ->label(__('Permanent Suspend'))
                     ->color('danger')
                     ->iconButton()
                     ->icon('heroicon-o-no-symbol')
@@ -79,7 +82,7 @@ class StaffResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (User $record) => $record->update(['status' => UserStatus::PermanentSuspend])),
                 Action::make('reactivate')
-                    ->label('Reactivate')
+                    ->label(__('Reactivate'))
                     ->color('success')
                     ->iconButton()
                     ->icon('heroicon-o-arrow-path')

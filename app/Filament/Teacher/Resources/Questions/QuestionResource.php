@@ -2,6 +2,7 @@
 
 namespace App\Filament\Teacher\Resources\Questions;
 
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Teacher\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Teacher\Resources\Questions\Pages\EditQuestion;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class QuestionResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = Question::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedQuestionMarkCircle;

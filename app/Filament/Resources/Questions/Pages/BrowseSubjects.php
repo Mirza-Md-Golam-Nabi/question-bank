@@ -31,31 +31,38 @@ class BrowseSubjects extends BrowseSubjectsPage
     public function attachSubjectAction(): Action
     {
         return Action::make('attachSubject')
-            ->label('Attach subject')
+            ->label(__('Attach subject'))
             ->icon(Heroicon::OutlinedPlus)
             ->schema([
-                Select::make('subject_id')
-                    ->label('Subject')
+                Select::make('subject_ids')
+                    ->label(__('Subjects'))
+                    ->helperText(__('Pick one or more subjects. They are added in the order you pick them, starting from the display order below.'))
                     ->options(fn (): array => Subject::query()
                         ->whereNotIn('id', $this->class->subjects()->pluck('subjects.id'))
                         ->orderBy('name')
-                        ->pluck('name', 'id')
+                        ->get()
+                        ->mapWithKeys(fn (Subject $subject): array => [$subject->id => $subject->display_name])
                         ->all())
+                    ->multiple()
                     ->searchable()
                     ->required(),
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->default(fn (): int => (ClassSubject::where('academic_class_id', $this->class->id)->max('order_index') ?? 0) + 1)
                     ->required(),
             ])
             ->action(function (array $data): void {
                 DB::transaction(function () use ($data) {
-                    ClassSubject::reorder(
-                        ClassSubject::where('academic_class_id', $this->class->id),
-                        (int) $data['order_index'],
-                    );
-                    $this->class->subjects()->attach($data['subject_id'], ['order_index' => $data['order_index']]);
+                    foreach (array_values($data['subject_ids']) as $offset => $subjectId) {
+                        $orderIndex = (int) $data['order_index'] + $offset;
+
+                        ClassSubject::reorder(
+                            ClassSubject::where('academic_class_id', $this->class->id),
+                            $orderIndex,
+                        );
+                        $this->class->subjects()->attach($subjectId, ['order_index' => $orderIndex]);
+                    }
                 });
             });
     }
@@ -63,10 +70,10 @@ class BrowseSubjects extends BrowseSubjectsPage
     public function editSubjectOrderAction(): Action
     {
         return Action::make('editSubjectOrder')
-            ->label('Change order')
+            ->label(__('Change order'))
             ->schema([
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->required(),
             ])
@@ -90,7 +97,7 @@ class BrowseSubjects extends BrowseSubjectsPage
     public function detachSubjectAction(): Action
     {
         return Action::make('detachSubject')
-            ->label('Remove')
+            ->label(__('Remove'))
             ->color('danger')
             ->requiresConfirmation()
             ->action(fn (array $arguments) => ClassSubject::findOrFail($arguments['classSubject'])->delete());

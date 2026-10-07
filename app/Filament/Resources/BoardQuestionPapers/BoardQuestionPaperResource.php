@@ -7,6 +7,7 @@ use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
 use App\Filament\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPapers;
 use App\Filament\Resources\BoardQuestionPapers\Schemas\BoardQuestionPaperForm;
 use App\Filament\Resources\BoardQuestionPapers\Tables\BoardQuestionPapersTable;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\BoardQuestionPaper;
 use BackedEnum;
@@ -17,6 +18,8 @@ use Filament\Tables\Table;
 
 class BoardQuestionPaperResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = BoardQuestionPaper::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;

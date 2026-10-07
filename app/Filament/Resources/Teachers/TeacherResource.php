@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Teachers;
 
 use App\Enums\UserRole;
 use App\Filament\Resources\Teachers\Pages\ManageTeachers;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\StaffLikeUserResourceSchema;
 use App\Models\User;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class TeacherResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = User::class;
 
     protected static ?string $navigationLabel = 'Teachers';

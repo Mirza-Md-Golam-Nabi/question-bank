@@ -5,15 +5,19 @@ namespace App\Filament\Staff\Widgets;
 use App\Models\StaffEarning;
 use Carbon\Carbon;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 
 class StaffEarningsTrendChartWidget extends ChartWidget
 {
-    protected ?string $heading = 'গত ৬ মাসের আয়';
-
     protected static ?int $sort = 4;
 
     protected int|string|array $columnSpan = 1;
+
+    public function getHeading(): string|Htmlable|null
+    {
+        return __('Earnings in the last 6 months');
+    }
 
     protected function getType(): string
     {
@@ -33,7 +37,7 @@ class StaffEarningsTrendChartWidget extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'আয় (৳)',
+                    'label' => __('Earnings (৳)'),
                     'data' => $months
                         ->map(fn (Carbon $month) => (float) $earnings
                             ->filter(fn (StaffEarning $earning) => $earning->created_at->isSameMonth($month) && $earning->created_at->isSameYear($month))

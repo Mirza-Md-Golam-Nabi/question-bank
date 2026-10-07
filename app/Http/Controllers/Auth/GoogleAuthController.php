@@ -39,7 +39,7 @@ class GoogleAuthController extends Controller
 
         if ($user && $user->role !== $intendedRole) {
             Notification::make()
-                ->title('এই ইমেইলটি অন্য একটি রোলের সাথে যুক্ত।')
+                ->title(__('This email is already linked to a different role.'))
                 ->danger()
                 ->send();
 

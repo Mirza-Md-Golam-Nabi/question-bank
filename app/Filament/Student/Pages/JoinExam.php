@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Enums\ExamStatus;
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use Filament\Forms\Components\TextInput;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 class JoinExam extends Page implements HasSchemas
 {
     use InteractsWithSchemas;
+    use TranslatesPageLabels;
 
     protected string $view = 'filament.student.pages.join-exam';
 
@@ -37,7 +39,7 @@ class JoinExam extends Page implements HasSchemas
         return $schema
             ->components([
                 TextInput::make('share_token')
-                    ->label('Share link or code')
+                    ->label(__('Share link or code'))
                     ->required(),
             ])
             ->statePath('data');
@@ -51,7 +53,7 @@ class JoinExam extends Page implements HasSchemas
         $exam = Exam::where('share_token', $shareToken)->first();
 
         if (! $exam || $exam->status !== ExamStatus::Published || ! $exam->is_link_active) {
-            Notification::make()->title('This exam link is not active.')->danger()->send();
+            Notification::make()->title(__('This exam link is not active.'))->danger()->send();
 
             return;
         }

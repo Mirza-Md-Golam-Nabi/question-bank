@@ -14,10 +14,10 @@ enum CqPartType: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Knowledge => 'জ্ঞানমূলক',
-            self::Comprehension => 'অনুধাবনমূলক',
-            self::Application => 'প্রয়োগ',
-            self::HigherApplication => 'উচ্চতর দক্ষতা',
+            self::Knowledge => __('Knowledge'),
+            self::Comprehension => __('Comprehension'),
+            self::Application => __('Application'),
+            self::HigherApplication => __('Higher Ability'),
         };
     }
 

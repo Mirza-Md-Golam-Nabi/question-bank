@@ -7,6 +7,7 @@ use App\Filament\Support\Pages\Questions\BrowseChaptersPage;
 use App\Models\Chapter;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 
@@ -29,19 +30,23 @@ class BrowseChapters extends BrowseChaptersPage
     public function createChapterAction(): Action
     {
         return Action::make('createChapter')
-            ->label('Add chapter')
+            ->label(__('Add chapter'))
             ->icon(Heroicon::OutlinedPlus)
             ->schema([
                 TextInput::make('name')
                     ->required()
                     ->unique(Chapter::class, modifyRuleUsing: fn ($rule) => $rule->where('class_subject_id', $this->classSubject->id)),
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->default(fn (): int => (Chapter::where('class_subject_id', $this->classSubject->id)->max('order_index') ?? 0) + 1)
                     ->required(),
             ])
-            ->action(function (array $data): void {
+            ->extraModalFooterActions(fn (Action $action): array => [
+                $action->makeModalSubmitAction('createAnother', arguments: ['another' => true])
+                    ->label(__('Add & add another')),
+            ])
+            ->action(function (array $data, array $arguments, Action $action, Schema $schema): void {
                 DB::transaction(function () use ($data) {
                     Chapter::reorder(
                         Chapter::where('class_subject_id', $this->classSubject->id),
@@ -52,6 +57,14 @@ class BrowseChapters extends BrowseChaptersPage
                         'class_subject_id' => $this->classSubject->id,
                     ]);
                 });
+
+                if ($arguments['another'] ?? false) {
+                    // Keep the modal open with a blank form; the display
+                    // order default is recalculated to the next free slot.
+                    $schema->fill();
+
+                    $action->halt();
+                }
             });
     }
 
@@ -68,7 +81,7 @@ class BrowseChapters extends BrowseChaptersPage
                             ->ignore($arguments['chapter']),
                     ),
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->required(),
             ])

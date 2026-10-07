@@ -5,6 +5,7 @@ namespace App\Filament\Resources\SubscriptionPlans;
 use App\Enums\BillingCycle;
 use App\Enums\SubscriptionTargetRole;
 use App\Filament\Resources\SubscriptionPlans\Pages\ManageSubscriptionPlans;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\SubscriptionPlan;
 use BackedEnum;
@@ -24,6 +25,8 @@ use Filament\Tables\Table;
 
 class SubscriptionPlanResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = SubscriptionPlan::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSquares2x2;
@@ -39,11 +42,11 @@ class SubscriptionPlanResource extends Resource
                 Select::make('billing_cycle')->options(BillingCycle::class)->required()->live(),
                 TextInput::make('price')->numeric()->minValue(0)->required(),
                 TextInput::make('monthly_exam_limit')
-                    ->label('Monthly exam limit (blank = unlimited)')
+                    ->label(__('Monthly exam limit (blank = unlimited)'))
                     ->numeric()
                     ->minValue(0),
                 Toggle::make('is_default_free')
-                    ->label('Assign automatically to new sign-ups of this role'),
+                    ->label(__('Assign automatically to new sign-ups of this role')),
             ]);
     }
 
@@ -55,8 +58,8 @@ class SubscriptionPlanResource extends Resource
                 TextColumn::make('target_role')->badge(),
                 TextColumn::make('billing_cycle')->badge(),
                 TextColumn::make('price')->money('BDT'),
-                TextColumn::make('monthly_exam_limit')->label('Monthly limit')->placeholder('Unlimited'),
-                IconColumn::make('is_default_free')->boolean()->label('Default'),
+                TextColumn::make('monthly_exam_limit')->label(__('Monthly limit'))->placeholder(__('Unlimited')),
+                IconColumn::make('is_default_free')->boolean()->label(__('Default')),
             ])
             ->recordActions([
                 EditAction::make(),

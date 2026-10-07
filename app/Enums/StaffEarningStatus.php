@@ -12,8 +12,8 @@ enum StaffEarningStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::PendingPayout => 'Pending Payout',
-            self::Paid => 'Paid',
+            self::PendingPayout => __('Pending Payout'),
+            self::Paid => __('Paid'),
         };
     }
 }

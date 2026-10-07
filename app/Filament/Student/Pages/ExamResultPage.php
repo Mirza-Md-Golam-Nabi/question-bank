@@ -2,12 +2,15 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\ExamAttempt;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
 class ExamResultPage extends Page
 {
+    use TranslatesPageLabels;
+
     protected static ?string $slug = 'exam-result/{attempt}';
 
     protected static bool $shouldRegisterNavigation = false;

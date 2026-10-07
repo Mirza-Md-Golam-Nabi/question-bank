@@ -54,7 +54,7 @@ class SelfPracticeExamService
     {
         return DB::transaction(function () use ($student, $subjectId, $questions, $mode) {
             $exam = Exam::create([
-                'title' => 'Self Practice — '.now()->format('M j, Y H:i'),
+                'title' => __('Self Practice').' — '.now()->format('M j, Y H:i'),
                 'created_by' => $student->id,
                 'exam_type' => ExamType::SelfPractice,
                 'generation_mode' => $mode,

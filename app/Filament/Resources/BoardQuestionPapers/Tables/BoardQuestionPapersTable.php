@@ -21,14 +21,14 @@ class BoardQuestionPapersTable
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('board.short_name')->label('Board')->badge(),
-                TextColumn::make('classSubject.academicClass.name')->label('Class'),
-                TextColumn::make('classSubject.subject.name')->label('Subject'),
+                TextColumn::make('board.short_name')->label(__('Board'))->badge(),
+                TextColumn::make('classSubject.academicClass.name')->label(__('Class')),
+                TextColumn::make('classSubject.subject.name')->label(__('Subject')),
                 TextColumn::make('year'),
-                TextColumn::make('mcq_questions_count')->label('MCQ')->counts('mcqQuestions'),
-                TextColumn::make('cq_questions_count')->label('CQ')->counts('cqQuestions'),
+                TextColumn::make('mcq_questions_count')->label(__('MCQ'))->counts('mcqQuestions'),
+                TextColumn::make('cq_questions_count')->label(__('CQ'))->counts('cqQuestions'),
                 TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor()),
-                TextColumn::make('creator.name')->label('Created by'),
+                TextColumn::make('creator.name')->label(__('Created by')),
             ])
             ->filters([
                 SelectFilter::make('status')->options(QuestionStatus::class),
@@ -49,7 +49,7 @@ class BoardQuestionPapersTable
     protected static function approveAction(): Action
     {
         return Action::make('approve')
-            ->label('Approve')
+            ->label(__('Approve'))
             ->color('success')
             ->icon('heroicon-o-check-circle')
             ->visible(fn (BoardQuestionPaper $record) => $record->status !== QuestionStatus::Approved && auth()->user()->can('approve', $record))
@@ -60,12 +60,12 @@ class BoardQuestionPapersTable
     protected static function rejectAction(): Action
     {
         return Action::make('reject')
-            ->label('Reject')
+            ->label(__('Reject'))
             ->color('danger')
             ->icon('heroicon-o-x-circle')
             ->visible(fn (BoardQuestionPaper $record) => $record->status !== QuestionStatus::Rejected && auth()->user()->can('reject', $record))
             ->schema([
-                Textarea::make('rejection_reason')->label('Reason')->required(),
+                Textarea::make('rejection_reason')->label(__('Reason'))->required(),
             ])
             ->action(fn (BoardQuestionPaper $record, array $data) => $record->reject(auth()->user(), $data['rejection_reason']));
     }

@@ -6,10 +6,10 @@
 
         <div class="min-w-0 flex-1">
             <p class="text-sm font-semibold text-gray-950 dark:text-white">
-                {{ __('আপনার একাউন্ট সাসপেন্ড করা হয়েছে') }}
+                {{ __('Your account has been suspended') }}
             </p>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                {{ __('আপনি Dashboard ও আপনার earning দেখতে পারবেন, কিন্তু নতুন প্রশ্ন যোগ করতে পারবেন না। বিস্তারিত জানতে Admin-এর সাথে যোগাযোগ করুন।') }}
+                {{ __('You can still view the dashboard and your earnings, but you cannot add new questions. Contact an admin for details.') }}
             </p>
         </div>
     </div>

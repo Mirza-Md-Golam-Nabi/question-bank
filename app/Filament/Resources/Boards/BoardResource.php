@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Boards;
 
 use App\Filament\Resources\Boards\Pages\ManageBoards;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\Board;
 use BackedEnum;
@@ -19,6 +20,8 @@ use Filament\Tables\Table;
 
 class BoardResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = Board::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingLibrary;
@@ -33,11 +36,11 @@ class BoardResource extends Resource
                     ->required()
                     ->unique(ignoreRecord: true),
                 TextInput::make('short_name')
-                    ->label('Short name')
+                    ->label(__('Short name'))
                     ->required()
                     ->maxLength(10),
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->default(0)
                     ->required(),
@@ -49,9 +52,9 @@ class BoardResource extends Resource
         return $table
             ->defaultSort('order_index')
             ->columns([
-                TextColumn::make('short_name')->label('Short')->badge(),
+                TextColumn::make('short_name')->label(__('Short'))->badge(),
                 TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('question_papers_count')->label('Papers')->counts('questionPapers'),
+                TextColumn::make('question_papers_count')->label(__('Papers'))->counts('questionPapers'),
             ])
             ->recordActions([
                 EditAction::make(),

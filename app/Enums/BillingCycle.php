@@ -13,9 +13,9 @@ enum BillingCycle: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Monthly => 'Monthly',
-            self::Yearly => 'Yearly',
-            self::Free => 'Free',
+            self::Monthly => __('Monthly'),
+            self::Yearly => __('Yearly'),
+            self::Free => __('Free'),
         };
     }
 }

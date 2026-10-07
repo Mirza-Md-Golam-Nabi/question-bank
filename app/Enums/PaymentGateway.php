@@ -14,10 +14,10 @@ enum PaymentGateway: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Sslcommerz => 'SSLCommerz',
-            self::Bkash => 'bKash',
-            self::Nagad => 'Nagad',
-            self::Manual => 'Manual',
+            self::Sslcommerz => __('SSLCommerz'),
+            self::Bkash => __('bKash'),
+            self::Nagad => __('Nagad'),
+            self::Manual => __('Manual'),
         };
     }
 }

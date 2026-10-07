@@ -20,82 +20,86 @@ class SubjectSeeder extends Seeder
             return;
         }
 
-        foreach ($this->names() as $name) {
-            Subject::firstOrCreate(['name' => $name]);
+        foreach ($this->subjects() as $subject) {
+            Subject::updateOrCreate(
+                ['name' => $subject['name']],
+                ['name_bn' => $subject['name_bn'], 'short_name' => $subject['short_name']],
+            );
         }
     }
 
     /**
-     * @return array<int, string>
+     * @return array<int, array{name: string, name_bn: string, short_name: string}>
      */
-    protected function names(): array
+    public function subjects(): array
     {
         return [
             // Common / primary-junior
-            'Bangla',
-            'Bangla 1st Paper',
-            'Bangla 2nd Paper',
-            'English',
-            'English 1st Paper',
-            'English 2nd Paper',
-            'Mathematics',
-            'General Science',
-            'Bangladesh and Global Studies',
-            'Information and Communication Technology',
-            'Religion and Moral Education',
-            'Physical Education, Health and Sports',
-            'Career Education',
-            'Agriculture Studies',
-            'Arts and Crafts',
+            ...$this->single('Bangla', 'বাংলা', 'BAN'),
+            ...$this->papers('Bangla', 'বাংলা', 'BAN'),
+            ...$this->single('English', 'ইংরেজি', 'ENG'),
+            ...$this->papers('English', 'ইংরেজি', 'ENG'),
+            ...$this->single('Mathematics', 'গণিত', 'MATH'),
+            ...$this->single('General Science', 'সাধারণ বিজ্ঞান', 'GSC'),
+            ...$this->single('Bangladesh and Global Studies', 'বাংলাদেশ ও বিশ্বপরিচয়', 'BGS'),
+            ...$this->single('Information and Communication Technology', 'তথ্য ও যোগাযোগ প্রযুক্তি', 'ICT'),
+            ...$this->single('Religion and Moral Education', 'ধর্ম ও নৈতিক শিক্ষা', 'RME'),
+            ...$this->single('Physical Education, Health and Sports', 'শারীরিক শিক্ষা, স্বাস্থ্যবিজ্ঞান ও খেলাধুলা', 'PEHS'),
+            ...$this->single('Career Education', 'ক্যারিয়ার শিক্ষা', 'CE'),
+            ...$this->single('Agriculture Studies', 'কৃষিশিক্ষা', 'AGS'),
+            ...$this->single('Arts and Crafts', 'চারু ও কারুকলা', 'AC'),
 
             // Science group
-            'Physics 1st Paper',
-            'Physics 2nd Paper',
-            'Chemistry 1st Paper',
-            'Chemistry 2nd Paper',
-            'Biology 1st Paper',
-            'Biology 2nd Paper',
-            'Higher Mathematics 1st Paper',
-            'Higher Mathematics 2nd Paper',
+            ...$this->papers('Physics', 'পদার্থবিজ্ঞান', 'PHY'),
+            ...$this->papers('Chemistry', 'রসায়ন', 'CHEM'),
+            ...$this->papers('Biology', 'জীববিজ্ঞান', 'BIO'),
+            ...$this->papers('Higher Mathematics', 'উচ্চতর গণিত', 'HM'),
 
             // Business Studies (Commerce) group
-            'Accounting 1st Paper',
-            'Accounting 2nd Paper',
-            'Business Organization and Management 1st Paper',
-            'Business Organization and Management 2nd Paper',
-            'Finance, Banking and Insurance 1st Paper',
-            'Finance, Banking and Insurance 2nd Paper',
-            'Business Entrepreneurship',
+            ...$this->papers('Accounting', 'হিসাববিজ্ঞান', 'ACC'),
+            ...$this->papers('Business Organization and Management', 'ব্যবসায় সংগঠন ও ব্যবস্থাপনা', 'BOM'),
+            ...$this->papers('Finance, Banking and Insurance', 'ফিন্যান্স, ব্যাংকিং ও বিমা', 'FBI'),
+            ...$this->single('Business Entrepreneurship', 'ব্যবসায় উদ্যোগ', 'BE'),
 
             // Humanities (Arts) group
-            'History of Bangladesh and World Civilization 1st Paper',
-            'History of Bangladesh and World Civilization 2nd Paper',
-            'Civics and Good Governance 1st Paper',
-            'Civics and Good Governance 2nd Paper',
-            'Economics 1st Paper',
-            'Economics 2nd Paper',
-            'Geography and Environment 1st Paper',
-            'Geography and Environment 2nd Paper',
-            'Sociology 1st Paper',
-            'Sociology 2nd Paper',
-            'Social Work 1st Paper',
-            'Social Work 2nd Paper',
-            'Islamic History and Culture 1st Paper',
-            'Islamic History and Culture 2nd Paper',
-            'Logic 1st Paper',
-            'Logic 2nd Paper',
-            'Home Science 1st Paper',
-            'Home Science 2nd Paper',
+            ...$this->papers('History of Bangladesh and World Civilization', 'বাংলাদেশের ইতিহাস ও বিশ্বসভ্যতা', 'HIST'),
+            ...$this->papers('Civics and Good Governance', 'পৌরনীতি ও সুশাসন', 'CGG'),
+            ...$this->papers('Economics', 'অর্থনীতি', 'ECO'),
+            ...$this->papers('Geography and Environment', 'ভূগোল ও পরিবেশ', 'GEO'),
+            ...$this->papers('Sociology', 'সমাজবিজ্ঞান', 'SOC'),
+            ...$this->papers('Social Work', 'সমাজকর্ম', 'SW'),
+            ...$this->papers('Islamic History and Culture', 'ইসলামের ইতিহাস ও সংস্কৃতি', 'IHC'),
+            ...$this->papers('Logic', 'যুক্তিবিদ্যা', 'LOG'),
+            ...$this->papers('Home Science', 'গার্হস্থ্য বিজ্ঞান', 'HS'),
 
             // Optional / 4th subject (cross-group)
-            'Statistics 1st Paper',
-            'Statistics 2nd Paper',
-            'Psychology 1st Paper',
-            'Psychology 2nd Paper',
-            'Agricultural Education 1st Paper',
-            'Agricultural Education 2nd Paper',
-            'Food and Nutrition 1st Paper',
-            'Food and Nutrition 2nd Paper',
+            ...$this->papers('Statistics', 'পরিসংখ্যান', 'STAT'),
+            ...$this->papers('Psychology', 'মনোবিজ্ঞান', 'PSY'),
+            ...$this->papers('Agricultural Education', 'কৃষিশিক্ষা', 'AGE'),
+            ...$this->papers('Food and Nutrition', 'খাদ্য ও পুষ্টি', 'FN'),
+        ];
+    }
+
+    /**
+     * @return array<int, array{name: string, name_bn: string, short_name: string}>
+     */
+    protected function single(string $name, string $nameBn, string $shortName): array
+    {
+        return [
+            ['name' => $name, 'name_bn' => $nameBn, 'short_name' => $shortName],
+        ];
+    }
+
+    /**
+     * Expands a subject into its "1st Paper" and "2nd Paper" variants.
+     *
+     * @return array<int, array{name: string, name_bn: string, short_name: string}>
+     */
+    protected function papers(string $name, string $nameBn, string $shortName): array
+    {
+        return [
+            ['name' => "{$name} 1st Paper", 'name_bn' => "{$nameBn} ১ম পত্র", 'short_name' => "{$shortName}-1"],
+            ['name' => "{$name} 2nd Paper", 'name_bn' => "{$nameBn} ২য় পত্র", 'short_name' => "{$shortName}-2"],
         ];
     }
 }

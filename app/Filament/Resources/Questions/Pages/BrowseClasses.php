@@ -29,14 +29,14 @@ class BrowseClasses extends BrowseClassesPage
     public function createClassAction(): Action
     {
         return Action::make('createClass')
-            ->label('Add class')
+            ->label(__('Add class'))
             ->icon(Heroicon::OutlinedPlus)
             ->schema([
                 TextInput::make('name')
                     ->required()
                     ->unique(AcademicClass::class),
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->default(fn () => (AcademicClass::max('order_index') ?? 0) + 1)
                     ->required(),
@@ -57,7 +57,7 @@ class BrowseClasses extends BrowseClassesPage
                     ->required()
                     ->unique(AcademicClass::class, modifyRuleUsing: fn ($rule) => $rule->ignore($arguments['class'])),
                 TextInput::make('order_index')
-                    ->label('Display order')
+                    ->label(__('Display order'))
                     ->numeric()
                     ->required(),
             ])

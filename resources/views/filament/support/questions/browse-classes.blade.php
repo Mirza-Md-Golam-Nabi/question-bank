@@ -34,7 +34,7 @@
                             <h3 class="truncate text-xs font-semibold text-gray-950 dark:text-white lg:text-sm">{{ $class->name }}</h3>
                             <p class="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
                                 <x-filament::icon icon="heroicon-o-book-open" class="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
-                                {{ $class->class_subjects_count }} {{ \Illuminate\Support\Str::plural('Subject', $class->class_subjects_count) }}
+                                {{ trans_choice(':count Subject|:count Subjects', $class->class_subjects_count) }}
                             </p>
                         </div>
                     </div>
@@ -57,14 +57,14 @@
                                     icon="heroicon-o-pencil-square"
                                     wire:click="mountAction('editClass', { class: {{ $class->id }} })"
                                 >
-                                    Edit
+                                    {{ __('Edit') }}
                                 </x-filament::dropdown.list.item>
                                 <x-filament::dropdown.list.item
                                     icon="heroicon-o-trash"
                                     color="danger"
                                     wire:click="mountAction('deleteClass', { class: {{ $class->id }} })"
                                 >
-                                    Delete
+                                    {{ __('Delete') }}
                                 </x-filament::dropdown.list.item>
                             </x-filament::dropdown.list>
                         </x-filament::dropdown>
@@ -76,9 +76,9 @@
                 <x-filament::section>
                     <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
                         @if ($this->canManageContent())
-                            No classes yet. Add one to get started.
+                            {{ __('No classes yet. Add one to get started.') }}
                         @else
-                            No classes yet.
+                            {{ __('No classes yet.') }}
                         @endif
                     </p>
                 </x-filament::section>

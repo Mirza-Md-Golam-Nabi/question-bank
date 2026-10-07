@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Enums\ExamType;
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Question;
 use App\Models\Subject;
 use App\Services\SelfPracticeExamService;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Auth;
 class BuildPracticeExam extends Page implements HasSchemas
 {
     use InteractsWithSchemas;
+    use TranslatesPageLabels;
 
     protected string $view = 'filament.student.pages.build-practice-exam';
 
@@ -42,14 +44,14 @@ class BuildPracticeExam extends Page implements HasSchemas
         return $schema
             ->components([
                 Select::make('subject_id')
-                    ->label('Subject')
+                    ->label(__('Subject'))
                     ->options(fn () => Subject::query()->orderBy('name')->pluck('name', 'id'))
                     ->searchable()
                     ->live()
                     ->required()
                     ->afterStateUpdated(fn ($set) => $set('question_ids', [])),
                 Select::make('question_ids')
-                    ->label('Questions')
+                    ->label(__('Questions'))
                     ->options(fn (Get $get) => $get('subject_id')
                         ? Question::approvedPool()
                             ->whereHas('chapter.classSubject', fn ($q) => $q->where('subject_id', $get('subject_id')))
@@ -69,8 +71,8 @@ class BuildPracticeExam extends Page implements HasSchemas
 
         if (app(SubscriptionLimitService::class)->hasReachedMonthlyLimit($student, ExamType::SelfPractice)) {
             Notification::make()
-                ->title('Monthly free limit reached')
-                ->body('Upgrade your subscription to generate more practice exams this month.')
+                ->title(__('Monthly free limit reached'))
+                ->body(__('Upgrade your subscription to generate more practice exams this month.'))
                 ->danger()
                 ->send();
 

@@ -20,10 +20,10 @@ class ManageStaffPayouts extends ManageRecords
     {
         return [
             Action::make('createPayout')
-                ->label('Create payout')
+                ->label(__('Create payout'))
                 ->schema([
                     Select::make('staff_id')
-                        ->label('Staff')
+                        ->label(__('Staff'))
                         ->options(fn () => User::query()
                             ->whereHas('staffEarnings', fn ($q) => $q->where('status', StaffEarningStatus::PendingPayout))
                             ->get()
@@ -34,14 +34,14 @@ class ManageStaffPayouts extends ManageRecords
                             ]))
                         ->required(),
                     TextInput::make('reference_note')
-                        ->label('Reference note (e.g. bKash TrxID)'),
+                        ->label(__('Reference note (e.g. bKash TrxID)')),
                 ])
                 ->action(function (array $data) {
                     $staff = User::findOrFail($data['staff_id']);
                     $payout = StaffPayout::createFor($staff, auth()->user(), $data['reference_note'] ?? null);
 
                     Notification::make()
-                        ->title("Paid out ৳{$payout->total_amount} to {$staff->name}")
+                        ->title(__('Paid out ৳:amount to :name', ['amount' => $payout->total_amount, 'name' => $staff->name]))
                         ->success()
                         ->send();
                 }),

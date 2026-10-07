@@ -13,7 +13,7 @@
 
     @if ($breakdown->isEmpty())
         <x-filament::section>
-            <p class="text-center text-sm text-gray-500 dark:text-gray-400">No approved questions yet.</p>
+            <p class="text-center text-sm text-gray-500 dark:text-gray-400">{{ __('No approved questions yet.') }}</p>
         </x-filament::section>
     @else
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -26,7 +26,7 @@
                     <span class="relative block text-xs font-medium text-white/80 lg:text-sm">{{ $row['class'] }}</span>
                     <p class="relative mt-0.5 text-sm font-bold lg:text-base">{{ $row['subject'] }}</p>
                     <p class="relative mt-2 text-2xl font-extrabold lg:text-3xl">{{ $row['count'] }}</p>
-                    <span class="relative block text-xs text-white/80">{{ \Illuminate\Support\Str::plural('question', $row['count']) }} approved</span>
+                    <span class="relative block text-xs text-white/80">{{ trans_choice('question approved|questions approved', $row['count']) }}</span>
                 </div>
             @endforeach
         </div>

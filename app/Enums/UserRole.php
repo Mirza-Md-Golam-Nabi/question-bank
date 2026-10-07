@@ -15,11 +15,11 @@ enum UserRole: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::SuperAdmin => 'Super Admin',
-            self::Admin => 'Admin',
-            self::Teacher => 'Teacher',
-            self::Staff => 'Staff',
-            self::Student => 'Student',
+            self::SuperAdmin => __('Super Admin'),
+            self::Admin => __('Admin'),
+            self::Teacher => __('Teacher'),
+            self::Staff => __('Staff'),
+            self::Student => __('Student'),
         };
     }
 

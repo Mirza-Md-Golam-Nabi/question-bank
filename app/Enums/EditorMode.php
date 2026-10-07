@@ -12,8 +12,8 @@ enum EditorMode: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::RichText => 'Rich Text',
-            self::CkEditor => 'CKEditor (গণিত সহ)',
+            self::RichText => __('Rich Text'),
+            self::CkEditor => __('CKEditor (with math)'),
         };
     }
 }

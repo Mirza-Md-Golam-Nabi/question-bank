@@ -30,7 +30,7 @@ abstract class ListQuestionsByChapterPage extends ListRecords
 
     public function getTitle(): string|Htmlable
     {
-        return "{$this->chapter->name} — Questions";
+        return "{$this->chapter->name} — ".__('Questions');
     }
 
     /**
@@ -41,10 +41,10 @@ abstract class ListQuestionsByChapterPage extends ListRecords
         $classSubject = $this->chapter->classSubject;
 
         return [
-            static::getResource()::getUrl('index') => 'Classes',
+            static::getResource()::getUrl('index') => __('Classes'),
             static::getResource()::getUrl('subjects', ['class' => $classSubject->academic_class_id]) => $classSubject->academicClass->name,
             static::getResource()::getUrl('chapters', ['class' => $classSubject->academic_class_id, 'classSubject' => $classSubject->id]) => $classSubject->subject->name,
-            "{$this->chapter->name} — Questions",
+            "{$this->chapter->name} — ".__('Questions'),
         ];
     }
 

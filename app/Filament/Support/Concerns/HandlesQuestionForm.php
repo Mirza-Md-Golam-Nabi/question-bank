@@ -149,8 +149,8 @@ trait HandlesQuestionForm
         $revision = $record->createRevisionWith($data, $this->cqPartsData);
 
         Notification::make()
-            ->title('Approved question edited')
-            ->body('A new pending version has been created for re-review; the previous approved version is unchanged.')
+            ->title(__('Approved question edited'))
+            ->body(__('A new pending version has been created for re-review; the previous approved version is unchanged.'))
             ->success()
             ->send();
 

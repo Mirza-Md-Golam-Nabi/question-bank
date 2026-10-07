@@ -11,6 +11,15 @@
     @endphp
 
     <div>
+        <a
+            href="{{ $this->getResource()::getUrl('subjects', ['class' => $this->class->id]) }}"
+            wire:navigate
+            class="mb-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary-600 dark:text-gray-400 lg:mb-4 lg:text-sm"
+        >
+            <x-filament::icon icon="heroicon-m-arrow-left" class="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+            {{ __('Back to :name', ['name' => $this->class->name]) }}
+        </a>
+
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
             @forelse ($this->chapters() as $index => $chapter)
                 @php $gradient = $gradients[$index % count($gradients)]; @endphp
@@ -35,7 +44,7 @@
                                 <h3 class="truncate text-xs font-semibold text-gray-950 dark:text-white lg:text-sm">{{ $chapter->name }}</h3>
                                 <p class="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
                                     <x-filament::icon icon="heroicon-o-question-mark-circle" class="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
-                                    {{ $chapter->questions_count }} {{ \Illuminate\Support\Str::plural('Question', $chapter->questions_count) }}
+                                    {{ trans_choice(':count Question|:count Questions', $chapter->questions_count) }}
                                 </p>
                             </div>
                         </div>
@@ -60,20 +69,20 @@
                                         tag="a"
                                         wire:navigate
                                     >
-                                        Topics
+                                        {{ __('Topics') }}
                                     </x-filament::dropdown.list.item>
                                     <x-filament::dropdown.list.item
                                         icon="heroicon-o-pencil-square"
                                         wire:click="mountAction('editChapter', { chapter: {{ $chapter->id }} })"
                                     >
-                                        Edit
+                                        {{ __('Edit') }}
                                     </x-filament::dropdown.list.item>
                                     <x-filament::dropdown.list.item
                                         icon="heroicon-o-trash"
                                         color="danger"
                                         wire:click="mountAction('deleteChapter', { chapter: {{ $chapter->id }} })"
                                     >
-                                        Delete
+                                        {{ __('Delete') }}
                                     </x-filament::dropdown.list.item>
                                 </x-filament::dropdown.list>
                             </x-filament::dropdown>
@@ -85,9 +94,9 @@
                     <x-filament::section>
                         <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
                             @if ($this->canManageContent())
-                                No chapters yet. Add one to get started.
+                                {{ __('No chapters yet. Add one to get started.') }}
                             @else
-                                No chapters yet.
+                                {{ __('No chapters yet.') }}
                             @endif
                         </p>
                     </x-filament::section>

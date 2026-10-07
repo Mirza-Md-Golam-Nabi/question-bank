@@ -12,8 +12,8 @@ enum QuestionType: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Mcq => 'MCQ',
-            self::Cq => 'CQ (সৃজনশীল)',
+            self::Mcq => __('MCQ'),
+            self::Cq => __('CQ (Creative)'),
         };
     }
 }

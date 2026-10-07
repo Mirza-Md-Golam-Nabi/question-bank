@@ -17,7 +17,7 @@
             class="mb-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-primary-600 dark:text-gray-400 lg:mb-4 lg:text-sm"
         >
             <x-filament::icon icon="heroicon-m-arrow-left" class="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-            Back to {{ $this->chapter->name }}
+            {{ __('Back to :name', ['name' => $this->chapter->name]) }}
         </a>
 
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
@@ -37,7 +37,7 @@
                                 <h3 class="truncate text-xs font-semibold text-gray-950 dark:text-white lg:text-sm">{{ $topic->name }}</h3>
                                 <p class="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 lg:text-sm">
                                     <x-filament::icon icon="heroicon-o-question-mark-circle" class="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
-                                    {{ $topic->questions_count }} {{ \Illuminate\Support\Str::plural('Question', $topic->questions_count) }}
+                                    {{ trans_choice(':count Question|:count Questions', $topic->questions_count) }}
                                 </p>
                             </div>
                         </div>
@@ -59,14 +59,14 @@
                                     icon="heroicon-o-pencil-square"
                                     wire:click="mountAction('editTopic', { topic: {{ $topic->id }} })"
                                 >
-                                    Edit
+                                    {{ __('Edit') }}
                                 </x-filament::dropdown.list.item>
                                 <x-filament::dropdown.list.item
                                     icon="heroicon-o-trash"
                                     color="danger"
                                     wire:click="mountAction('deleteTopic', { topic: {{ $topic->id }} })"
                                 >
-                                    Delete
+                                    {{ __('Delete') }}
                                 </x-filament::dropdown.list.item>
                             </x-filament::dropdown.list>
                         </x-filament::dropdown>
@@ -75,7 +75,7 @@
             @empty
                 <div class="col-span-full">
                     <x-filament::section>
-                        <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">No topics yet. Add one to get started.</p>
+                        <p class="text-center text-xs text-gray-500 dark:text-gray-400 lg:text-sm">{{ __('No topics yet. Add one to get started.') }}</p>
                     </x-filament::section>
                 </div>
             @endforelse

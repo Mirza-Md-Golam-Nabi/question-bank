@@ -13,9 +13,9 @@ enum Difficulty: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Easy => 'Easy',
-            self::Medium => 'Medium',
-            self::Hard => 'Hard',
+            self::Easy => __('Easy'),
+            self::Medium => __('Medium'),
+            self::Hard => __('Hard'),
         };
     }
 }

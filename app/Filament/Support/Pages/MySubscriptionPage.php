@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\Pages;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Subscription;
 use App\Services\SubscriptionLimitService;
 use Filament\Pages\Page;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Auth;
  */
 abstract class MySubscriptionPage extends Page
 {
+    use TranslatesPageLabels;
+
     protected string $view = 'filament.pages.my-subscription';
 
     public function subscription(): ?Subscription

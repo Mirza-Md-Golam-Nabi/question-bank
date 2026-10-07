@@ -2,7 +2,7 @@
     @php
         $summaryCards = [
             [
-                'label' => 'Questions Approved',
+                'label' => __('Questions Approved'),
                 'value' => $this->totalQuestionsApproved(),
                 'icon' => 'heroicon-o-check-badge',
                 'gradient' => 'from-emerald-400 to-teal-600',
@@ -14,21 +14,21 @@
                 'url' => \App\Filament\Staff\Pages\ApprovedQuestionsBreakdown::getUrl(panel: 'staff'),
             ],
             [
-                'label' => 'Questions Pending',
+                'label' => __('Questions Pending'),
                 'value' => $this->pendingQuestionsCount(),
                 'icon' => 'heroicon-o-clock',
                 'gradient' => 'from-amber-400 to-orange-500',
                 'url' => \App\Filament\Staff\Pages\PendingQuestionsBreakdown::getUrl(panel: 'staff'),
             ],
             [
-                'label' => 'Total Earned',
+                'label' => __('Total Earned'),
                 'value' => '৳'.number_format($this->totalEarned(), 2),
                 'icon' => 'heroicon-o-banknotes',
                 'gradient' => 'from-sky-400 to-blue-600',
                 'url' => \App\Filament\Staff\Pages\MonthlyEarnings::getUrl(panel: 'staff'),
             ],
             [
-                'label' => 'Total Paid',
+                'label' => __('Total Paid'),
                 'value' => '৳'.number_format($this->totalPaid(), 2),
                 'icon' => 'heroicon-o-wallet',
                 'gradient' => 'from-fuchsia-400 to-purple-600',
@@ -75,17 +75,17 @@
         <x-slot name="heading">
             <span class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-3 py-1.5 text-sm font-bold text-white shadow-sm lg:text-base">
                 <x-filament::icon icon="heroicon-o-chart-bar" class="h-4 w-4 lg:h-5 lg:w-5" />
-                Subject-wise breakdown
+                {{ __('Subject-wise breakdown') }}
             </span>
         </x-slot>
 
         <table class="fi-ta-table w-full text-start [&_*]:text-xs! lg:[&_*]:text-sm!">
             <thead>
                 <tr>
-                    <th class="p-2 text-start">Class</th>
-                    <th class="p-2 text-start">Subject</th>
-                    <th class="p-2 text-center">Approved questions</th>
-                    <th class="p-2 text-center">Earned</th>
+                    <th class="p-2 text-start">{{ __('Class') }}</th>
+                    <th class="p-2 text-start">{{ __('Subject') }}</th>
+                    <th class="p-2 text-center">{{ __('Approved questions') }}</th>
+                    <th class="p-2 text-center">{{ __('Earned') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -98,7 +98,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="p-2" colspan="4">No earnings yet.</td>
+                        <td class="p-2" colspan="4">{{ __('No earnings yet.') }}</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -109,7 +109,7 @@
         <x-slot name="heading">
             <span class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-rose-500 to-orange-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm lg:text-base">
                 <x-filament::icon icon="heroicon-o-credit-card" class="h-4 w-4 lg:h-5 lg:w-5" />
-                Bank / mobile banking info
+                {{ __('Bank / mobile banking info') }}
             </span>
         </x-slot>
 
@@ -120,7 +120,7 @@
             {{ $this->form }}
 
             <x-filament::button type="submit">
-                Save
+                {{ __('Save') }}
             </x-filament::button>
         </form>
     </x-filament::section>

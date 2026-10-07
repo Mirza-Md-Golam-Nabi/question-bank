@@ -4,6 +4,7 @@ namespace App\Filament\Staff\Pages;
 
 use App\Enums\QuestionStatus;
 use App\Filament\Support\Concerns\GroupsQuestionsByClassSubject;
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -16,6 +17,7 @@ use Illuminate\Support\Collection;
 class ApprovedQuestionsBreakdown extends Page
 {
     use GroupsQuestionsByClassSubject;
+    use TranslatesPageLabels;
 
     protected string $view = 'filament.staff.pages.approved-questions-breakdown';
 
@@ -25,7 +27,7 @@ class ApprovedQuestionsBreakdown extends Page
 
     public function getTitle(): string
     {
-        return 'Approved Questions';
+        return __('Approved Questions');
     }
 
     /**
@@ -34,8 +36,8 @@ class ApprovedQuestionsBreakdown extends Page
     public function getBreadcrumbs(): array
     {
         return [
-            MyEarnings::getUrl(panel: 'staff') => 'My Earnings',
-            'Approved Questions',
+            MyEarnings::getUrl(panel: 'staff') => __('My Earnings'),
+            __('Approved Questions'),
         ];
     }
 

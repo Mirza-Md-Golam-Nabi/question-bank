@@ -6,6 +6,7 @@ use App\Enums\MobileBankingProvider;
 use App\Enums\PaymentMethod;
 use App\Enums\QuestionStatus;
 use App\Enums\StaffEarningStatus;
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Question;
 use App\Models\StaffEarning;
 use App\Models\StaffProfile;
@@ -26,6 +27,7 @@ use Illuminate\Support\Facades\Auth;
 class MyEarnings extends Page implements HasSchemas
 {
     use InteractsWithSchemas;
+    use TranslatesPageLabels;
 
     protected string $view = 'filament.staff.pages.my-earnings';
 
@@ -63,7 +65,7 @@ class MyEarnings extends Page implements HasSchemas
         return $schema
             ->components([
                 Radio::make('payment_method')
-                    ->label('Payment method')
+                    ->label(__('Payment method'))
                     ->options(PaymentMethod::class)
                     ->live()
                     ->inline()
@@ -74,13 +76,13 @@ class MyEarnings extends Page implements HasSchemas
                     ->visible(fn (Get $get) => $get('payment_method') === PaymentMethod::MobileBanking)
                     ->schema([
                         Radio::make('mobile_banking_provider')
-                            ->label('Provider')
+                            ->label(__('Provider'))
                             ->options(MobileBankingProvider::class)
                             ->inline()
                             ->inlineLabel(false)
                             ->required(fn (Get $get) => $get('payment_method') === PaymentMethod::MobileBanking),
                         TextInput::make('mobile_banking_number')
-                            ->label('Mobile number')
+                            ->label(__('Mobile number'))
                             ->tel()
                             ->required(fn (Get $get) => $get('payment_method') === PaymentMethod::MobileBanking),
                     ]),
@@ -118,7 +120,7 @@ class MyEarnings extends Page implements HasSchemas
 
         StaffProfile::updateOrCreate(['user_id' => Auth::id()], $data);
 
-        Notification::make()->title('Bank info saved')->success()->send();
+        Notification::make()->title(__('Bank info saved'))->success()->send();
     }
 
     public function profile(): ?StaffProfile
@@ -185,8 +187,8 @@ class MyEarnings extends Page implements HasSchemas
                 $classSubject = $earnings->first()->question->chapter->classSubject;
 
                 return [
-                    'class' => $classSubject?->academicClass->name ?? 'Unknown',
-                    'subject' => $classSubject?->subject->name ?? 'Unknown',
+                    'class' => $classSubject?->academicClass->name ?? __('Unknown'),
+                    'subject' => $classSubject?->subject->name ?? __('Unknown'),
                     'count' => $earnings->count(),
                     'total' => $earnings->sum('amount'),
                 ];

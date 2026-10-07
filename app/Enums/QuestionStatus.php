@@ -13,9 +13,9 @@ enum QuestionStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Pending => 'Pending',
-            self::Approved => 'Approved',
-            self::Rejected => 'Rejected',
+            self::Pending => __('Pending'),
+            self::Approved => __('Approved'),
+            self::Rejected => __('Rejected'),
         };
     }
 

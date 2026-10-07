@@ -2,6 +2,7 @@
 
 namespace App\Filament\Staff\Pages;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\StaffPayout;
 use BackedEnum;
 use Filament\Pages\Page;
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\Auth;
  */
 class PayoutHistory extends Page
 {
+    use TranslatesPageLabels;
+
     protected string $view = 'filament.staff.pages.payout-history';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedWallet;
@@ -24,7 +27,7 @@ class PayoutHistory extends Page
 
     public function getTitle(): string
     {
-        return 'Payout History';
+        return __('Payout History');
     }
 
     /**
@@ -33,8 +36,8 @@ class PayoutHistory extends Page
     public function getBreadcrumbs(): array
     {
         return [
-            MyEarnings::getUrl(panel: 'staff') => 'My Earnings',
-            'Payout History',
+            MyEarnings::getUrl(panel: 'staff') => __('My Earnings'),
+            __('Payout History'),
         ];
     }
 

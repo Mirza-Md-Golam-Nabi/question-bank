@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\QuestionRates;
 
 use App\Filament\Resources\QuestionRates\Pages\ManageQuestionRates;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\QuestionRate;
 use BackedEnum;
@@ -21,6 +22,8 @@ use Filament\Tables\Table;
 
 class QuestionRateResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = QuestionRate::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
@@ -32,12 +35,12 @@ class QuestionRateResource extends Resource
         return $schema
             ->components([
                 Select::make('subject_id')
-                    ->label('Subject (blank = default rate)')
+                    ->label(__('Subject (blank = default rate)'))
                     ->relationship('subject', 'name')
                     ->searchable()
                     ->preload(),
                 TextInput::make('rate_amount')
-                    ->label('Rate per question')
+                    ->label(__('Rate per question'))
                     ->numeric()
                     ->minValue(0)
                     ->required(),
@@ -52,7 +55,7 @@ class QuestionRateResource extends Resource
         return $table
             ->defaultSort('effective_from', 'desc')
             ->columns([
-                TextColumn::make('subject.name')->label('Subject')->placeholder('Default'),
+                TextColumn::make('subject.name')->label(__('Subject'))->placeholder(__('Default')),
                 TextColumn::make('rate_amount')->money('BDT'),
                 TextColumn::make('effective_from')->date(),
             ])

@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\Questions\Pages\BrowseChapters;
 use App\Filament\Resources\Questions\Pages\BrowseTopics;
+use App\Filament\Resources\Questions\QuestionResource;
 use App\Models\AcademicClass;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
@@ -76,4 +77,37 @@ it('shifts later topics down when a new topic is inserted at their order', funct
 it('links to the topics page from the chapter browser', function () {
     livewire(BrowseChapters::class, ['class' => $this->class->id, 'classSubject' => $this->classSubject->id])
         ->assertSee('Topics');
+});
+
+it('keeps the add topic modal open with the next display order when adding another', function () {
+    livewire(BrowseTopics::class, ['class' => $this->class->id, 'classSubject' => $this->classSubject->id, 'chapter' => $this->chapter->id])
+        ->callAction('createTopic', data: ['name' => 'Linear Equations', 'order_index' => 1], arguments: ['another' => true])
+        ->assertHasNoActionErrors()
+        ->assertActionHalted('createTopic')
+        ->assertSchemaStateSet(['name' => null, 'order_index' => 2])
+        ->fillForm(['name' => 'Quadratic Equations'])
+        ->callMountedAction(['another' => true])
+        ->assertHasNoActionErrors()
+        ->assertSchemaStateSet(['name' => null, 'order_index' => 3]);
+
+    expect(Topic::where('chapter_id', $this->chapter->id)->orderBy('order_index')->pluck('order_index', 'name')->all())
+        ->toBe(['Linear Equations' => 1, 'Quadratic Equations' => 2]);
+});
+
+it('links the chapters page back to the subjects of its class', function () {
+    livewire(BrowseChapters::class, ['class' => $this->class->id, 'classSubject' => $this->classSubject->id])
+        ->assertSee("Back to {$this->class->name}")
+        ->assertSee(QuestionResource::getUrl('subjects', ['class' => $this->class->id]), false);
+});
+
+it('binds ctrl+enter in the add topic modal to adding another topic', function () {
+    $page = livewire(BrowseTopics::class, ['class' => $this->class->id, 'classSubject' => $this->classSubject->id, 'chapter' => $this->chapter->id])
+        ->mountAction('createTopic')
+        ->instance();
+
+    $attributes = $page->getMountedAction()->getExtraModalWindowAttributes();
+
+    expect($attributes)
+        ->toHaveKeys(['x-on:keydown.ctrl.enter.prevent.stop', 'x-on:keydown.meta.enter.prevent.stop'])
+        ->and($attributes['x-on:keydown.ctrl.enter.prevent.stop'])->toContain('callMountedAction({ another: true })');
 });

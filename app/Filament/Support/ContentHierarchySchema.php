@@ -38,7 +38,7 @@ class ContentHierarchySchema
 
         return [
             Select::make('academic_class_id')
-                ->label('Class')
+                ->label(__('Class'))
                 ->options(fn () => AcademicClass::ordered()->pluck('name', 'id'))
                 ->live()
                 ->columns(1)
@@ -55,7 +55,7 @@ class ContentHierarchySchema
                 ->required(),
 
             Select::make('class_subject_id')
-                ->label('Subject')
+                ->label(__('Subject'))
                 ->options(fn (Get $get) => ClassSubject::query()
                     ->where('academic_class_id', $get('academic_class_id'))
                     ->with('subject')
@@ -87,7 +87,7 @@ class ContentHierarchySchema
             ),
 
             Select::make('chapter_id')
-                ->label('Chapter')
+                ->label(__('Chapter'))
                 ->options(fn (Get $get) => Chapter::query()
                     ->where('class_subject_id', $get('class_subject_id'))
                     ->ordered()

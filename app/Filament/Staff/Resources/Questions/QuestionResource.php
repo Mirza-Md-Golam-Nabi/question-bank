@@ -10,6 +10,7 @@ use App\Filament\Staff\Resources\Questions\Pages\EditQuestion;
 use App\Filament\Staff\Resources\Questions\Pages\ListQuestions;
 use App\Filament\Staff\Resources\Questions\Schemas\QuestionForm;
 use App\Filament\Staff\Resources\Questions\Tables\QuestionsTable;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\Question;
 use BackedEnum;
@@ -21,6 +22,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class QuestionResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = Question::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedQuestionMarkCircle;

@@ -13,9 +13,9 @@ enum QuestionApprovalAction: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Approved => 'Approved',
-            self::Rejected => 'Rejected',
-            self::Resubmitted => 'Resubmitted',
+            self::Approved => __('Approved'),
+            self::Rejected => __('Rejected'),
+            self::Resubmitted => __('Resubmitted'),
         };
     }
 }

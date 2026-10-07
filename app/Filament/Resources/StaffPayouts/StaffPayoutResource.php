@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\StaffPayouts;
 
 use App\Filament\Resources\StaffPayouts\Pages\ManageStaffPayouts;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\StaffPayout;
 use BackedEnum;
@@ -16,6 +17,8 @@ use Filament\Tables\Table;
 
 class StaffPayoutResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = StaffPayout::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
@@ -27,7 +30,7 @@ class StaffPayoutResource extends Resource
         return $schema
             ->components([
                 TextInput::make('reference_note')
-                    ->label('Reference note (e.g. bKash TrxID)'),
+                    ->label(__('Reference note (e.g. bKash TrxID)')),
             ]);
     }
 
@@ -36,11 +39,11 @@ class StaffPayoutResource extends Resource
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('staff.name')->label('Staff')->searchable(),
+                TextColumn::make('staff.name')->label(__('Staff'))->searchable(),
                 TextColumn::make('total_amount')->money('BDT'),
                 TextColumn::make('status')->badge(),
                 TextColumn::make('reference_note'),
-                TextColumn::make('paidBy.name')->label('Paid by'),
+                TextColumn::make('paidBy.name')->label(__('Paid by')),
                 TextColumn::make('paid_at')->dateTime(),
             ])
             ->recordActions([

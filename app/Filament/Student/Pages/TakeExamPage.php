@@ -4,6 +4,7 @@ namespace App\Filament\Student\Pages;
 
 use App\Enums\ExamAttemptStatus;
 use App\Enums\QuestionType;
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\ExamAttempt;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Auth;
 
 class TakeExamPage extends Page
 {
+    use TranslatesPageLabels;
+
     protected static ?string $slug = 'take-exam/{attempt}';
 
     protected static bool $shouldRegisterNavigation = false;
@@ -27,7 +30,7 @@ class TakeExamPage extends Page
     public function mount(ExamAttempt $attempt): void
     {
         abort_unless($attempt->student_id === Auth::id(), 403);
-        abort_if($attempt->status !== ExamAttemptStatus::InProgress, 403, 'This attempt has already been submitted.');
+        abort_if($attempt->status !== ExamAttemptStatus::InProgress, 403, __('This attempt has already been submitted.'));
 
         $this->attempt = $attempt->load('exam.questions');
     }
@@ -43,7 +46,7 @@ class TakeExamPage extends Page
 
         $this->attempt->submitAndAutoGrade();
 
-        Notification::make()->title('Exam submitted')->success()->send();
+        Notification::make()->title(__('Exam submitted'))->success()->send();
 
         $this->redirect(ExamResultPage::getUrl(['attempt' => $this->attempt->id]));
     }

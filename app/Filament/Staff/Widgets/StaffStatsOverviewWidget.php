@@ -4,12 +4,12 @@ namespace App\Filament\Staff\Widgets;
 
 use App\Enums\QuestionStatus;
 use App\Enums\StaffEarningStatus;
+use App\Filament\Support\StatusBadgePills;
 use App\Models\Question;
 use App\Models\StaffEarning;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\HtmlString;
 
 class StaffStatsOverviewWidget extends StatsOverviewWidget
 {
@@ -45,28 +45,28 @@ class StaffStatsOverviewWidget extends StatsOverviewWidget
         $unpaid = (clone $earnings)->where('status', StaffEarningStatus::PendingPayout)->sum('amount');
 
         return [
-            Stat::make('মোট প্রশ্ন', $pending + $approved + $rejected)
-                ->description($this->questionStatusBadges($pending, $approved, $rejected))
+            Stat::make(__('Total questions'), $pending + $approved + $rejected)
+                ->description(StatusBadgePills::questionStatus($pending, $approved, $rejected))
                 ->icon('heroicon-o-document-text')
                 ->color('gray')
                 ->extraAttributes(['class' => 'bg-gradient-to-br from-slate-500 to-slate-600 [&_*]:!text-white']),
 
-            Stat::make('এই মাসের আয়', '৳'.number_format((float) $thisMonthEarning, 2))
+            Stat::make(__('Earnings this month'), '৳'.number_format((float) $thisMonthEarning, 2))
                 ->icon('heroicon-o-calendar-days')
                 ->color('success')
                 ->extraAttributes(['class' => 'bg-gradient-to-br from-emerald-500 to-emerald-600 [&_*]:!text-white']),
 
-            Stat::make('সর্বমোট আয়', '৳'.number_format((float) $totalEarned, 2))
+            Stat::make(__('Total earnings'), '৳'.number_format((float) $totalEarned, 2))
                 ->icon('heroicon-o-banknotes')
                 ->color('info')
                 ->extraAttributes(['class' => 'bg-gradient-to-br from-sky-500 to-sky-600 [&_*]:!text-white']),
 
-            Stat::make('Unpaid balance', '৳'.number_format((float) $unpaid, 2))
+            Stat::make(__('Unpaid balance'), '৳'.number_format((float) $unpaid, 2))
                 ->icon('heroicon-o-wallet')
                 ->color('warning')
                 ->extraAttributes(['class' => 'bg-gradient-to-br from-amber-500 to-amber-600 [&_*]:!text-white']),
 
-            Stat::make('Approval rate', $approvalRate === null ? '—' : number_format($approvalRate, 1).'%')
+            Stat::make(__('Approval rate'), $approvalRate === null ? '—' : number_format($approvalRate, 1).'%')
                 ->icon('heroicon-o-chart-bar')
                 ->color(match (true) {
                     $approvalRate === null => 'gray',
@@ -83,22 +83,5 @@ class StaffStatsOverviewWidget extends StatsOverviewWidget
                     },
                 ]),
         ];
-    }
-
-    private function questionStatusBadges(int $pending, int $approved, int $rejected): HtmlString
-    {
-        $badge = fn (string $dotClass, string $label, int $count) => <<<HTML
-            <span class="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-                <span class="h-1.5 w-1.5 rounded-full {$dotClass}"></span>{$label} {$count}
-            </span>
-            HTML;
-
-        return new HtmlString(
-            '<span class="mt-1 flex flex-wrap items-center gap-1.5">'
-            .$badge('bg-amber-300', 'Pending', $pending)
-            .$badge('bg-emerald-300', 'Approved', $approved)
-            .$badge('bg-rose-300', 'Rejected', $rejected)
-            .'</span>'
-        );
     }
 }

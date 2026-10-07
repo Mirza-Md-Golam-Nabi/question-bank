@@ -6,6 +6,7 @@ use App\Filament\Staff\Pages\Auth\Login;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\QuestionEditorAssets;
 use App\Http\Middleware\EnsureStaffIsApproved;
+use App\Http\Middleware\SetLocale;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -48,6 +49,7 @@ class StaffPanelProvider extends PanelProvider
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,
+                SetLocale::class,
                 AuthenticateSession::class,
                 ShareErrorsFromSession::class,
                 PreventRequestForgery::class,

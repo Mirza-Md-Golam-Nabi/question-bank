@@ -55,10 +55,31 @@ it('deletes an academic class', function () {
 
 it('creates a subject', function () {
     livewire(ManageSubjects::class)
+        ->callAction('create', data: ['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান', 'short_name' => 'PHY'])
+        ->assertHasNoActionErrors();
+
+    $this->assertDatabaseHas('subjects', ['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান', 'short_name' => 'PHY']);
+});
+
+it('creates subjects without a bangla name or a short name', function () {
+    livewire(ManageSubjects::class)
         ->callAction('create', data: ['name' => 'Physics'])
         ->assertHasNoActionErrors();
 
-    $this->assertDatabaseHas('subjects', ['name' => 'Physics']);
+    livewire(ManageSubjects::class)
+        ->callAction('create', data: ['name' => 'Chemistry'])
+        ->assertHasNoActionErrors();
+
+    $this->assertDatabaseHas('subjects', ['name' => 'Physics', 'name_bn' => null, 'short_name' => null]);
+    $this->assertDatabaseHas('subjects', ['name' => 'Chemistry', 'name_bn' => null, 'short_name' => null]);
+});
+
+it('rejects a short name that another subject already uses', function () {
+    Subject::factory()->create(['short_name' => 'PHY']);
+
+    livewire(ManageSubjects::class)
+        ->callAction('create', data: ['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান', 'short_name' => 'PHY'])
+        ->assertHasActionErrors(['short_name' => 'unique']);
 });
 
 it('attaches a subject to a class from the subject browser', function () {
@@ -66,7 +87,7 @@ it('attaches a subject to a class from the subject browser', function () {
     $subject = Subject::factory()->create();
 
     livewire(BrowseSubjects::class, ['class' => $class->id])
-        ->callAction('attachSubject', data: ['subject_id' => $subject->id, 'order_index' => 1])
+        ->callAction('attachSubject', data: ['subject_ids' => [$subject->id], 'order_index' => 1])
         ->assertHasNoActionErrors();
 
     $this->assertDatabaseHas('class_subjects', [
@@ -155,7 +176,7 @@ it('shifts later subjects down when a subject is attached at an existing order',
     $class->subjects()->attach($religion, ['order_index' => 5]);
 
     livewire(BrowseSubjects::class, ['class' => $class->id])
-        ->callAction('attachSubject', data: ['subject_id' => $bgs->id, 'order_index' => 3])
+        ->callAction('attachSubject', data: ['subject_ids' => [$bgs->id], 'order_index' => 3])
         ->assertHasNoActionErrors();
 
     $pivotOrder = fn ($subject) => $class->subjects()->where('subject_id', $subject->id)->first()->pivot->order_index;
@@ -188,4 +209,68 @@ it('rejects assigning the same subject to the same class twice at the database l
 
     expect(fn () => $class->subjects()->attach($subject, ['order_index' => 2]))
         ->toThrow(QueryException::class);
+});
+
+it('attaches several subjects at once in the order they were picked', function () {
+    $class = AcademicClass::factory()->create();
+    $bangla = Subject::factory()->create(['name' => 'Bangla']);
+    $english = Subject::factory()->create(['name' => 'English']);
+    $math = Subject::factory()->create(['name' => 'Mathematics']);
+    $science = Subject::factory()->create(['name' => 'Science']);
+    $religion = Subject::factory()->create(['name' => 'Religion']);
+    $bgs = Subject::factory()->create(['name' => 'BGS']);
+    $ict = Subject::factory()->create(['name' => 'ICT']);
+
+    $class->subjects()->attach($bangla, ['order_index' => 1]);
+    $class->subjects()->attach($english, ['order_index' => 2]);
+    $class->subjects()->attach($math, ['order_index' => 3]);
+
+    livewire(BrowseSubjects::class, ['class' => $class->id])
+        ->callAction('attachSubject', data: [
+            'subject_ids' => [$science->id, $bgs->id, $religion->id, $ict->id],
+            'order_index' => 3,
+        ])
+        ->assertHasNoActionErrors();
+
+    expect($class->subjects()->pluck('order_index', 'name')->all())->toBe([
+        'Bangla' => 1,
+        'English' => 2,
+        'Science' => 3,
+        'BGS' => 4,
+        'Religion' => 5,
+        'ICT' => 6,
+        'Mathematics' => 7,
+    ]);
+});
+
+it('defaults the display order to the end of the class when attaching subjects', function () {
+    $class = AcademicClass::factory()->create();
+    $class->subjects()->attach(Subject::factory()->create(), ['order_index' => 1]);
+    $class->subjects()->attach(Subject::factory()->create(), ['order_index' => 2]);
+
+    livewire(BrowseSubjects::class, ['class' => $class->id])
+        ->mountAction('attachSubject')
+        ->assertSchemaStateSet(['order_index' => 3]);
+});
+
+it('requires at least one subject when attaching', function () {
+    $class = AcademicClass::factory()->create();
+
+    livewire(BrowseSubjects::class, ['class' => $class->id])
+        ->callAction('attachSubject', data: ['subject_ids' => [], 'order_index' => 1])
+        ->assertHasActionErrors(['subject_ids' => 'required']);
+
+    expect($class->subjects()->count())->toBe(0);
+});
+
+it('names subjects in bangla when the app is in bangla and in english otherwise', function () {
+    $physics = Subject::factory()->create(['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান']);
+    $logic = Subject::factory()->create(['name' => 'Logic', 'name_bn' => null]);
+
+    expect($physics->display_name)->toBe('Physics');
+
+    app()->setLocale('bn');
+
+    expect($physics->display_name)->toBe('পদার্থবিজ্ঞান')
+        ->and($logic->display_name)->toBe('Logic');
 });

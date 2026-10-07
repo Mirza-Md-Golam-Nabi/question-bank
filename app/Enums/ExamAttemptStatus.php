@@ -13,9 +13,9 @@ enum ExamAttemptStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::InProgress => 'In Progress',
-            self::Submitted => 'Submitted',
-            self::AutoSubmitted => 'Auto Submitted',
+            self::InProgress => __('In Progress'),
+            self::Submitted => __('Submitted'),
+            self::AutoSubmitted => __('Auto Submitted'),
         };
     }
 }

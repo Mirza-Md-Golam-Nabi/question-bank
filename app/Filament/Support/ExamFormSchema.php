@@ -22,7 +22,7 @@ class ExamFormSchema
 
             Grid::make(3)->schema([
                 Select::make('subject_id')
-                    ->label('Subject')
+                    ->label(__('Subject'))
                     ->relationship('subject', 'name')
                     ->searchable()
                     ->preload()

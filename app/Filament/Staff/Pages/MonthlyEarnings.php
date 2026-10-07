@@ -2,6 +2,7 @@
 
 namespace App\Filament\Staff\Pages;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\StaffEarning;
 use BackedEnum;
 use Filament\Pages\Page;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
  */
 class MonthlyEarnings extends Page
 {
+    use TranslatesPageLabels;
+
     protected string $view = 'filament.staff.pages.monthly-earnings';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
@@ -23,7 +26,7 @@ class MonthlyEarnings extends Page
 
     public function getTitle(): string
     {
-        return 'Monthly Earnings';
+        return __('Monthly Earnings');
     }
 
     /**
@@ -32,8 +35,8 @@ class MonthlyEarnings extends Page
     public function getBreadcrumbs(): array
     {
         return [
-            MyEarnings::getUrl(panel: 'staff') => 'My Earnings',
-            'Monthly Earnings',
+            MyEarnings::getUrl(panel: 'staff') => __('My Earnings'),
+            __('Monthly Earnings'),
         ];
     }
 

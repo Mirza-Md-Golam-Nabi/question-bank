@@ -13,9 +13,9 @@ enum PaymentStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Pending => 'Pending',
-            self::Success => 'Success',
-            self::Failed => 'Failed',
+            self::Pending => __('Pending'),
+            self::Success => __('Success'),
+            self::Failed => __('Failed'),
         };
     }
 }

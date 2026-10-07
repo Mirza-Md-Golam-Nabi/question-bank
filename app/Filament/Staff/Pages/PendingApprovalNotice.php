@@ -2,11 +2,14 @@
 
 namespace App\Filament\Staff\Pages;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use Filament\Pages\Page;
 use Illuminate\Contracts\Support\Htmlable;
 
 class PendingApprovalNotice extends Page
 {
+    use TranslatesPageLabels;
+
     protected static ?string $slug = 'pending-approval';
 
     protected static bool $shouldRegisterNavigation = false;

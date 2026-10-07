@@ -15,13 +15,13 @@
                     </div>
                 @else
                     <textarea wire:model="answers.{{ $question->id }}" rows="4" class="fi-input w-full rounded-lg border-gray-300"
-                        placeholder="Write your answer..."></textarea>
+                        placeholder="{{ __('Write your answer...') }}"></textarea>
                 @endif
             </div>
         @endforeach
 
         <x-filament::button type="submit">
-            Submit exam
+            {{ __('Submit exam') }}
         </x-filament::button>
     </form>
 </x-filament-panels::page>

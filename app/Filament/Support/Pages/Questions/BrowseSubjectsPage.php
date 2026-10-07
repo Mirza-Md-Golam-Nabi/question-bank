@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\Pages\Questions;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\AcademicClass;
 use App\Models\ClassSubject;
 use Filament\Resources\Pages\Page;
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Collection;
  */
 abstract class BrowseSubjectsPage extends Page
 {
+    use TranslatesPageLabels;
+
     protected string $view = 'filament.support.questions.browse-subjects';
 
     public AcademicClass|int|string $class;
@@ -26,7 +29,7 @@ abstract class BrowseSubjectsPage extends Page
 
     public function getTitle(): string|Htmlable
     {
-        return "{$this->class->name} — Subjects";
+        return "{$this->class->name} — ".__('Subjects');
     }
 
     /**
@@ -35,8 +38,8 @@ abstract class BrowseSubjectsPage extends Page
     public function getBreadcrumbs(): array
     {
         return [
-            static::getResource()::getUrl('index') => 'Classes',
-            "{$this->class->name} — Subjects",
+            static::getResource()::getUrl('index') => __('Classes'),
+            "{$this->class->name} — ".__('Subjects'),
         ];
     }
 

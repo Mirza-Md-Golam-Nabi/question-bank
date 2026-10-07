@@ -25,19 +25,19 @@ class ExamsTable
                 TextColumn::make('subject.name'),
                 TextColumn::make('status')->badge(),
                 TextColumn::make('total_marks'),
-                TextColumn::make('questions_count')->label('Questions')->counts('questions'),
+                TextColumn::make('questions_count')->label(__('Questions'))->counts('questions'),
                 TextColumn::make('share_token')
-                    ->label('Share link')
+                    ->label(__('Share link'))
                     ->formatStateUsing(fn (?string $state) => $state ? url("/exam/{$state}") : '—')
                     ->copyable()
-                    ->copyMessage('Link copied'),
+                    ->copyMessage(__('Link copied')),
             ])
             ->filters([
                 SelectFilter::make('status')->options(ExamStatus::class),
             ])
             ->recordActions([
                 Action::make('publish')
-                    ->label('Publish')
+                    ->label(__('Publish'))
                     ->color('success')
                     ->icon('heroicon-o-globe-alt')
                     ->visible(fn (Exam $record) => $record->status === ExamStatus::Draft)
@@ -47,7 +47,7 @@ class ExamsTable
                         $record->recalculateTotalMarks();
                         $record->publish();
 
-                        Notification::make()->title('Exam published')->success()->send();
+                        Notification::make()->title(__('Exam published'))->success()->send();
                     }),
                 EditAction::make(),
                 DeleteAction::make(),

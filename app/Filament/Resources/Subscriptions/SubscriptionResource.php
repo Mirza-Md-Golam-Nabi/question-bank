@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Subscriptions;
 
 use App\Enums\SubscriptionStatus;
 use App\Filament\Resources\Subscriptions\Pages\ManageSubscriptions;
+use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\Subscription;
 use BackedEnum;
@@ -23,6 +24,8 @@ use Filament\Tables\Table;
 
 class SubscriptionResource extends Resource
 {
+    use TranslatesResourceLabels;
+
     protected static ?string $model = Subscription::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
@@ -34,13 +37,13 @@ class SubscriptionResource extends Resource
         return $schema
             ->components([
                 Select::make('user_id')
-                    ->label('User')
+                    ->label(__('User'))
                     ->relationship('user', 'name')
                     ->searchable()
                     ->preload()
                     ->required(),
                 Select::make('plan_id')
-                    ->label('Plan')
+                    ->label(__('Plan'))
                     ->relationship('plan', 'name')
                     ->searchable()
                     ->preload()

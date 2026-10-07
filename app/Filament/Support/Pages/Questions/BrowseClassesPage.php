@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\Pages\Questions;
 
+use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\AcademicClass;
 use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,11 +16,13 @@ use Illuminate\Database\Eloquent\Collection;
  */
 abstract class BrowseClassesPage extends Page
 {
+    use TranslatesPageLabels;
+
     protected string $view = 'filament.support.questions.browse-classes';
 
     public function getTitle(): string
     {
-        return 'Classes';
+        return __('Classes');
     }
 
     /**
@@ -28,7 +31,7 @@ abstract class BrowseClassesPage extends Page
     public function getBreadcrumbs(): array
     {
         return [
-            'Classes',
+            __('Classes'),
         ];
     }
 

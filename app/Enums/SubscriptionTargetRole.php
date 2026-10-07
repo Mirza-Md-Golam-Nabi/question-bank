@@ -12,8 +12,8 @@ enum SubscriptionTargetRole: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Teacher => 'Teacher',
-            self::Student => 'Student',
+            self::Teacher => __('Teacher'),
+            self::Student => __('Student'),
         };
     }
 }

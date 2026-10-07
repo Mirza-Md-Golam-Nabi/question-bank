@@ -14,10 +14,10 @@ enum ExamStatus: string implements HasLabel
     public function getLabel(): ?string
     {
         return match ($this) {
-            self::Draft => 'Draft',
-            self::Published => 'Published',
-            self::Ongoing => 'Ongoing',
-            self::Completed => 'Completed',
+            self::Draft => __('Draft'),
+            self::Published => __('Published'),
+            self::Ongoing => __('Ongoing'),
+            self::Completed => __('Completed'),
         };
     }
 }

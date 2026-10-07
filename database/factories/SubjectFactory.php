@@ -16,6 +16,8 @@ class SubjectFactory extends Factory
     {
         return [
             'name' => fake()->unique()->words(2, true),
+            'name_bn' => 'বিষয় '.fake()->unique()->numberBetween(1, 100000),
+            'short_name' => fake()->unique()->bothify('???-###'),
         ];
     }
 }
