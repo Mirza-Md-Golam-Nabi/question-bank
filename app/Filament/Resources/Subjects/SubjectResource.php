@@ -5,12 +5,9 @@ namespace App\Filament\Resources\Subjects;
 use App\Filament\Resources\Subjects\Pages\ManageSubjects;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\TableActions;
 use App\Models\Subject;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -56,15 +53,8 @@ class SubjectResource extends Resource
                 TextColumn::make('class_subjects_count')->label(__('Classes'))->counts('classSubjects'),
                 TextColumn::make('created_at')->dateTime()->sortable(),
             ])
-            ->recordActions([
-                EditAction::make()->iconButton(),
-                DeleteAction::make()->iconButton(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->recordActions(TableActions::editAndDelete(iconButtons: true))
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

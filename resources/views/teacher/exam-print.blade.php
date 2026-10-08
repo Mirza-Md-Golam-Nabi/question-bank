@@ -67,18 +67,18 @@
     <div class="qb-no-print sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-3">
         <div class="mx-auto flex max-w-3xl flex-wrap items-center gap-2">
             <button type="button" onclick="window.print()"
-                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    class="qb-btn qb-btn--primary text-sm">
                 {{ __('Print / Save as PDF') }}
             </button>
 
             @if ($showAnswers)
                 <a href="{{ route('filament.teacher.exams.print', $exam) }}"
-                   class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+                   class="qb-btn qb-btn--outline text-sm">
                     {{ __('Questions only') }}
                 </a>
             @else
                 <a href="{{ route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 1]) }}"
-                   class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+                   class="qb-btn qb-btn--outline text-sm">
                     {{ __('With answers') }}
                 </a>
             @endif

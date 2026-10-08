@@ -2,7 +2,6 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Enums\ExamStatus;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
@@ -50,9 +49,9 @@ class JoinExam extends Page implements HasSchemas
         $data = $this->form->getState();
         $shareToken = trim(str($data['share_token'])->afterLast('/'));
 
-        $exam = Exam::where('share_token', $shareToken)->first();
+        $exam = Exam::findPublishedByShareToken($shareToken);
 
-        if (! $exam || $exam->status !== ExamStatus::Published || ! $exam->is_link_active) {
+        if (! $exam?->isAcceptingAttempts()) {
             Notification::make()->title(__('This exam link is not active.'))->danger()->send();
 
             return;

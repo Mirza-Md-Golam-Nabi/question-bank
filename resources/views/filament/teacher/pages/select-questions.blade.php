@@ -1,6 +1,4 @@
 @php
-    use App\Enums\QuestionType;
-    use App\Filament\Support\QuestionDisplay;
     use App\Filament\Teacher\Pages\SelectQuestions;
 
     $questions = $this->step === SelectQuestions::STEP_SELECT ? $this->questions : null;
@@ -119,25 +117,7 @@
                                         x-on:change="toggle(@js($item), $event)"
                                     >
 
-                                    <div class="min-w-0 flex-1">
-                                        <div class="mb-2 flex flex-wrap items-center gap-2">
-                                            <x-filament::badge :color="$question->question_type === QuestionType::Mcq ? 'info' : 'warning'">
-                                                {{ $question->question_type->getLabel() }}
-                                            </x-filament::badge>
-
-                                            @if ($question->topic)
-                                                <x-filament::badge color="gray">{{ $question->topic->name }}</x-filament::badge>
-                                            @endif
-
-                                            <x-filament::badge color="gray">{{ $question->difficulty->getLabel() }}</x-filament::badge>
-
-                                            <span class="ms-auto text-xs font-medium text-gray-500 dark:text-gray-400">
-                                                {{ __(':marks marks', ['marks' => QuestionDisplay::marks($question->marks)]) }}
-                                            </span>
-                                        </div>
-
-                                        @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => true])
-                                    </div>
+                                    @include('filament.teacher.pages.partials.question-card-content', ['question' => $question])
                                 </label>
                             @endforeach
 
@@ -191,23 +171,7 @@
                                     x-show="has({{ $question->id }})"
                                     class="flex gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10"
                                 >
-                                    <div class="min-w-0 flex-1">
-                                        <div class="mb-2 flex flex-wrap items-center gap-2">
-                                            <x-filament::badge :color="$question->question_type === QuestionType::Mcq ? 'info' : 'warning'">
-                                                {{ $question->question_type->getLabel() }}
-                                            </x-filament::badge>
-
-                                            @if ($question->topic)
-                                                <x-filament::badge color="gray">{{ $question->topic->name }}</x-filament::badge>
-                                            @endif
-
-                                            <span class="ms-auto text-xs font-medium text-gray-500 dark:text-gray-400">
-                                                {{ __(':marks marks', ['marks' => QuestionDisplay::marks($question->marks)]) }}
-                                            </span>
-                                        </div>
-
-                                        @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => true])
-                                    </div>
+                                    @include('filament.teacher.pages.partials.question-card-content', ['question' => $question])
 
                                     <x-filament::icon-button
                                         icon="heroicon-o-trash"

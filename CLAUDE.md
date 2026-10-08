@@ -587,6 +587,47 @@ CLAUDE.md
 
 ## Coding Conventions
 
+### DRY — কোথাও কোনো কোড ডুপ্লিকেট লেখা যাবে না (Don't Repeat Yourself)
+
+> **একই লজিক, একই মার্কআপ বা একই কনফিগারেশন দুই জায়গায় লেখা নিষেধ। নতুন কিছু লেখার আগে দেখুন সেটা আগে থেকে আছে কি না; থাকলে সেটাই ব্যবহার করুন, আর দ্বিতীয়বার দরকার পড়লে কপি না করে এক জায়গায় তুলে এনে দুই জায়গা থেকে ব্যবহার করুন।**
+
+1. **লেখার আগে খুঁজুন।** নিচের টেবিলের শেয়ার করা অংশগুলো আগে দেখুন, তারপর `grep` করুন। একই রকম কিছু পেলে সেটাকেই বাড়ান (প্যারামিটার/slot/abstract method দিয়ে), নতুন কপি বানাবেন না।
+2. **প্যানেল-ভেদে পার্থক্য শুধু "কোনটা" — "কীভাবে" না।** Admin/Teacher/Staff/Student-এর একই ধরনের পেজ একটা abstract base class থেকে আসবে; প্যানেলের নিজের ক্লাসে থাকবে শুধু তার resource/URL/লেবেল।
+3. **Blade-এ একই ব্লক দুইবার দেখা গেলেই সেটা component** (`resources/views/components/`) বা partial হবে — Guest পেজ (plain HTML) আর Filament পেজ দুটোই একই component ব্যবহার করবে।
+4. **Tailwind-এর লম্বা class-স্ট্রিং বারবার কপি করবেন না।** বারবার লাগা স্টাইল `resources/css/question-display.css`-এ একটা `qb-*` ক্লাস হবে (এই ফাইল `app.css` ও Filament theme দুই bundle-এই যায়)। রঙ/gradient-এর তালিকা PHP-তে এক জায়গায় (পুরো ক্লাস-নাম literal হিসেবে, কারণ Tailwind জোড়া-লাগানো নাম ধরতে পারে না)।
+5. **ব্যবসায়িক নিয়ম সবসময় Model/Service-এ একটাই মেথডে** — controller, Livewire page আর Blade শুধু সেটা ডাকবে, নিজে শর্ত লিখবে না।
+6. **ব্যতিক্রম:** Filament-এর ঘোষণামূলক কনফিগ যেখানে প্রতিটা লাইনই আলাদা তথ্য (যেমন একটা resource-এর কলামের তালিকা) সেটা ডুপ্লিকেট না। টেস্টে পড়ার সুবিধার জন্য সেটআপ পুনরাবৃত্তি চলতে পারে।
+
+**শেয়ার করা অংশগুলো (নতুন কপি না বানিয়ে এগুলোই ব্যবহার করুন):**
+
+| কী দরকার | কোথায় আছে |
+|---|---|
+| চার প্যানেলের অভিন্ন কনফিগ (theme, middleware, navigation) | `App\Filament\Support\PanelDefaults::apply()` |
+| প্রতিটা প্যানেলের `QuestionResource`-এর অভিন্ন অংশ (model, form, table) | `Support\Resources\QuestionResourceBase` — `getEloquentQuery()` কিন্তু প্রতিটা প্যানেলে নিজেই লিখতে হবে (নিয়ম ২) |
+| প্রশ্ন তৈরি/এডিট পেজ (সব প্যানেল) | `Support\Pages\Questions\CreateQuestionPage`, `EditQuestionPage` |
+| Class → Subject → Chapter → Topic select | `Support\ContentHierarchySchema` (`classSelect()` … `topicSelect()`) |
+| MCQ অপশনের ফিল্ড + "একটাই সঠিক উত্তর" নিয়ম | `Support\McqOptionsSchema` |
+| প্রশ্নের ফর্ম / টেবিল / View | `Support\QuestionFormSchema`, `QuestionsTable`, `QuestionInfolist` |
+| টেবিলের edit/delete/bulk-delete অ্যাকশন | `Support\TableActions` |
+| ফর্মে "কোন user" সিলেক্ট | `Support\UserSelect` |
+| নাম + ক্রমসহ আইটেম (class/chapter/topic) যোগ-এডিট-ডিলিট | `Support\Concerns\ManagesOrderedItems` |
+| Browse পেজ (class/subject/chapter) ও কার্ড | `Support\Pages\Questions\Browse*Page`, `<x-browse.grid>`, `<x-browse.card>`, `<x-browse.meta>`, `<x-browse.edit-delete-menu>` |
+| কার্ডের রঙের palette | `Support\CardPalette` |
+| Dashboard-এর stat কার্ড, "Recent questions" | `Support\Widgets\DashboardStat`, `RecentQuestionsWidget` |
+| Self-practice পেজ (লিমিট চেক + শুরু) | `Support\Pages\SelfPracticeExamPage` |
+| Staff-এর প্রশ্ন breakdown পেজ | `Support\Pages\QuestionStatusBreakdownPage` |
+| approve/reject-এর status বদল | `Models\Concerns\HasApprovalStatus` |
+| শেয়ার-লিংকের exam খোঁজা, লিংক সচল কি না | `Exam::findPublishedByShareToken()`, `isAcceptingAttempts()` |
+| একটা subject-এর approved প্রশ্ন | `Question::scopeOfSubject()`, `approvedOptionsForSubject()` |
+| পড়ার জন্য প্রশ্ন দেখানো (অপশন/CQ অংশ) | `filament.support.questions.question-body`, `Support\QuestionDisplay` |
+| পরীক্ষার খাতা (ঘড়ি + প্রশ্ন + সতর্কবার্তা) | `<x-exam-paper>`, `<x-exam-timer>`, `<x-exam-submit-warning>`, `resources/js/exam-timer.js` |
+| ফলাফল | `<x-exam-result>`, `<x-exam-result-question>` |
+| Guest-এর নাম + ফোন/ইমেইল ফিল্ড | `<x-guest-identity-fields>` |
+| ভাষা বদলানোর বাটন (সব জায়গায়) | `<x-language-switcher variant="light|dark|panel">` |
+| গণিতের সূত্র রেন্ডার (দুই JS bundle-এই) | `resources/js/katex-embeds.js` |
+
+### অন্যান্য
+
 - **Filament v5 কনভেনশন মেনে চলুন** — v3-এর পুরনো Form/Table syntax v4/v5-এ কাজ নাও করতে পারে; কোড লেখার আগে official v5 docs চেক করুন।
 - প্রতিটা নতুন Resource/Page লেখার আগে কোন role/panel-এর জন্য তা ঠিক করে সেই অনুযায়ী middleware/policy লাগান।
 - Teacher/Staff/Student প্যানেলে কখনো password-based login/registration কম্পোনেন্ট যোগ করবেন না — Google OAuth-ই একমাত্র পথ।

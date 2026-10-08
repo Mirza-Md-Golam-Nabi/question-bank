@@ -26,9 +26,8 @@ class SelfPracticeExamService
     public function generateAuto(User $student, int $subjectId, ?Difficulty $difficulty, int $questionCount, ?array $chapterIds = null): ExamAttempt
     {
         $questions = Question::approvedPool()
-            ->whereHas('chapter.classSubject', fn ($q) => $q
-                ->where('subject_id', $subjectId)
-                ->when($chapterIds, fn ($q) => $q->whereIn('id', $chapterIds)))
+            ->ofSubject($subjectId)
+            ->when($chapterIds, fn ($query) => $query->whereIn('chapter_id', $chapterIds))
             ->when($difficulty, fn ($q) => $q->where('difficulty', $difficulty))
             ->inRandomOrder()
             ->limit($questionCount)

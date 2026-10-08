@@ -2,35 +2,10 @@
 
 namespace App\Filament\Teacher\Resources\Questions\Pages;
 
-use App\Filament\Support\Concerns\HandlesQuestionForm;
+use App\Filament\Support\Pages\Questions\CreateQuestionPage;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
-use App\Models\Question;
-use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Database\Eloquent\Model;
 
-class CreateQuestion extends CreateRecord
+class CreateQuestion extends CreateQuestionPage
 {
-    use HandlesQuestionForm;
-
     protected static string $resource = QuestionResource::class;
-
-    protected function mutateFormDataBeforeCreate(array $data): array
-    {
-        $this->cqPartsData = $this->extractCqPartsData($data);
-        $this->normalizeMcqOptions($data);
-        $this->rememberEditorModePreference($data);
-        $this->rememberTopicPreference($data);
-
-        return $data;
-    }
-
-    protected function handleRecordCreation(array $data): Model
-    {
-        /** @var Question $record */
-        $record = $this->getModel()::create($data);
-
-        $this->syncCqParts($record);
-
-        return $record;
-    }
 }

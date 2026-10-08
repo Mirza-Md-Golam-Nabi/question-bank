@@ -7,12 +7,9 @@ use App\Filament\Resources\Teachers\Pages\ManageTeachers;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\StaffLikeUserResourceSchema;
+use App\Filament\Support\TableActions;
 use App\Models\User;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -48,15 +45,8 @@ class TeacherResource extends Resource
         return $table
             ->columns(StaffLikeUserResourceSchema::tableColumns())
             ->filters(StaffLikeUserResourceSchema::tableFilters())
-            ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->recordActions(TableActions::editAndDelete())
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

@@ -3,49 +3,41 @@
 namespace App\Filament\Staff\Pages;
 
 use App\Enums\QuestionStatus;
-use App\Filament\Support\Concerns\GroupsQuestionsByClassSubject;
-use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\Pages\QuestionStatusBreakdownPage;
 use BackedEnum;
-use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Collection;
 
-/**
- * Drill-down reached by clicking the "Questions Approved" card on
- * MyEarnings — not a nav item itself, just a detail view.
- */
-class ApprovedQuestionsBreakdown extends Page
+class ApprovedQuestionsBreakdown extends QuestionStatusBreakdownPage
 {
-    use GroupsQuestionsByClassSubject;
-    use TranslatesPageLabels;
-
-    protected string $view = 'filament.staff.pages.approved-questions-breakdown';
-
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckBadge;
-
-    protected static bool $shouldRegisterNavigation = false;
 
     public function getTitle(): string
     {
         return __('Approved Questions');
     }
 
-    /**
-     * @return array<int|string, string>
-     */
-    public function getBreadcrumbs(): array
+    protected function status(): QuestionStatus
     {
-        return [
-            MyEarnings::getUrl(panel: 'staff') => __('My Earnings'),
-            __('Approved Questions'),
-        ];
+        return QuestionStatus::Approved;
     }
 
-    /**
-     * @return Collection<int, array{class: string, subject: string, count: int}>
-     */
-    public function breakdown(): Collection
+    public function emptyText(): string
     {
-        return $this->classSubjectBreakdown(QuestionStatus::Approved);
+        return __('No approved questions yet.');
+    }
+
+    public function countLabel(int $count): string
+    {
+        return trans_choice('question approved|questions approved', $count);
+    }
+
+    public function cardIcon(): string
+    {
+        return 'heroicon-o-check-badge';
+    }
+
+    public function paletteOffset(): int
+    {
+        return 2;
     }
 }

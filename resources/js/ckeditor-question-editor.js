@@ -17,25 +17,16 @@ import {
     Widget,
 } from 'ckeditor5';
 import 'ckeditor5/ckeditor5.css';
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
 import { MathfieldElement } from 'mathlive';
 import 'mathlive/fonts.css';
 import '../css/ckeditor-question-editor.css';
+import { installKatexEmbedRenderer, renderMathInto } from './katex-embeds';
 
 // Registering the <math-field> custom element also installs its default
 // virtual-keyboard sound effects, which try to fetch audio files from
 // MathLive's own CDN path — pointless (and a console error) in a modal
 // that's only ever used for typing a formula, so turn them off up front.
 MathfieldElement.soundsDirectory = null;
-
-function renderMathInto(domElement, latex) {
-    try {
-        katex.render(latex || '', domElement, { throwOnError: false });
-    } catch {
-        domElement.textContent = latex;
-    }
-}
 
 /**
  * Opens a small modal with a MathLive `<math-field>` — a visual math input
@@ -269,67 +260,7 @@ window.createQuestionCkEditor = async function createQuestionCkEditor(element, {
     return editor;
 };
 
-/**
- * Renders every not-yet-rendered `.qb-katex-embed` span under `root` into
- * KaTeX math — reuses the same `katex` import already bundled above for the
- * editing widget, so the admin-side live preview panel (which shows the
- * question as plain persisted HTML, same shape as exam-taking pages) can
- * render it without loading a second copy of KaTeX. Exam-taking pages
- * (Student panel, guest flow) use the separate, much lighter
- * resources/js/katex-embed-renderer.js instead of this file, since they
- * never need the ~1.5MB CKEditor+MathLive bundle.
- */
-window.renderKatexEmbeds = function renderKatexEmbeds(root = document) {
-    // Livewire's `morph.added`/`morph.updated` hooks pass the exact element
-    // that was patched, which can itself be a `.qb-katex-embed` span rather
-    // than a container around one — querySelectorAll alone only searches
-    // descendants, so it would silently skip that case.
-    const isEmbed = root instanceof Element && root.matches('.qb-katex-embed:not(.qb-katex-embed--rendered)');
-    const targets = isEmbed ? [root] : root.querySelectorAll('.qb-katex-embed:not(.qb-katex-embed--rendered)');
-
-    targets.forEach((el) => {
-        const latex = el.textContent;
-        el.classList.add('qb-katex-embed--rendered');
-        el.innerHTML = '';
-        renderMathInto(el, latex);
-    });
-};
-
-let renderScheduled = false;
-
-function scheduleRenderKatexEmbeds() {
-    if (renderScheduled) {
-        return;
-    }
-
-    renderScheduled = true;
-    requestAnimationFrame(() => {
-        renderScheduled = false;
-        window.renderKatexEmbeds();
-    });
-}
-
-document.addEventListener('DOMContentLoaded', scheduleRenderKatexEmbeds);
-document.addEventListener('livewire:navigated', scheduleRenderKatexEmbeds);
-
-// Catches content appearing via a Livewire morph (e.g. the preview panel
-// re-rendering as $get('question_text')/$get('question_image') change)
-// without needing a precise Alpine hook per call site.
-new MutationObserver(scheduleRenderKatexEmbeds).observe(document.body, {
-    childList: true,
-    subtree: true,
-});
-
-// Belt-and-suspenders for Filament's action modals (e.g. the Question
-// "View" action): their content lives inside a `wire:partial` region
-// (see vendor/filament/actions/.../components/modals.blade.php) that
-// Livewire patches in place rather than always inserting fresh nodes —
-// the MutationObserver above can miss that patch entirely, which is why
-// math inside a freshly opened View-question modal was showing as raw
-// LaTeX text instead of rendering. Livewire's own `morph.updated`/
-// `morph.added` hooks fire for every element Livewire touches during a
-// render, so they catch this reliably regardless of the exact DOM diff.
-document.addEventListener('livewire:init', () => {
-    Livewire.hook('morph.added', ({ el }) => window.renderKatexEmbeds(el));
-    Livewire.hook('morph.updated', ({ el }) => window.renderKatexEmbeds(el));
-});
+// Keeps the math in read-only question content (the live preview panel, the
+// question "View" modal, the question picker) rendered — the same shared
+// renderer the read-only bundle uses, so both behave identically.
+installKatexEmbedRenderer();

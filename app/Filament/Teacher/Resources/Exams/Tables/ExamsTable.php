@@ -3,11 +3,10 @@
 namespace App\Filament\Teacher\Resources\Exams\Tables;
 
 use App\Enums\ExamStatus;
+use App\Filament\Support\TableActions;
 use App\Models\Exam;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
@@ -85,13 +84,9 @@ class ExamsTable
                     ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline())
                     ->url(fn (Exam $record): string => route('filament.teacher.exams.print', $record))
                     ->openUrlInNewTab(),
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->toolbarActions(TableActions::bulkDelete());
     }
 }

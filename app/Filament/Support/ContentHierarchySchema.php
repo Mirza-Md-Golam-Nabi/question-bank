@@ -15,15 +15,63 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rule;
 
 /**
- * The Class → Subject (→ Chapter → Topic) cascading select, shared by every
- * form that needs to pin content to a class_subjects row: the Question form
- * (Admin/Teacher/Staff, which goes further to `chapter_id` and an optional
- * `topic_id`) and
- * the Board Question Paper form (which stops at `class_subject_id`, since a
- * board paper isn't scoped to one chapter).
+ * The Class → Subject → Chapter → Topic cascading selects, in one place for
+ * everything that walks that chain:
+ *  - the Question form (Admin/Teacher/Staff), down to `chapter_id` and an
+ *    optional `topic_id`;
+ *  - the Board Question Paper form, which stops at `class_subject_id`
+ *    (a board paper isn't scoped to one chapter);
+ *  - the Teacher's question picker, which uses the four selects as filters.
+ *
+ * The four `*Select()` builders hold what never varies — the field name,
+ * its label and the options each level offers given the level above. What a
+ * form does on top of that (required or not, what to reset on change, how
+ * to hydrate from a record) is added by the caller.
  */
 class ContentHierarchySchema
 {
+    public static function classSelect(): Select
+    {
+        return Select::make('academic_class_id')
+            ->label(__('Class'))
+            ->options(fn () => AcademicClass::ordered()->pluck('name', 'id'))
+            ->live();
+    }
+
+    public static function subjectSelect(): Select
+    {
+        return Select::make('class_subject_id')
+            ->label(__('Subject'))
+            ->options(fn (Get $get) => ClassSubject::query()
+                ->where('academic_class_id', $get('academic_class_id'))
+                ->with('subject')
+                ->ordered()
+                ->get()
+                ->pluck('subject.name', 'id'))
+            ->live();
+    }
+
+    public static function chapterSelect(): Select
+    {
+        return Select::make('chapter_id')
+            ->label(__('Chapter'))
+            ->options(fn (Get $get) => Chapter::query()
+                ->where('class_subject_id', $get('class_subject_id'))
+                ->ordered()
+                ->pluck('name', 'id'))
+            ->live();
+    }
+
+    public static function topicSelect(): Select
+    {
+        return Select::make('topic_id')
+            ->label(__('Topic'))
+            ->options(fn (Get $get) => Topic::query()
+                ->where('chapter_id', $get('chapter_id'))
+                ->ordered()
+                ->pluck('name', 'id'));
+    }
+
     /**
      * @param  (Closure(?Model $record): int|null)|null  $resolveClassSubjectId
      *                                                                           How to read the current `class_subject_id` back off an
@@ -40,10 +88,7 @@ class ContentHierarchySchema
         $resolveClassSubjectId ??= fn (?Model $record) => $record?->chapter?->class_subject_id;
 
         return [
-            Select::make('academic_class_id')
-                ->label(__('Class'))
-                ->options(fn () => AcademicClass::ordered()->pluck('name', 'id'))
-                ->live()
+            static::classSelect()
                 ->columns(1)
                 ->dehydrated(false)
                 ->afterStateHydrated(function (Select $component, ?Model $record, mixed $state) use ($resolveClassSubjectId) {
@@ -57,15 +102,7 @@ class ContentHierarchySchema
                 ->afterStateUpdated(fn (Set $set) => $set('class_subject_id', null))
                 ->required(),
 
-            Select::make('class_subject_id')
-                ->label(__('Subject'))
-                ->options(fn (Get $get) => ClassSubject::query()
-                    ->where('academic_class_id', $get('academic_class_id'))
-                    ->with('subject')
-                    ->ordered()
-                    ->get()
-                    ->pluck('subject.name', 'id'))
-                ->live()
+            static::subjectSelect()
                 ->dehydrated($dehydrateClassSubjectId)
                 ->afterStateHydrated(function (Select $component, ?Model $record, mixed $state) use ($resolveClassSubjectId) {
                     if (filled($state)) {
@@ -79,6 +116,8 @@ class ContentHierarchySchema
     }
 
     /**
+     * The full chain as the Question form uses it.
+     *
      * @return array<Component>
      */
     public static function components(): array
@@ -89,24 +128,13 @@ class ContentHierarchySchema
                 dehydrateClassSubjectId: false,
             ),
 
-            Select::make('chapter_id')
-                ->label(__('Chapter'))
-                ->options(fn (Get $get) => Chapter::query()
-                    ->where('class_subject_id', $get('class_subject_id'))
-                    ->ordered()
-                    ->pluck('name', 'id'))
-                ->live()
+            static::chapterSelect()
                 // A topic only makes sense within its own chapter, so switching
                 // chapter swaps it for the one this user last used there (if any).
                 ->afterStateUpdated(fn (Set $set, mixed $state) => $set('topic_id', TopicPreference::for(auth()->user(), $state)))
                 ->required(),
 
-            Select::make('topic_id')
-                ->label(__('Topic'))
-                ->options(fn (Get $get) => Topic::query()
-                    ->where('chapter_id', $get('chapter_id'))
-                    ->ordered()
-                    ->pluck('name', 'id'))
+            static::topicSelect()
                 ->placeholder(__('No topic'))
                 ->rule(fn (Get $get) => Rule::exists(Topic::class, 'id')->where('chapter_id', $get('chapter_id'))),
         ];

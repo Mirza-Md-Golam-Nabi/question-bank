@@ -3,11 +3,10 @@
 namespace App\Filament\Resources\BoardQuestionPapers\Tables;
 
 use App\Enums\QuestionStatus;
+use App\Filament\Support\TableActions;
 use App\Models\BoardQuestionPaper;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
@@ -39,11 +38,7 @@ class BoardQuestionPapersTable
                 EditAction::make(),
                 DeleteAction::make(),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     protected static function approveAction(): Action

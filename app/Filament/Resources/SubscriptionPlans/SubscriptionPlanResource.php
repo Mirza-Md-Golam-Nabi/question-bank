@@ -7,12 +7,9 @@ use App\Enums\SubscriptionTargetRole;
 use App\Filament\Resources\SubscriptionPlans\Pages\ManageSubscriptionPlans;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\TableActions;
 use App\Models\SubscriptionPlan;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -61,15 +58,8 @@ class SubscriptionPlanResource extends Resource
                 TextColumn::make('monthly_exam_limit')->label(__('Monthly limit'))->placeholder(__('Unlimited')),
                 IconColumn::make('is_default_free')->boolean()->label(__('Default')),
             ])
-            ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->recordActions(TableActions::editAndDelete())
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

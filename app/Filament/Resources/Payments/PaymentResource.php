@@ -7,12 +7,10 @@ use App\Enums\PaymentStatus;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\TableActions;
+use App\Filament\Support\UserSelect;
 use App\Models\Payment;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -37,12 +35,7 @@ class PaymentResource extends Resource
     {
         return $schema
             ->components([
-                Select::make('user_id')
-                    ->label(__('User'))
-                    ->relationship('user', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
+                UserSelect::make(),
                 Select::make('subscription_id')
                     ->label(__('Subscription'))
                     ->relationship('subscription', 'id')
@@ -71,15 +64,8 @@ class PaymentResource extends Resource
                 SelectFilter::make('status')->options(PaymentStatus::class),
                 SelectFilter::make('gateway')->options(PaymentGateway::class),
             ])
-            ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->recordActions(TableActions::editAndDelete())
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

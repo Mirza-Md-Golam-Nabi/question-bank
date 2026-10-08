@@ -3,54 +3,32 @@
 namespace App\Filament\Student\Pages;
 
 use App\Enums\Difficulty;
-use App\Enums\ExamType;
-use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\Pages\SelfPracticeExamPage;
 use App\Models\Chapter;
-use App\Models\Subject;
+use App\Models\ExamAttempt;
+use App\Models\User;
 use App\Services\SelfPracticeExamService;
-use App\Services\SubscriptionLimitService;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
-use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Concerns\InteractsWithSchemas;
-use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Facades\Auth;
 
-class GeneratePracticeExam extends Page implements HasSchemas
+/**
+ * Self-practice, Auto-Generate mode: the system draws random questions of
+ * the chosen subject (and optionally chapters / difficulty).
+ */
+class GeneratePracticeExam extends SelfPracticeExamPage
 {
-    use InteractsWithSchemas;
-    use TranslatesPageLabels;
-
-    protected string $view = 'filament.student.pages.generate-practice-exam';
-
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedSparkles;
 
     protected static ?string $title = 'Auto-Generate Practice Exam';
-
-    /**
-     * @var array<string, mixed>|null
-     */
-    public ?array $data = [];
-
-    public function mount(): void
-    {
-        $this->form->fill();
-    }
 
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                Select::make('subject_id')
-                    ->label(__('Subject'))
-                    ->options(fn () => Subject::query()->orderBy('name')->pluck('name', 'id'))
-                    ->searchable()
-                    ->live()
-                    ->required(),
+                $this->subjectSelect(),
                 Select::make('chapter_ids')
                     ->label(__('Chapters (optional — leave blank for all)'))
                     ->multiple()
@@ -72,30 +50,19 @@ class GeneratePracticeExam extends Page implements HasSchemas
             ->statePath('data');
     }
 
-    public function generate(): void
+    public function submitLabel(): string
     {
-        $student = Auth::user();
+        return __('Generate exam');
+    }
 
-        if (app(SubscriptionLimitService::class)->hasReachedMonthlyLimit($student, ExamType::SelfPractice)) {
-            Notification::make()
-                ->title(__('Monthly free limit reached'))
-                ->body(__('Upgrade your subscription to generate more practice exams this month.'))
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $data = $this->form->getState();
-
-        $attempt = app(SelfPracticeExamService::class)->generateAuto(
+    protected function createAttempt(User $student, array $data): ExamAttempt
+    {
+        return app(SelfPracticeExamService::class)->generateAuto(
             $student,
             $data['subject_id'],
             isset($data['difficulty']) ? Difficulty::from($data['difficulty']) : null,
             $data['question_count'],
             $data['chapter_ids'] ?: null,
         );
-
-        $this->redirect(TakeExamPage::getUrl(['attempt' => $attempt->id]));
     }
 }

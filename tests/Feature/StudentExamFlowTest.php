@@ -40,7 +40,7 @@ it('auto-generates a practice exam from the approved pool and starts an attempt'
             'subject_id' => $classSubject->subject_id,
             'question_count' => 3,
         ])
-        ->call('generate');
+        ->call('start');
 
     $exam = Exam::where('created_by', $this->student->id)->first();
     expect($exam)->not->toBeNull();
@@ -62,7 +62,7 @@ it('builds a manual practice exam from student-picked questions', function () {
             'subject_id' => $classSubject->subject_id,
             'question_ids' => $questions->pluck('id')->all(),
         ])
-        ->call('build');
+        ->call('start');
 
     $exam = Exam::where('created_by', $this->student->id)->first();
     expect($exam->generation_mode->value)->toBe('manual');
@@ -78,14 +78,14 @@ it('counts auto and manual self-practice exams together against the same limit',
     foreach (range(1, 3) as $i) {
         livewire(GeneratePracticeExam::class)
             ->fillForm(['subject_id' => $classSubject->subject_id, 'question_count' => 1])
-            ->call('generate');
+            ->call('start');
     }
 
     expect(Exam::where('created_by', $this->student->id)->count())->toBe(3);
 
     livewire(BuildPracticeExam::class)
         ->fillForm(['subject_id' => $classSubject->subject_id, 'question_ids' => [$questions->first()->id]])
-        ->call('build');
+        ->call('start');
 
     // still 3 — the 4th attempt was blocked by the monthly limit
     expect(Exam::where('created_by', $this->student->id)->count())->toBe(3);

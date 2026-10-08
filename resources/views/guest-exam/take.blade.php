@@ -3,47 +3,15 @@
 @section('title', $attempt->exam->title)
 
 @section('content')
-    <h1 class="text-2xl font-bold mb-2">{{ $attempt->exam->title }}</h1>
+    <x-exam-heading :exam="$attempt->exam" class="mb-4" />
+    <x-guest-identity :attempt="$attempt" class="mb-3" />
+
     <form id="qb-exam-form" method="POST" action="{{ route('guest-exam.submit', $attempt) }}">
         @csrf
 
-        <x-exam-timer :seconds="$attempt->secondsRemaining()">
-            {{ __(':minutes minutes', ['minutes' => $attempt->exam->duration_minutes]) }} &middot; {{ __(':marks marks', ['marks' => $attempt->exam->total_marks]) }}
-        </x-exam-timer>
-
-        {{-- Locked as a whole when the clock runs out; the submit button stays outside it. --}}
-        <fieldset class="qb-exam-answers space-y-8" data-qb-answers>
-        @foreach ($attempt->shuffledQuestions() as $index => $question)
-            <div class="border-t pt-4" data-qb-question>
-                {{-- The text is stored as its own <p>, so the number sits beside it rather than inside one. --}}
-                <div class="mb-3 flex gap-1.5 font-medium">
-                    <span class="shrink-0">{{ $index + 1 }}.</span>
-                    <div class="qb-question-text min-w-0">{!! $question->question_text !!}</div>
-                </div>
-
-                @if ($question->question_type->value === 'mcq')
-                    <div class="space-y-2">
-                        @foreach ($question->options as $option)
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="answers[{{ $question->id }}]" value="{{ $option['option'] }}"
-                                       @checked(($savedAnswers[$question->id] ?? null) === $option['option'])>
-                                <span>{!! $option['option'] !!}</span>
-                            </label>
-                        @endforeach
-                    </div>
-                @else
-                    <textarea name="answers[{{ $question->id }}]" rows="4" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                        placeholder="{{ __('Write your answer...') }}">{{ $savedAnswers[$question->id] ?? '' }}</textarea>
-                @endif
-            </div>
-        @endforeach
-        </fieldset>
-
-        <button type="submit" class="mt-8 rounded-lg bg-amber-500 text-white px-4 py-2 font-medium hover:bg-amber-600">
-            {{ __('Submit exam') }}
-        </button>
-
-        <x-exam-submit-warning />
+        <x-exam-paper :attempt="$attempt" :saved-answers="$savedAnswers">
+            <button type="submit" class="qb-btn qb-btn--primary mt-8">{{ __('Submit exam') }}</button>
+        </x-exam-paper>
     </form>
 
     @vite('resources/js/exam-timer.js')

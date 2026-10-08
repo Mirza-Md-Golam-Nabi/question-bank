@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\QuestionStatus;
+use App\Models\Concerns\HasApprovalStatus;
 use App\Observers\BoardQuestionPaperObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[ObservedBy(BoardQuestionPaperObserver::class)]
 class BoardQuestionPaper extends Model
 {
-    use HasFactory;
+    use HasApprovalStatus, HasFactory;
 
     protected function casts(): array
     {
@@ -59,19 +60,11 @@ class BoardQuestionPaper extends Model
 
     public function approve(User $approver): void
     {
-        $this->forceFill([
-            'status' => QuestionStatus::Approved,
-            'approved_by' => $approver->id,
-            'rejection_reason' => null,
-        ])->save();
+        $this->markApproved($approver);
     }
 
     public function reject(User $rejecter, string $reason): void
     {
-        $this->forceFill([
-            'status' => QuestionStatus::Rejected,
-            'approved_by' => null,
-            'rejection_reason' => $reason,
-        ])->save();
+        $this->markRejected($reason);
     }
 }

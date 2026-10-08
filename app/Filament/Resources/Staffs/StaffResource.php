@@ -8,12 +8,11 @@ use App\Filament\Resources\Staffs\Pages\ManageStaffs;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\StaffLikeUserResourceSchema;
+use App\Filament\Support\TableActions;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -92,11 +91,7 @@ class StaffResource extends Resource
                 EditAction::make()->iconButton(),
                 DeleteAction::make()->iconButton(),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

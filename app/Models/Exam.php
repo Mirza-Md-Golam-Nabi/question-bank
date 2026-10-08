@@ -109,6 +109,29 @@ class Exam extends Model
     }
 
     /**
+     * The published exam behind a share link, whether or not the link still
+     * takes new attempts — a closed link keeps showing results.
+     */
+    public static function findPublishedByShareToken(string $shareToken): ?self
+    {
+        return self::query()
+            ->where('share_token', $shareToken)
+            ->where('status', ExamStatus::Published)
+            ->first();
+    }
+
+    /**
+     * Whether the share link can still be used to start an attempt: not
+     * switched off by the teacher and not past its expiry.
+     */
+    public function isAcceptingAttempts(): bool
+    {
+        return $this->status === ExamStatus::Published
+            && $this->is_link_active
+            && ! ($this->link_expires_at && $this->link_expires_at->isPast());
+    }
+
+    /**
      * Whether a student may see the questions, the correct answers and
      * their own answers on the result — rather than only their score.
      *

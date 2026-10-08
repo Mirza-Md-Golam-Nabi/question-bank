@@ -5,9 +5,9 @@ namespace App\Filament\Teacher\Pages;
 use App\Enums\ExamDeliveryMode;
 use App\Enums\QuestionType;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\ContentHierarchySchema;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
-use App\Models\AcademicClass;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Exam;
@@ -15,7 +15,6 @@ use App\Models\Question;
 use App\Models\Topic;
 use App\Services\TeacherExamBuilder;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
@@ -115,46 +114,24 @@ class SelectQuestions extends Page
                     }),
 
                 Grid::make(['default' => 1, 'sm' => 2, 'lg' => 4])->schema([
-                    Select::make('academic_class_id')
-                        ->label(__('Class'))
-                        ->options(fn () => AcademicClass::ordered()->pluck('name', 'id'))
-                        ->live()
+                    ContentHierarchySchema::classSelect()
                         ->afterStateUpdated(function (Set $set): void {
                             $set('class_subject_id', null);
                             $set('chapter_id', null);
                             $set('topic_id', null);
                         }),
 
-                    Select::make('class_subject_id')
-                        ->label(__('Subject'))
-                        ->options(fn (Get $get) => ClassSubject::query()
-                            ->where('academic_class_id', $get('academic_class_id'))
-                            ->with('subject')
-                            ->ordered()
-                            ->get()
-                            ->pluck('subject.name', 'id'))
-                        ->live()
+                    ContentHierarchySchema::subjectSelect()
                         ->afterStateUpdated(function (Set $set): void {
                             $set('chapter_id', null);
                             $set('topic_id', null);
                         }),
 
-                    Select::make('chapter_id')
-                        ->label(__('Chapter'))
-                        ->options(fn (Get $get) => Chapter::query()
-                            ->where('class_subject_id', $get('class_subject_id'))
-                            ->ordered()
-                            ->pluck('name', 'id'))
-                        ->live()
+                    ContentHierarchySchema::chapterSelect()
                         ->afterStateUpdated(fn (Set $set) => $set('topic_id', null)),
 
                     // CQ isn't organised by topic, so this only narrows MCQ.
-                    Select::make('topic_id')
-                        ->label(__('Topic'))
-                        ->options(fn (Get $get) => Topic::query()
-                            ->where('chapter_id', $get('chapter_id'))
-                            ->ordered()
-                            ->pluck('name', 'id'))
+                    ContentHierarchySchema::topicSelect()
                         ->placeholder(__('All topics'))
                         ->helperText(fn (Get $get) => $get('question_type') === self::TYPE_BOTH ? __('Applies to MCQ only.') : null)
                         ->visible(fn (Get $get) => $get('question_type') !== self::TYPE_CQ)

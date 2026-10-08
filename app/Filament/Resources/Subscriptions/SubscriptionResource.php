@@ -6,12 +6,10 @@ use App\Enums\SubscriptionStatus;
 use App\Filament\Resources\Subscriptions\Pages\ManageSubscriptions;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\TableActions;
+use App\Filament\Support\UserSelect;
 use App\Models\Subscription;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
@@ -36,12 +34,7 @@ class SubscriptionResource extends Resource
     {
         return $schema
             ->components([
-                Select::make('user_id')
-                    ->label(__('User'))
-                    ->relationship('user', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
+                UserSelect::make(),
                 Select::make('plan_id')
                     ->label(__('Plan'))
                     ->relationship('plan', 'name')
@@ -69,15 +62,8 @@ class SubscriptionResource extends Resource
             ->filters([
                 SelectFilter::make('status')->options(SubscriptionStatus::class),
             ])
-            ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->recordActions(TableActions::editAndDelete())
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

@@ -8,6 +8,7 @@ use App\Enums\QuestionApprovalAction;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Enums\UserRole;
+use App\Models\Concerns\HasApprovalStatus;
 use App\Observers\QuestionObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -27,7 +28,7 @@ use Illuminate\Support\Facades\DB;
 #[ObservedBy(QuestionObserver::class)]
 class Question extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasApprovalStatus, HasFactory, SoftDeletes;
 
     protected function casts(): array
     {
@@ -108,14 +109,38 @@ class Question extends Model
         return $query->where('status', QuestionStatus::Approved)->where('is_latest', true);
     }
 
+    /**
+     * Questions of one subject, in whichever class it is taught.
+     */
+    public function scopeOfSubject(Builder $query, int|string $subjectId): Builder
+    {
+        return $query->whereHas('chapter.classSubject', fn (Builder $query) => $query->where('subject_id', $subjectId));
+    }
+
+    /**
+     * The approved pool of a subject as select options — the plain text of
+     * each question, keyed by id.
+     *
+     * @return array<int, string>
+     */
+    public static function approvedOptionsForSubject(int|string|null $subjectId): array
+    {
+        if (blank($subjectId)) {
+            return [];
+        }
+
+        return self::query()
+            ->approvedPool()
+            ->ofSubject($subjectId)
+            ->get(['id', 'question_text'])
+            ->mapWithKeys(fn (self $question) => [$question->id => strip_tags($question->question_text)])
+            ->all();
+    }
+
     public function approve(User $approver): void
     {
         DB::transaction(function () use ($approver) {
-            $this->forceFill([
-                'status' => QuestionStatus::Approved,
-                'approved_by' => $approver->id,
-                'rejection_reason' => null,
-            ])->save();
+            $this->markApproved($approver);
 
             $this->approvalLogs()->create([
                 'action' => QuestionApprovalAction::Approved,
@@ -151,11 +176,7 @@ class Question extends Model
 
     public function reject(User $rejecter, string $reason): void
     {
-        $this->forceFill([
-            'status' => QuestionStatus::Rejected,
-            'approved_by' => null,
-            'rejection_reason' => $reason,
-        ])->save();
+        $this->markRejected($reason);
 
         $this->approvalLogs()->create([
             'action' => QuestionApprovalAction::Rejected,

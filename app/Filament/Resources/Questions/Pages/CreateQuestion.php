@@ -3,35 +3,9 @@
 namespace App\Filament\Resources\Questions\Pages;
 
 use App\Filament\Resources\Questions\QuestionResource;
-use App\Filament\Support\Concerns\HandlesQuestionForm;
-use App\Filament\Support\Concerns\PrefillsChapterFromQuery;
-use App\Models\Question;
-use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Database\Eloquent\Model;
+use App\Filament\Support\Pages\Questions\CreateQuestionPage;
 
-class CreateQuestion extends CreateRecord
+class CreateQuestion extends CreateQuestionPage
 {
-    use HandlesQuestionForm, PrefillsChapterFromQuery;
-
     protected static string $resource = QuestionResource::class;
-
-    protected function mutateFormDataBeforeCreate(array $data): array
-    {
-        $this->cqPartsData = $this->extractCqPartsData($data);
-        $this->normalizeMcqOptions($data);
-        $this->rememberEditorModePreference($data);
-        $this->rememberTopicPreference($data);
-
-        return $data;
-    }
-
-    protected function handleRecordCreation(array $data): Model
-    {
-        /** @var Question $record */
-        $record = $this->getModel()::create($data);
-
-        $this->syncCqParts($record);
-
-        return $record;
-    }
 }

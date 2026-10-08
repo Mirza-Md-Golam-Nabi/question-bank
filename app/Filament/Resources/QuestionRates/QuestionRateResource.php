@@ -5,12 +5,9 @@ namespace App\Filament\Resources\QuestionRates;
 use App\Filament\Resources\QuestionRates\Pages\ManageQuestionRates;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\TableActions;
 use App\Models\QuestionRate;
 use BackedEnum;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -59,15 +56,8 @@ class QuestionRateResource extends Resource
                 TextColumn::make('rate_amount')->money('BDT'),
                 TextColumn::make('effective_from')->date(),
             ])
-            ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->recordActions(TableActions::editAndDelete())
+            ->toolbarActions(TableActions::bulkDelete());
     }
 
     public static function getPages(): array

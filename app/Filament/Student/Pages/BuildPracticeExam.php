@@ -2,62 +2,34 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Enums\ExamType;
-use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\Pages\SelfPracticeExamPage;
+use App\Models\ExamAttempt;
 use App\Models\Question;
-use App\Models\Subject;
+use App\Models\User;
 use App\Services\SelfPracticeExamService;
-use App\Services\SubscriptionLimitService;
 use Filament\Forms\Components\Select;
-use Filament\Notifications\Notification;
-use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Concerns\InteractsWithSchemas;
-use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Facades\Auth;
 
-class BuildPracticeExam extends Page implements HasSchemas
+/**
+ * Self-practice, Manual Selection mode: the student picks the questions
+ * from the approved pool themselves.
+ */
+class BuildPracticeExam extends SelfPracticeExamPage
 {
-    use InteractsWithSchemas;
-    use TranslatesPageLabels;
-
-    protected string $view = 'filament.student.pages.build-practice-exam';
-
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
     protected static ?string $title = 'Build Your Own Practice Exam';
-
-    /**
-     * @var array<string, mixed>|null
-     */
-    public ?array $data = [];
-
-    public function mount(): void
-    {
-        $this->form->fill();
-    }
 
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                Select::make('subject_id')
-                    ->label(__('Subject'))
-                    ->options(fn () => Subject::query()->orderBy('name')->pluck('name', 'id'))
-                    ->searchable()
-                    ->live()
-                    ->required()
-                    ->afterStateUpdated(fn ($set) => $set('question_ids', [])),
+                $this->subjectSelect(fn ($set) => $set('question_ids', [])),
                 Select::make('question_ids')
                     ->label(__('Questions'))
-                    ->options(fn (Get $get) => $get('subject_id')
-                        ? Question::approvedPool()
-                            ->whereHas('chapter.classSubject', fn ($q) => $q->where('subject_id', $get('subject_id')))
-                            ->get()
-                            ->mapWithKeys(fn (Question $question) => [$question->id => strip_tags($question->question_text)])
-                        : [])
+                    ->options(fn (Get $get) => Question::approvedOptionsForSubject($get('subject_id')))
                     ->multiple()
                     ->searchable()
                     ->required(),
@@ -65,28 +37,13 @@ class BuildPracticeExam extends Page implements HasSchemas
             ->statePath('data');
     }
 
-    public function build(): void
+    public function submitLabel(): string
     {
-        $student = Auth::user();
+        return __('Build exam');
+    }
 
-        if (app(SubscriptionLimitService::class)->hasReachedMonthlyLimit($student, ExamType::SelfPractice)) {
-            Notification::make()
-                ->title(__('Monthly free limit reached'))
-                ->body(__('Upgrade your subscription to generate more practice exams this month.'))
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $data = $this->form->getState();
-
-        $attempt = app(SelfPracticeExamService::class)->generateManual(
-            $student,
-            $data['subject_id'],
-            $data['question_ids'],
-        );
-
-        $this->redirect(TakeExamPage::getUrl(['attempt' => $attempt->id]));
+    protected function createAttempt(User $student, array $data): ExamAttempt
+    {
+        return app(SelfPracticeExamService::class)->generateManual($student, $data['subject_id'], $data['question_ids']);
     }
 }

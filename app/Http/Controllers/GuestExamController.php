@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ExamAttemptStatus;
-use App\Enums\ExamStatus;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,7 +31,7 @@ class GuestExamController extends Controller
         if (! $exam) {
             // A closed link no longer starts attempts, but those who sat
             // the exam can still come back to it for their result.
-            return view('guest-exam.inactive', ['exam' => $this->publishedExam($shareToken)]);
+            return view('guest-exam.inactive', ['exam' => Exam::findPublishedByShareToken($shareToken)]);
         }
 
         return view('guest-exam.join', ['exam' => $exam]);
@@ -46,7 +45,7 @@ class GuestExamController extends Controller
      */
     public function findResult(Request $request, string $shareToken): View|RedirectResponse
     {
-        $exam = $this->publishedExam($shareToken);
+        $exam = Exam::findPublishedByShareToken($shareToken);
 
         abort_if(! $exam, 404);
 
@@ -171,28 +170,13 @@ class GuestExamController extends Controller
     }
 
     /**
-     * The exam behind a share token, whether or not its link still accepts
-     * new attempts.
+     * The exam behind a share token, only while its link still takes new
+     * attempts.
      */
-    private function publishedExam(string $shareToken): ?Exam
-    {
-        $exam = Exam::where('share_token', $shareToken)->first();
-
-        return $exam && $exam->status === ExamStatus::Published ? $exam : null;
-    }
-
     private function activeSharedExamOrFail(string $shareToken): ?Exam
     {
-        $exam = $this->publishedExam($shareToken);
+        $exam = Exam::findPublishedByShareToken($shareToken);
 
-        if (! $exam || ! $exam->is_link_active) {
-            return null;
-        }
-
-        if ($exam->link_expires_at && $exam->link_expires_at->isPast()) {
-            return null;
-        }
-
-        return $exam;
+        return $exam?->isAcceptingAttempts() ? $exam : null;
     }
 }

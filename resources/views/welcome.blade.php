@@ -79,7 +79,7 @@
         </a>
 
         <div class="flex shrink-0 items-center gap-2 sm:gap-3">
-            <x-language-switcher dark />
+            <x-language-switcher variant="dark" />
 
             <a href="#panels" class="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white ring-1 ring-white/15 transition hover:bg-white/20 sm:px-5 sm:py-2 sm:text-sm">
                 {{ __('Sign in') }}
