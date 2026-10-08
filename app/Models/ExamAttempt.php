@@ -27,6 +27,16 @@ class ExamAttempt extends Model
      */
     public const ANSWER_GRACE_SECONDS = 30;
 
+    /**
+     * Mirrors the column default, so a freshly created (not yet reloaded)
+     * attempt already knows it is in progress.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => ExamAttemptStatus::InProgress->value,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -76,6 +86,45 @@ class ExamAttempt extends Model
             ->orderBy('id')
             ->get()
             ->first(fn (self $attempt) => self::normalizeGuestName((string) $attempt->guest_name) === self::normalizeGuestName($name));
+    }
+
+    /**
+     * Puts a logged-in student into an exam: the attempt they already have
+     * under way on it, if any (so coming back never restarts their clock),
+     * otherwise a new one starting now.
+     */
+    public static function startFor(Exam $exam, User $student): self
+    {
+        $attemptInProgress = self::query()
+            ->where('exam_id', $exam->id)
+            ->where('student_id', $student->id)
+            ->where('status', ExamAttemptStatus::InProgress)
+            ->latest('id')
+            ->first();
+
+        return $attemptInProgress ?? self::create([
+            'exam_id' => $exam->id,
+            'student_id' => $student->id,
+            'is_guest' => false,
+            'started_at' => now(),
+        ]);
+    }
+
+    /**
+     * Whose attempt this is, by name: what a guest typed when starting, or
+     * the logged-in student's account name.
+     */
+    public function participantName(): string
+    {
+        return (string) ($this->is_guest ? $this->guest_name : $this->student?->name);
+    }
+
+    /**
+     * How to reach them: a guest's phone/email, or the student's email.
+     */
+    public function participantContact(): ?string
+    {
+        return $this->is_guest ? $this->guest_contact : $this->student?->email;
     }
 
     public function student(): BelongsTo

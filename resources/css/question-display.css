@@ -461,3 +461,108 @@
     background-color: rgb(245 158 11 / 0.1);
     color: #fde68a;
 }
+
+/*
+ * The teacher's ranked result sheet (result-sheet-table.blade.php) — on the
+ * results page inside the panel and on the printable sheet.
+ */
+.qb-result-sheet-wrap {
+    overflow-x: auto;
+}
+
+.qb-result-sheet {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.qb-result-sheet th,
+.qb-result-sheet td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.qb-result-sheet th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+}
+
+.qb-result-sheet .qb-result-sheet-num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.qb-result-sheet-action {
+    display: flex;
+    justify-content: center;
+}
+
+.qb-result-sheet-position {
+    font-weight: 700;
+}
+
+/* The top three places stand out. */
+.qb-result-sheet-top td {
+    background-color: #fffbeb;
+}
+
+:is(.dark .qb-result-sheet) th {
+    background-color: rgb(255 255 255 / 0.05);
+}
+
+:is(.dark .qb-result-sheet) :is(th, td) {
+    border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+:is(.dark .qb-result-sheet-top) td {
+    background-color: rgb(245 158 11 / 0.1);
+}
+
+@media print {
+    .qb-result-sheet-wrap {
+        overflow: visible;
+    }
+
+    .qb-result-sheet tr {
+        break-inside: avoid;
+    }
+}
+
+/*
+ * Per-question outcome bar of the teacher's question analysis: wrong,
+ * correct and unanswered shares side by side.
+ */
+.qb-answer-bar {
+    display: flex;
+    height: 0.625rem;
+    margin-top: 0.875rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background-color: #e5e7eb;
+}
+
+.qb-answer-bar-part {
+    flex-basis: 0;
+    min-width: 0;
+}
+
+.qb-answer-dot {
+    display: inline-block;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 9999px;
+}
+
+.qb-answer-bar-part--wrong {
+    background-color: #ef4444;
+}
+
+.qb-answer-bar-part--correct {
+    background-color: #22c55e;
+}
+
+.qb-answer-bar-part--unanswered {
+    background-color: #9ca3af;
+}

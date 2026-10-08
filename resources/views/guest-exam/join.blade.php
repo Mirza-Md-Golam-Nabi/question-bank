@@ -13,7 +13,7 @@
     <p class="text-gray-500 mb-6"><x-exam-summary :exam="$exam" /></p>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <a href="{{ route('filament.student.auth.login') }}" class="qb-btn qb-btn--outline qb-btn--large">
+        <a href="{{ route('guest-exam.join', $exam->share_token) }}" class="qb-btn qb-btn--outline qb-btn--large">
             {{ __('Login to attempt') }}
         </a>
 

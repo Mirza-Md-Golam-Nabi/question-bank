@@ -6,6 +6,7 @@ use App\Filament\Support\PanelDefaults;
 use App\Filament\Support\QuestionEditorAssets;
 use App\Filament\Teacher\Pages\Auth\Login;
 use App\Http\Controllers\TeacherExamPrintController;
+use App\Http\Controllers\TeacherExamResultsPrintController;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -27,8 +28,12 @@ class TeacherPanelProvider extends PanelProvider
             ->widgets([
                 AccountWidget::class,
             ])
-            // The printable question paper is a plain page (no panel chrome
-            // to print around), but still behind the panel's own auth.
-            ->authenticatedRoutes(fn () => Route::get('exams/{exam}/print', TeacherExamPrintController::class)->name('exams.print')));
+            // The printable question paper and result sheet are plain pages
+            // (no panel chrome to print around), but still behind the
+            // panel's own auth.
+            ->authenticatedRoutes(function (): void {
+                Route::get('exams/{exam}/print', TeacherExamPrintController::class)->name('exams.print');
+                Route::get('exams/{exam}/results/print', TeacherExamResultsPrintController::class)->name('exams.results.print');
+            }));
     }
 }

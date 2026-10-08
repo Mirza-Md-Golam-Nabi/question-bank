@@ -43,6 +43,15 @@ class ExamPolicy
         return $exam->created_by === $user->id;
     }
 
+    /**
+     * Students' names, contacts and marks — only for the teacher whose
+     * exam it is.
+     */
+    public function viewResults(User $user, Exam $exam): bool
+    {
+        return $exam->created_by === $user->id;
+    }
+
     public function createSelfPractice(User $user): bool
     {
         return ! $this->subscriptionLimits->hasReachedMonthlyLimit($user, ExamType::SelfPractice);

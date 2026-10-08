@@ -6,7 +6,7 @@
 
 @section('content')
     <h1 class="text-2xl font-bold mb-1">{{ $attempt->exam->title }}</h1>
-    <x-guest-identity :attempt="$attempt" class="mb-4" />
+    <x-exam-participant :attempt="$attempt" class="mb-4" />
 
     <x-exam-result :attempt="$attempt">
         {{ __('Your teacher will release them later. Come back to this exam link then and enter the same name and phone/email to see the correct answers alongside your own.') }}

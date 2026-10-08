@@ -77,24 +77,29 @@ class GuestExamController extends Controller
 
         abort_if(! $exam, 404);
 
-        // Going back and pressing "Start" again resumes the attempt already
-        // under way in this browser, clock and all.
-        $attemptInProgress = $this->guestAttemptsOfThisBrowser($request)
-            ->where('exam_id', $exam->id)
-            ->where('status', ExamAttemptStatus::InProgress)
-            ->latest('id')
-            ->first();
-
-        if ($attemptInProgress) {
-            return redirect()->route('guest-exam.take', $attemptInProgress);
-        }
-
         $data = $request->validate([
             'guest_name' => ['required', 'string', 'max:255'],
             // Required: together with the name it is the guest's only way
             // back to their result once the answers are released.
             'guest_contact' => ['required', 'string', 'max:255'],
         ]);
+
+        // The same person going back and pressing "Start" again resumes the
+        // attempt they already have under way in this browser, clock and
+        // all. Only the same person, though: on a shared phone or lab
+        // computer the next student gives their own name and contact, and
+        // must get their own exam — not the previous student's.
+        $attemptInProgress = $this->guestAttemptsOfThisBrowser($request)
+            ->where('exam_id', $exam->id)
+            ->where('status', ExamAttemptStatus::InProgress)
+            ->where('guest_contact', ExamAttempt::normalizeGuestContact($data['guest_contact']))
+            ->latest('id')
+            ->get()
+            ->first(fn (ExamAttempt $attempt) => ExamAttempt::normalizeGuestName((string) $attempt->guest_name) === ExamAttempt::normalizeGuestName($data['guest_name']));
+
+        if ($attemptInProgress) {
+            return redirect()->route('guest-exam.take', $attemptInProgress);
+        }
 
         $attempt = ExamAttempt::create([
             'exam_id' => $exam->id,

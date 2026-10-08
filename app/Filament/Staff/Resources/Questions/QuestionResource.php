@@ -17,7 +17,7 @@ class QuestionResource extends QuestionResourceBase
     {
         // Staff only ever needs their own contributions — no approved pool
         // to browse (CLAUDE.md rule 2).
-        return parent::getEloquentQuery()->where('created_by', auth()->id());
+        return parent::getEloquentQuery()->ownedBy(auth()->user());
     }
 
     public static function getPages(): array

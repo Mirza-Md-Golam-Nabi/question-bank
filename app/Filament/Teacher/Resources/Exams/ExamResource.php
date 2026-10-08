@@ -6,6 +6,8 @@ use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Teacher\Resources\Exams\Pages\CreateExam;
 use App\Filament\Teacher\Resources\Exams\Pages\EditExam;
+use App\Filament\Teacher\Resources\Exams\Pages\ExamQuestionAnalysis;
+use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
 use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
 use App\Filament\Teacher\Resources\Exams\Schemas\ExamForm;
 use App\Filament\Teacher\Resources\Exams\Tables\ExamsTable;
@@ -48,6 +50,8 @@ class ExamResource extends Resource
             'index' => ListExams::route('/'),
             'create' => CreateExam::route('/create'),
             'edit' => EditExam::route('/{record}/edit'),
+            'results' => ExamResults::route('/{record}/results'),
+            'question-analysis' => ExamQuestionAnalysis::route('/{record}/question-analysis'),
         ];
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\StudentSharedExamController;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -54,6 +55,14 @@ class GoogleAuthController extends Controller
             : $this->createUser($googleUser, $intendedRole);
 
         auth()->login($user);
+
+        // A student who came from an exam's share link goes straight on to
+        // that exam instead of landing on the dashboard.
+        $examToJoin = session()->pull(StudentSharedExamController::SESSION_KEY);
+
+        if ($examToJoin && $intendedRole === UserRole::Student) {
+            return redirect()->route('guest-exam.join', $examToJoin);
+        }
 
         return redirect()->to(Filament::getPanel($intendedRole->panelId())->getUrl());
     }

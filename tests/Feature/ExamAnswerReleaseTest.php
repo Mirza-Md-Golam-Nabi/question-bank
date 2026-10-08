@@ -248,3 +248,101 @@ it('leaves the language switcher off the guest result page but keeps it on the e
 
     ($this->findResult)('Rahim Uddin', '01712345678')->assertOk()->assertDontSee(route('locale.switch', 'bn'));
 });
+
+describe('scheduled answer release', function () {
+    beforeEach(function () {
+        $this->freezeTime();
+        $this->actingAs($this->teacher);
+        Filament::setCurrentPanel(Filament::getPanel('teacher'));
+    });
+
+    it('keeps the answers locked until the scheduled time, then unlocks them by itself', function () {
+        $this->exam->scheduleAnswerRelease(now()->addHours(2));
+
+        expect($this->exam->showsAnswersToStudents())->toBeFalse();
+        expect($this->exam->hasPendingAnswerRelease())->toBeTrue();
+
+        $this->travel(2)->hours();
+        $this->travel(1)->seconds();
+
+        // Nothing ran in between — the stored time alone decides it.
+        expect($this->exam->fresh()->showsAnswersToStudents())->toBeTrue();
+        expect($this->exam->fresh()->hasPendingAnswerRelease())->toBeFalse();
+    });
+
+    it('shows a student the answers once the scheduled time has passed', function () {
+        $student = User::factory()->student()->create();
+        $attempt = ExamAttempt::create(['exam_id' => $this->exam->id, 'student_id' => $student->id, 'is_guest' => false, 'started_at' => now()])->fresh();
+        $attempt->recordAnswers([$this->question->id => 'Khulna']);
+        $attempt->submitAndAutoGrade();
+
+        $this->exam->scheduleAnswerRelease(now()->addHour());
+
+        $this->actingAs($student);
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+
+        livewire(ExamResultPage::class, ['attempt' => $attempt])->assertDontSee('Capital of Bangladesh?');
+
+        $this->travel(61)->minutes();
+
+        livewire(ExamResultPage::class, ['attempt' => $attempt->fresh()])
+            ->assertSee('Capital of Bangladesh?')
+            ->assertSeeHtml('qb-result-option--correct');
+    });
+
+    it('lets the teacher set, change and cancel the release time from the exams table', function () {
+        $releaseAt = now()->addDay()->startOfMinute();
+
+        livewire(ListExams::class)
+            ->callTableAction('scheduleAnswers', $this->exam, data: ['answers_release_at' => $releaseAt->toDateTimeString()])
+            ->assertHasNoTableActionErrors();
+
+        expect($this->exam->fresh()->answers_release_at->equalTo($releaseAt))->toBeTrue();
+        expect($this->exam->fresh()->showsAnswersToStudents())->toBeFalse();
+
+        livewire(ListExams::class)
+            ->callTableAction('scheduleAnswers', $this->exam, data: ['answers_release_at' => null]);
+
+        expect($this->exam->fresh()->answers_release_at)->toBeNull();
+    });
+
+    it('refuses a release time in the past', function () {
+        livewire(ListExams::class)
+            ->callTableAction('scheduleAnswers', $this->exam, data: ['answers_release_at' => now()->subHour()->toDateTimeString()])
+            ->assertHasTableActionErrors(['answers_release_at']);
+
+        expect($this->exam->fresh()->answers_release_at)->toBeNull();
+    });
+
+    it('still lets the teacher release by hand before the scheduled time', function () {
+        $this->exam->scheduleAnswerRelease(now()->addDay());
+
+        livewire(ListExams::class)->callTableAction('releaseAnswers', $this->exam);
+
+        expect($this->exam->fresh()->showsAnswersToStudents())->toBeTrue();
+    });
+
+    it('locks the answers again on "hide", even after the scheduled time has passed', function () {
+        $this->exam->scheduleAnswerRelease(now()->addHour());
+        $this->travel(2)->hours();
+
+        livewire(ListExams::class)
+            ->assertTableActionVisible('hideAnswers', $this->exam)
+            ->assertTableActionHidden('scheduleAnswers', $this->exam)
+            ->callTableAction('hideAnswers', $this->exam);
+
+        expect($this->exam->fresh()->showsAnswersToStudents())->toBeFalse();
+        expect($this->exam->fresh()->answers_release_at)->toBeNull();
+    });
+
+    it('shows where the answers stand in the exams table', function () {
+        $hidden = Exam::factory()->published()->create(['created_by' => $this->teacher->id]);
+        $scheduled = Exam::factory()->published()->create(['created_by' => $this->teacher->id, 'answers_release_at' => now()->addDay()]);
+        $released = Exam::factory()->published()->create(['created_by' => $this->teacher->id, 'answers_released_at' => now()]);
+
+        livewire(ListExams::class)
+            ->assertTableColumnStateSet('answers_release_at', 'Hidden', $hidden)
+            ->assertTableColumnStateSet('answers_release_at', 'Released', $released)
+            ->assertTableColumnStateSet('answers_release_at', now()->addDay()->translatedFormat('j M, g:i A'), $scheduled);
+    });
+});

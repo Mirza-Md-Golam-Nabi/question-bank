@@ -3,9 +3,11 @@
 namespace App\Filament\Teacher\Pages;
 
 use App\Enums\ExamDeliveryMode;
+use App\Enums\ExamType;
 use App\Enums\QuestionType;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Filament\Support\ContentHierarchySchema;
+use App\Filament\Support\FutureDateTimePicker;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
 use App\Models\Chapter;
@@ -25,12 +27,14 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\WithPagination;
 
 /**
@@ -89,9 +93,118 @@ class SelectQuestions extends Page
 
     public ?int $savedExamId = null;
 
+    /**
+     * Set when the page was opened to edit an existing exam (`?exam=`)
+     * instead of building a new one. Locked: the browser can't swap it for
+     * another exam's id afterwards.
+     */
+    #[Locked]
+    public ?int $editingExamId = null;
+
     public function mount(): void
     {
         $this->form->fill();
+
+        if (filled($examId = request()->query('exam'))) {
+            $this->startEditing($examId);
+        }
+    }
+
+    /**
+     * Opens one of the teacher's own exams in the picker: its mode, class
+     * and subject become the filters, and its questions the starting
+     * selection (see initialSelection()).
+     */
+    private function startEditing(int|string $examId): void
+    {
+        $exam = Exam::query()
+            ->where('created_by', Auth::id())
+            ->where('exam_type', ExamType::TeacherExam)
+            ->findOrFail($examId);
+
+        // Exams made before the picker existed didn't record their class;
+        // their questions still say which class + subject they belong to.
+        $classSubject = $exam->classSubject ?? $exam->questions()->with('chapter.classSubject')->first()?->chapter?->classSubject;
+
+        $this->editingExamId = $exam->id;
+        $this->data = [
+            ...$this->data ?? [],
+            'exam_mode' => $exam->delivery_mode->value,
+            'academic_class_id' => $classSubject?->academic_class_id,
+            'class_subject_id' => $classSubject?->id,
+            'question_type' => $exam->delivery_mode->allowsCq() ? self::TYPE_BOTH : self::TYPE_MCQ,
+        ];
+
+        // Start on the final view, so the questions the exam already has
+        // are on screen straight away — the teacher removes from there, or
+        // goes back to the chapters to add more.
+        if ($classSubject) {
+            $this->reviewIds = app(TeacherExamBuilder::class)
+                ->selectableQuestions($classSubject, $exam->questions()->pluck('questions.id')->all())
+                ->pluck('id')
+                ->all();
+
+            if ($this->reviewIds !== []) {
+                $this->step = self::STEP_REVIEW;
+            }
+        }
+    }
+
+    #[Computed]
+    public function editingExam(): ?Exam
+    {
+        return $this->editingExamId
+            ? Exam::query()->where('created_by', Auth::id())->find($this->editingExamId)
+            : null;
+    }
+
+    public function getTitle(): string|Htmlable
+    {
+        return $this->editingExam
+            ? __('Edit exam').' — '.$this->editingExam->title
+            : parent::getTitle();
+    }
+
+    /**
+     * The selection the browser starts from when editing: the exam's
+     * current questions, in the same compact shape the browser keeps
+     * (id => chapter, type, marks), plus targets matching what is there.
+     * Null when building a new exam.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function initialSelection(): ?array
+    {
+        if (! $this->editingExam) {
+            return null;
+        }
+
+        $questions = $this->editingExam->questions()->with('chapter:id,name')->get();
+
+        return [
+            'items' => $questions->mapWithKeys(fn (Question $question) => [$question->id => [
+                'c' => $question->chapter_id,
+                't' => $question->question_type->value,
+                'm' => (float) $question->marks,
+            ]])->all() ?: new \stdClass,
+            'chapters' => $questions->pluck('chapter.name', 'chapter_id')->all() ?: new \stdClass,
+            'targets' => [
+                'mcq' => $questions->where('question_type', QuestionType::Mcq)->count() ?: null,
+                'cq' => $questions->where('question_type', QuestionType::Cq)->count() ?: null,
+            ],
+            'classSubjectId' => $this->data['class_subject_id'] ?? null,
+            'mode' => $this->data['exam_mode'] ?? null,
+        ];
+    }
+
+    /**
+     * Where the browser keeps this page's selection. Editing an exam gets
+     * a key of its own, so it never disturbs (or is disturbed by) a new
+     * exam the teacher is in the middle of building.
+     */
+    public function selectionStorageKey(): string
+    {
+        return 'qb:teacher-selection:'.Auth::id().($this->editingExamId ? ':exam:'.$this->editingExamId : '');
     }
 
     public function form(Schema $schema): Schema
@@ -348,11 +461,15 @@ class SelectQuestions extends Page
     public function saveExamAction(): Action
     {
         return Action::make('saveExam')
-            ->label(__('Save as exam'))
+            ->label(fn (): string => $this->editingExam ? __('Save changes') : __('Save as exam'))
             ->icon(Heroicon::OutlinedCheck)
-            ->modalHeading(__('Save as exam'))
-            ->modalDescription(__('Saving counts as one exam towards your monthly limit, whether you publish it online or only print it.'))
-            ->modalSubmitActionLabel(__('Save exam'))
+            ->modalHeading(fn (): string => $this->editingExam ? __('Save changes') : __('Save as exam'))
+            // Editing doesn't count again; the exam was counted when first saved.
+            ->modalDescription(fn (): ?string => $this->editingExam
+                ? null
+                : __('Saving counts as one exam towards your monthly limit, whether you publish it online or only print it.'))
+            ->modalSubmitActionLabel(fn (): string => $this->editingExam ? __('Save changes') : __('Save exam'))
+            ->fillForm(fn (): array => $this->editingExam?->only(['title', 'duration_minutes']) ?? [])
             ->schema([
                 TextInput::make('title')
                     ->label(__('Exam title'))
@@ -365,6 +482,12 @@ class SelectQuestions extends Page
                     ->minValue(1)
                     ->maxValue(600)
                     ->required(),
+                // Optional, and it can be set or changed later from the
+                // exams list — there is no link to close on a print-only exam.
+                // When editing, the end time keeps being managed from the list.
+                FutureDateTimePicker::make('link_expires_at')
+                    ->label(__('Exam ends at'))
+                    ->visible(fn (): bool => ! $this->editingExam && $this->deliveryMode()->includesOnline()),
             ])
             ->action(function (array $data, array $arguments, Action $action): void {
                 if (! $this->classSubject) {
@@ -372,14 +495,26 @@ class SelectQuestions extends Page
                 }
 
                 try {
-                    $exam = app(TeacherExamBuilder::class)->build(
-                        Auth::user(),
-                        $this->classSubject,
-                        $this->deliveryMode(),
-                        $arguments['ids'] ?? [],
-                        $data['title'],
-                        (int) $data['duration_minutes'],
-                    );
+                    $builder = app(TeacherExamBuilder::class);
+
+                    $exam = $this->editingExam
+                        ? $builder->update(
+                            $this->editingExam,
+                            $this->classSubject,
+                            $this->deliveryMode(),
+                            $arguments['ids'] ?? [],
+                            $data['title'],
+                            (int) $data['duration_minutes'],
+                        )
+                        : $builder->build(
+                            Auth::user(),
+                            $this->classSubject,
+                            $this->deliveryMode(),
+                            $arguments['ids'] ?? [],
+                            $data['title'],
+                            (int) $data['duration_minutes'],
+                            FutureDateTimePicker::parse($data['link_expires_at'] ?? null),
+                        );
                 } catch (ValidationException $exception) {
                     Notification::make()
                         ->title(__('The exam could not be saved'))

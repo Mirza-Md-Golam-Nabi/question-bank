@@ -1,4 +1,7 @@
-@props(['attempt'])
+@props([
+    'attempt',
+    'alwaysShowAnswers' => false,
+])
 
 @php
     /**
@@ -10,8 +13,9 @@
      * panel's result page.
      *
      * @var \App\Models\ExamAttempt $attempt
+     * @var bool $alwaysShowAnswers  For the exam's teacher, who may see the answers whether or not they are released to students.
      */
-    $showsAnswers = $attempt->exam->showsAnswersToStudents();
+    $showsAnswers = $alwaysShowAnswers || $attempt->exam->showsAnswersToStudents();
     $answersByQuestion = $showsAnswers ? $attempt->answers->keyBy('question_id') : collect();
 @endphp
 

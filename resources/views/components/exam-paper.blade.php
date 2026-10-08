@@ -7,8 +7,10 @@
 
 @php
     /**
-     * The exam a student sits — the countdown bar, the questions in this
-     * attempt's own order, and the "unanswered questions" dialog. The guest
+     * The exam a student sits — the heading, whose paper it is, the
+     * countdown bar, the questions in this attempt's own order, and the
+     * "unanswered questions" dialog. Everything here is the same for a
+     * guest and a logged-in student, so both see the same page. The guest
      * exam page (a plain HTML form) and the Student panel's exam page (a
      * Livewire component) both render it; the slot is the page's own submit
      * button.
@@ -28,6 +30,9 @@
         ? 'wire:model="answers.' . $questionId . '"'
         : 'name="answers[' . $questionId . ']"';
 @endphp
+
+<x-exam-heading :exam="$attempt->exam" class="mb-4" />
+<x-exam-participant :attempt="$attempt" class="mb-3" />
 
 {{-- `display: contents` keeps this wrapper out of the layout: the bar is
      sticky, and a sticky element only travels within its parent box — inside

@@ -13,6 +13,7 @@ export default defineConfig({
                 'resources/js/ckeditor-question-editor.js',
                 'resources/js/katex-embed-renderer.js',
                 'resources/js/exam-timer.js',
+                'resources/js/result-sheet-image.js',
             ],
             refresh: true,
             fonts: [

@@ -11,6 +11,7 @@ use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\Question;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +79,98 @@ class TeacherExamBuilder
         array $questionIds,
         string $title,
         int $durationMinutes,
+        ?CarbonInterface $endsAt = null,
     ): Exam {
+        $questions = $this->validatedQuestions($classSubject, $deliveryMode, $questionIds);
+
+        if ($this->subscriptionLimits->hasReachedMonthlyLimit($teacher, ExamType::TeacherExam)) {
+            $this->fail(__('You have reached the monthly exam limit. Upgrade your subscription to create more exams.'));
+        }
+
+        return DB::transaction(function () use ($teacher, $classSubject, $deliveryMode, $questions, $title, $durationMinutes, $endsAt) {
+            $exam = Exam::create([
+                'title' => $title,
+                'created_by' => $teacher->id,
+                'exam_type' => ExamType::TeacherExam,
+                'generation_mode' => GenerationMode::Manual,
+                'delivery_mode' => $deliveryMode,
+                'subject_id' => $classSubject->subject_id,
+                'class_subject_id' => $classSubject->id,
+                'duration_minutes' => $durationMinutes,
+                // Only an exam taken online has a link to close.
+                'link_expires_at' => $deliveryMode->includesOnline() ? $endsAt : null,
+                'status' => ExamStatus::Draft,
+            ]);
+
+            return $this->putQuestionsOn($exam, $questions);
+        });
+    }
+
+    /**
+     * Saves changes to an exam the teacher already has — its questions,
+     * title, duration, or how it is taken — with the same checks as
+     * building one. It doesn't count against the monthly limit again: the
+     * exam was counted when it was first saved.
+     *
+     * Refused once any student has started the exam: changing the paper
+     * after that would make their marks and positions mean something
+     * different from what they sat.
+     *
+     * @param  array<int, mixed>  $questionIds
+     *
+     * @throws ValidationException
+     */
+    public function update(
+        Exam $exam,
+        ClassSubject $classSubject,
+        ExamDeliveryMode $deliveryMode,
+        array $questionIds,
+        string $title,
+        int $durationMinutes,
+    ): Exam {
+        if (! $this->canBeEdited($exam)) {
+            $this->fail(__('Students have already taken this exam, so its questions can no longer be changed.'));
+        }
+
+        $questions = $this->validatedQuestions($classSubject, $deliveryMode, $questionIds);
+
+        return DB::transaction(function () use ($exam, $classSubject, $deliveryMode, $questions, $title, $durationMinutes) {
+            $exam->update([
+                'title' => $title,
+                'delivery_mode' => $deliveryMode,
+                'subject_id' => $classSubject->subject_id,
+                'class_subject_id' => $classSubject->id,
+                'duration_minutes' => $durationMinutes,
+                // A print-only exam has no link to close; otherwise the end
+                // time stays as set from the exams list.
+                'link_expires_at' => $deliveryMode->includesOnline() ? $exam->link_expires_at : null,
+            ]);
+
+            $exam->questions()->detach();
+
+            return $this->putQuestionsOn($exam, $questions);
+        });
+    }
+
+    /**
+     * An exam's paper can be changed until the first student starts it.
+     */
+    public function canBeEdited(Exam $exam): bool
+    {
+        return ! $exam->attempts()->exists();
+    }
+
+    /**
+     * The checks every saved selection has to pass, whether it becomes a
+     * new exam or replaces an existing one's questions.
+     *
+     * @param  array<int, mixed>  $questionIds
+     * @return Collection<int, Question>
+     *
+     * @throws ValidationException
+     */
+    private function validatedQuestions(ClassSubject $classSubject, ExamDeliveryMode $deliveryMode, array $questionIds): Collection
+    {
         $questionIds = $this->normalizeIds($questionIds);
 
         if ($questionIds === []) {
@@ -99,33 +191,26 @@ class TeacherExamBuilder
             $this->fail(__('An online exam can only contain MCQ questions.'));
         }
 
-        if ($this->subscriptionLimits->hasReachedMonthlyLimit($teacher, ExamType::TeacherExam)) {
-            $this->fail(__('You have reached the monthly exam limit. Upgrade your subscription to create more exams.'));
-        }
+        return $questions;
+    }
 
-        return DB::transaction(function () use ($teacher, $classSubject, $deliveryMode, $questions, $title, $durationMinutes) {
-            $exam = Exam::create([
-                'title' => $title,
-                'created_by' => $teacher->id,
-                'exam_type' => ExamType::TeacherExam,
-                'generation_mode' => GenerationMode::Manual,
-                'delivery_mode' => $deliveryMode,
-                'subject_id' => $classSubject->subject_id,
-                'class_subject_id' => $classSubject->id,
-                'duration_minutes' => $durationMinutes,
-                'status' => ExamStatus::Draft,
-            ]);
+    /**
+     * Attaches the questions in paper order and brings total_marks in line.
+     *
+     * @param  Collection<int, Question>  $questions
+     */
+    private function putQuestionsOn(Exam $exam, Collection $questions): Exam
+    {
+        $exam->questions()->attach(
+            $questions->mapWithKeys(fn (Question $question, int $index) => [
+                $question->id => ['order_index' => $index + 1, 'marks_override' => null],
+            ])->all(),
+        );
 
-            $exam->questions()->attach(
-                $questions->mapWithKeys(fn (Question $question, int $index) => [
-                    $question->id => ['order_index' => $index + 1, 'marks_override' => null],
-                ])->all(),
-            );
+        $exam->unsetRelation('questions')->unsetRelation('onlineQuestions');
+        $exam->recalculateTotalMarks();
 
-            $exam->recalculateTotalMarks();
-
-            return $exam->refresh();
-        });
+        return $exam->refresh();
     }
 
     /**

@@ -155,6 +155,40 @@ describe('refreshing the guest exam page', function () {
         expect(ExamAttempt::count())->toBe(1);
     });
 
+    it('gives the next student on the same device their own attempt, not the previous student\'s', function () {
+        ($this->start)();
+        $first = ExamAttempt::sole();
+
+        $this->travel(2)->minutes();
+
+        $this->post(route('guest-exam.start', $this->exam->share_token), ['guest_name' => 'Karim', 'guest_contact' => '01799999999'])
+            ->assertRedirect();
+
+        $second = ExamAttempt::latest('id')->first();
+
+        expect(ExamAttempt::count())->toBe(2);
+        expect($second->id)->not->toBe($first->id);
+        expect($second->guest_name)->toBe('Karim');
+
+        $this->get(route('guest-exam.take', $second))
+            ->assertOk()
+            ->assertSee('Karim')
+            ->assertSee('01799999999')
+            ->assertDontSee('Rahim')
+            // A fresh clock, not what was left of the first student's.
+            ->assertSee('data-seconds="600"', escape: false);
+    });
+
+    it('resumes the attempt under way when the same person starts again, however they type their details', function () {
+        ($this->start)();
+        $attempt = ExamAttempt::sole();
+
+        $this->post(route('guest-exam.start', $this->exam->share_token), ['guest_name' => '  rahim ', 'guest_contact' => '0170 000-0001'])
+            ->assertRedirect(route('guest-exam.take', $attempt));
+
+        expect(ExamAttempt::count())->toBe(1);
+    });
+
     it('resumes the attempt under way instead of starting a new one', function () {
         ($this->start)();
         $attempt = ExamAttempt::sole();

@@ -60,9 +60,18 @@ class GeneratePracticeExam extends SelfPracticeExamPage
         return app(SelfPracticeExamService::class)->generateAuto(
             $student,
             $data['subject_id'],
-            isset($data['difficulty']) ? Difficulty::from($data['difficulty']) : null,
+            $this->difficultyFrom($data['difficulty'] ?? null),
             $data['question_count'],
             $data['chapter_ids'] ?: null,
         );
+    }
+
+    /**
+     * A select whose options are an enum hands back the enum case itself,
+     * not its string value — so accept either, and nothing when left blank.
+     */
+    private function difficultyFrom(mixed $state): ?Difficulty
+    {
+        return $state instanceof Difficulty ? $state : Difficulty::tryFrom((string) $state);
     }
 }

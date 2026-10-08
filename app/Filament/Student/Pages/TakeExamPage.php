@@ -32,7 +32,7 @@ class TakeExamPage extends Page
         abort_unless($attempt->student_id === Auth::id(), 403);
         abort_if($attempt->status !== ExamAttemptStatus::InProgress, 403, __('This attempt has already been submitted.'));
 
-        $this->attempt = $attempt->load('exam');
+        $this->attempt = $attempt->load('exam.subject', 'exam.classSubject.academicClass', 'student');
 
         // Anything already on record (e.g. saved when the clock ran out,
         // before a reload) is shown again rather than appearing blank.

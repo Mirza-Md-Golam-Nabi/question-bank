@@ -3,9 +3,6 @@
 @section('title', $attempt->exam->title)
 
 @section('content')
-    <x-exam-heading :exam="$attempt->exam" class="mb-4" />
-    <x-guest-identity :attempt="$attempt" class="mb-3" />
-
     <form id="qb-exam-form" method="POST" action="{{ route('guest-exam.submit', $attempt) }}">
         @csrf
 

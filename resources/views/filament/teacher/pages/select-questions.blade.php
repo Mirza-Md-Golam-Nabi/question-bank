@@ -15,7 +15,8 @@
     --}}
     <div
         x-data="qbQuestionSelection({
-            storageKey: @js('qb:teacher-selection:' . auth()->id()),
+            storageKey: @js($this->selectionStorageKey()),
+            initial: @js($this->initialSelection()),
         })"
         x-on:qb-selection-validated.window="keepOnly($event.detail.ids)"
         x-on:qb-selection-saved.window="clearSelection()"
@@ -193,7 +194,7 @@
             @endphp
 
             <x-filament::section>
-                <x-slot name="heading">{{ __('Exam saved') }}</x-slot>
+                <x-slot name="heading">{{ $this->editingExam ? __('Exam updated') : __('Exam saved') }}</x-slot>
 
                 @if ($savedExam)
                     <x-slot name="description">
@@ -271,7 +272,7 @@
 
     @script
         <script>
-            Alpine.data('qbQuestionSelection', ({ storageKey }) => ({
+            Alpine.data('qbQuestionSelection', ({ storageKey, initial }) => ({
                 // { [questionId]: { c: chapterId, t: 'mcq' | 'cq', m: marks } }
                 items: {},
                 // { [chapterId]: chapterName } — only for chapters with a selection
@@ -285,6 +286,22 @@
 
                 init() {
                     this.load();
+
+                    // Editing an exam: with nothing kept from an earlier visit,
+                    // start from the questions the exam already has.
+                    if (initial && this.count() === 0) {
+                        this.items = initial.items;
+                        this.chapters = initial.chapters;
+                        this.targets = { ...initial.targets };
+                        this.classSubjectId = initial.classSubjectId;
+                        this.mode = initial.mode;
+                        this.save();
+                    } else if (initial && ! this.matches(initial.items)) {
+                        // Editing, with unsaved changes kept from an earlier
+                        // visit: the page opened on the exam's saved questions,
+                        // so ask for the final view of what is selected now.
+                        this.$wire.review(this.ids());
+                    }
 
                     if (this.count() > 0 && this.classSubjectId) {
                         // Bring the server-side filters back to the subject
@@ -334,6 +351,13 @@
 
                 ids() {
                     return Object.keys(this.items).map(Number);
+                },
+
+                // Whether the selection is exactly the given set of questions.
+                matches(items) {
+                    const ids = Object.keys(items ?? {});
+
+                    return ids.length === this.count() && ids.every((id) => this.has(id));
                 },
 
                 // Read the entry itself rather than asking hasOwnProperty():

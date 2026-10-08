@@ -25,7 +25,7 @@
         <div class="lg:hidden">
             @if ($isReview)
                 <x-filament::button size="sm" x-on:click="saveExam()" x-bind:disabled="! canReview()">
-                    {{ __('Save as exam') }}
+                    {{ $this->editingExam ? __('Save changes') : __('Save as exam') }}
                 </x-filament::button>
             @else
                 <x-filament::button size="sm" x-on:click="review()" x-bind:disabled="! canReview()">
@@ -104,7 +104,7 @@
         <div class="flex flex-col gap-2">
             @if ($isReview)
                 <x-filament::button x-on:click="saveExam()" x-bind:disabled="! canReview()" icon="heroicon-o-check">
-                    {{ __('Save as exam') }}
+                    {{ $this->editingExam ? __('Save changes') : __('Save as exam') }}
                 </x-filament::button>
 
                 <x-filament::button color="gray" wire:click="backToSelection" icon="heroicon-o-arrow-left">

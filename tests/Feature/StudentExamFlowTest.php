@@ -148,3 +148,44 @@ it('enforces the exam time limit for a logged-in student', function () {
 
     livewire(TakeExamPage::class, ['attempt' => $reloadable])->assertSet("answers.{$question->id}", 'right');
 });
+
+it('shows a logged-in student the same exam heading and name line a guest sees', function () {
+    $classSubject = ClassSubject::factory()->create();
+    $classSubject->subject->update(['name' => 'Physics']);
+
+    $exam = Exam::factory()->published()->create([
+        'title' => 'Chapter test',
+        'subject_id' => $classSubject->subject_id,
+        'class_subject_id' => $classSubject->id,
+    ]);
+    $attempt = ExamAttempt::startFor($exam, $this->student);
+
+    livewire(TakeExamPage::class, ['attempt' => $attempt])
+        ->assertSeeInOrder([
+            'Physics',
+            'Chapter test',
+            $classSubject->academicClass->name,
+            'Name', $this->student->name,
+            'Phone/Email', $this->student->email,
+        ]);
+});
+
+it('auto-generates a practice exam of a chosen difficulty, using only questions of that difficulty', function () {
+    $classSubject = ClassSubject::factory()->create();
+    $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
+    Question::factory()->approved()->for($chapter)->count(3)->create(['difficulty' => 'easy']);
+    $hard = Question::factory()->approved()->for($chapter)->count(2)->create(['difficulty' => 'hard']);
+
+    livewire(GeneratePracticeExam::class)
+        ->fillForm([
+            'subject_id' => $classSubject->subject_id,
+            'difficulty' => 'hard',
+            'question_count' => 5,
+        ])
+        ->call('start')
+        ->assertHasNoFormErrors();
+
+    $exam = Exam::where('created_by', $this->student->id)->sole();
+
+    expect($exam->questions->pluck('id')->sort()->values()->all())->toBe($hard->pluck('id')->sort()->values()->all());
+});

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\GuestExamController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\StudentSharedExamController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -19,6 +20,10 @@ Route::prefix('exam')->name('guest-exam.')->group(function () {
     Route::post('{shareToken}/start', [GuestExamController::class, 'startGuestAttempt'])
         ->middleware('throttle:5,1')
         ->name('start');
+    // "Login to attempt": through Google login if needed, then into the exam.
+    Route::get('{shareToken}/join', StudentSharedExamController::class)
+        ->middleware('throttle:30,1')
+        ->name('join');
     // Name + phone/email is all that guards a guest's result, so guessing
     // at it is kept slow.
     Route::post('{shareToken}/result', [GuestExamController::class, 'findResult'])

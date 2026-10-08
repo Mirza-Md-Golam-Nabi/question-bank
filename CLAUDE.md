@@ -401,7 +401,7 @@ livewire(ListUsers::class)
 
 1. প্রতিটা প্রশ্নের `status`: `pending | approved | rejected`
 2. Admin-এর নিজের আপলোড সরাসরি `approved`; Teacher/Staff-এরটা ডিফল্টভাবে `pending`
-3. **প্রতিটা Filament Resource-এর `getEloquentQuery()`-তে filter হার্ডকোড থাকতে হবে**, শুধু UI hide না। Teacher Panel: `where('created_by', auth()->id())->orWhere(fn($q) => $q->where('status','approved')->where('is_latest', true))`। Staff Panel: শুধু `where('created_by', auth()->id())` (approved pool দেখার দরকারই নেই)।
+3. **প্রতিটা Filament Resource-এর `getEloquentQuery()`-তে filter হার্ডকোড থাকতে হবে**, শুধু UI hide না। Teacher Panel-এর "আমার প্রশ্ন" ও Staff Panel দুটোই শুধু নিজের প্রশ্ন দেখায় (`Question::ownedBy()`)। Teacher অন্যদের approved প্রশ্ন দেখে ও বাছে শুধু "প্রশ্ন বাছাই" পেজে, যা সরাসরি approved pool (`Question::approvedPool()` — `status='approved' AND is_latest=true`) পড়ে।
 4. Exam-এ প্রশ্ন attach করার সময় (relationship field ও model-level Observer উভয় জায়গায়) নিশ্চিত করতে হবে `status='approved' AND is_latest=true`।
 5. `QuestionPolicy`-তেও owner+status ডাবল-চেক থাকবে।
 6. এই ফিল্টার মিস হলে সেটা **critical security bug**।
@@ -446,7 +446,7 @@ livewire(ListUsers::class)
 - `exams.share_token` — random, যথেষ্ট লম্বা (কমপক্ষে ৩২ ক্যারেক্টার), অনুমানযোগ্য না।
 - Guest route Filament panel-এর বাইরে, plain Laravel/Livewire route — কারণ unauthenticated (Google OAuth guard-এর সাথে মিশবে না)।
 - Guest submission route-এ **rate limiting বাধ্যতামূলক** (spam/multiple-attempt ঠেকাতে)।
-- **Teacher-এর exam-এ জমা দেওয়ার পর student শুধু স্কোর দেখে** — প্রশ্ন, অপশন বা সঠিক উত্তর কিছুই না। নইলে খালি খাতা জমা দিয়ে উত্তরপত্র জেনে নিয়ে আবার পরীক্ষা দেওয়া যায় (Guest-এর শুধু আরেকটা নাম লাগে)। Teacher "উত্তর প্রকাশ করুন" চাপলে (`exams.answers_released_at`) তবেই অপশনসহ সঠিক উত্তর ও নিজের উত্তর দেখা যায়। এই সিদ্ধান্ত শুধু `Exam::showsAnswersToStudents()`-এ থাকবে; Self-practice exam-এ উত্তর সাথে সাথেই দেখায় (নিজের exam, ফাঁস হওয়ার কেউ নেই)।
+- **Teacher-এর exam-এ জমা দেওয়ার পর student শুধু স্কোর দেখে** — প্রশ্ন, অপশন বা সঠিক উত্তর কিছুই না। নইলে খালি খাতা জমা দিয়ে উত্তরপত্র জেনে নিয়ে আবার পরীক্ষা দেওয়া যায় (Guest-এর শুধু আরেকটা নাম লাগে)। Teacher "উত্তর প্রকাশ করুন" চাপলে (`exams.answers_released_at`), অথবা Teacher-এর ঠিক করে দেওয়া সময় এলে (`exams.answers_release_at`) তবেই অপশনসহ সঠিক উত্তর ও নিজের উত্তর দেখা যায়। নির্ধারিত সময়ের জন্য কোনো cron/scheduled job নেই — ফলাফল দেখানোর মুহূর্তে সময়টা মিলিয়ে দেখা হয় (subscription লিমিটের মতোই)। এই সিদ্ধান্ত শুধু `Exam::showsAnswersToStudents()`-এ থাকবে; Self-practice exam-এ উত্তর সাথে সাথেই দেখায় (নিজের exam, ফাঁস হওয়ার কেউ নেই)।
 - **Guest-এর পরিচয় = নাম + ফোন/ইমেইল** (`guest_contact` তাই বাধ্যতামূলক, normalize করে স্টোর হয়)। কোনো একাউন্ট না থাকায় Guest পরে শেয়ার-লিংকে ফিরে এই দুটো দিয়েই নিজের ফলাফল খোঁজে (`ExamAttempt::findGuestResult()`) — লিংক বন্ধ হয়ে গেলেও। একই পরিচয়ে একাধিকবার পরীক্ষা দিলে **প্রথম attempt-টাই** দেখানো হয়। এই lookup route-ও rate-limited।
 
 ### ৯. Self-Practice Exam — দুই মোডই বাধ্যতামূলক
@@ -466,6 +466,7 @@ livewire(ListUsers::class)
 5. **বাছাই শুধু ব্রাউজারের `localStorage`-এ থাকে, আর সেখানে শুধু প্রশ্নের ID** (লেখা না)। টিক, গণনা, chapter-ভিত্তিক সারাংশ — সব client-side (Alpine); সার্ভারে যায় শুধু ফিল্টার/পেজ বদলালে আর শেষে সেভ করার সময়। প্রশ্নের তালিকা সবসময় paginated — কখনো পুরো subject/chapter একবারে লোড করা যাবে না।
 6. **ব্রাউজারের ডেটা বিশ্বাস করা যাবে না।** সেভের সময় `TeacherExamBuilder` সার্ভারে আবার যাচাই করে: প্রতিটা ID `approved` + `is_latest`, একই `class_subject`-এর, আর `online` হলে সব MCQ। এই যাচাই ও exam তৈরির লজিক শুধু ওই service-এ থাকবে।
 7. **Subscription লিমিট সেভ করার মুহূর্তে একবারই গোনা হয়** — অনলাইনে প্রকাশ হোক বা শুধু PDF। আগে থেকে গোনা exam পরে publish করতে গেলে আবার লিমিটে আটকাবে না (`SubscriptionLimitService::isWithinMonthlyAllowance()`)।
+9. **Exam এডিটও এই পেজ দিয়েই হয়** (`?exam=`; `TeacherExamBuilder::update()`), তৈরি করার মতো একই যাচাইসহ, আর লিমিটে আবার গোনা হয় না। **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`canBeEdited()`) — নইলে তার নম্বর/পজিশন আর প্রশ্নপত্রের সাথে মিলবে না। তখন একমাত্র পথ **"পরীক্ষা বাতিল"** (`Exam::cancel()`): ওই exam-এর সব attempt ও উত্তর স্থায়ীভাবে মুছে exam-কে draft-এ ফেরায় (লিংক বন্ধ থাকে, যাতে এডিটের মাঝে কেউ শুরু না করে); পরে একই লিংকে আবার publish করা যায়। এটা ফেরানো যায় না, তাই confirmation ও log বাধ্যতামূলক।
 8. **PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে** (প্রিন্ট-উপযোগী পেজ, "শুধু প্রশ্ন" ও "উত্তরসহ" দুই রূপে) — সার্ভারে PDF বানানো হয় না, কারণ বাংলা যুক্তাক্ষর/গণিতের সূত্র ভাঙে আর সার্ভারে চাপ পড়ে।
 
 ## Roles & Permissions (সংক্ষেপে)
@@ -473,7 +474,7 @@ livewire(ListUsers::class)
 | Role | পারে | পারে না |
 |---|---|---|
 | Super Admin / Admin | সব প্রশ্ন/বোর্ড-পেপার দেখা/approve/reject, নতুন Admin ও Staff approve, Staff payout, Subscription plan ম্যানেজ | Student হিসেবে exam দেওয়া, Google flow দিয়ে সাইনআপ |
-| Teacher | নিজের প্রশ্ন CRUD, approved pool দেখা, exam তৈরি/শেয়ার (subscription-গেটেড) | Staff earning দেখা, অন্যের pending প্রশ্ন দেখা |
+| Teacher | নিজের প্রশ্ন CRUD ("আমার প্রশ্ন"), approved pool থেকে প্রশ্ন বাছা ("প্রশ্ন বাছাই"), exam তৈরি/শেয়ার (subscription-গেটেড) | Staff earning দেখা, অন্যের pending প্রশ্ন দেখা |
 | Staff | নিজের প্রশ্ন CRUD (pending/rejected), নিজের earning দেখা — Admin approve করার আগে **কিছুই না** (`status=pending`); `suspended` হলে Dashboard/Earning দেখা যায় কিন্তু প্রশ্ন add করা যায় না | exam তৈরি করা, অন্যের প্রশ্ন দেখা, approved pool ব্রাউজ করা, `permanent_suspend` হলে প্যানেলে ঢোকা |
 | Student (Login) | নিজের attempt/result, নিজের subscription দিয়ে self-practice exam | প্রশ্ন দেখা exam-এর বাইরে, অন্যের result দেখা |
 | Student (Guest) | শুধু নির্দিষ্ট share-link-এর exam attempt দেওয়া | self-practice exam, লগইন-নির্ভর যেকোনো ফিচার |
@@ -620,8 +621,9 @@ CLAUDE.md
 | শেয়ার-লিংকের exam খোঁজা, লিংক সচল কি না | `Exam::findPublishedByShareToken()`, `isAcceptingAttempts()` |
 | একটা subject-এর approved প্রশ্ন | `Question::scopeOfSubject()`, `approvedOptionsForSubject()` |
 | পড়ার জন্য প্রশ্ন দেখানো (অপশন/CQ অংশ) | `filament.support.questions.question-body`, `Support\QuestionDisplay` |
-| পরীক্ষার খাতা (ঘড়ি + প্রশ্ন + সতর্কবার্তা) | `<x-exam-paper>`, `<x-exam-timer>`, `<x-exam-submit-warning>`, `resources/js/exam-timer.js` |
+| পরীক্ষার খাতা (শিরোনাম + নাম + ঘড়ি + প্রশ্ন + সতর্কবার্তা) — Guest ও লগইন করা student হুবহু একই দেখে | `<x-exam-paper>`, `<x-exam-heading>`, `<x-exam-participant>`, `<x-exam-timer>`, `<x-exam-submit-warning>`, `resources/js/exam-timer.js` |
 | ফলাফল | `<x-exam-result>`, `<x-exam-result-question>` |
+| পরীক্ষার ফলাফল-তালিকা ও পজিশন (Teacher) | `App\Services\ExamResultSheet` (র‍্যাংকিং-এর একমাত্র জায়গা), `teacher.partials.result-sheet-table` |
 | Guest-এর নাম + ফোন/ইমেইল ফিল্ড | `<x-guest-identity-fields>` |
 | ভাষা বদলানোর বাটন (সব জায়গায়) | `<x-language-switcher variant="light|dark|panel">` |
 | গণিতের সূত্র রেন্ডার (দুই JS bundle-এই) | `resources/js/katex-embeds.js` |

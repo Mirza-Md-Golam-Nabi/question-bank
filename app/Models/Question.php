@@ -88,6 +88,15 @@ class Question extends Model
     }
 
     /**
+     * The questions a user wrote themselves, whatever their status — what
+     * the Teacher's and the Staff's own question lists show.
+     */
+    public function scopeOwnedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('created_by', $user->id);
+    }
+
+    /**
      * Owner sees all of their own questions regardless of status; everyone
      * else only sees the latest approved version. Backs CLAUDE.md's
      * "Question Approval Visibility" rule — used identically by the

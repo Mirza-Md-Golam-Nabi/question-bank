@@ -16,7 +16,11 @@ class QuestionResource extends QuestionResourceBase
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->visibleTo(auth()->user());
+        // "My questions" is the teacher's own work only. Other people's
+        // approved questions are browsed and picked on the Select
+        // questions page, which reads the approved pool directly — so
+        // nothing here ever needs to reach beyond the owner (CLAUDE.md rule 2).
+        return parent::getEloquentQuery()->ownedBy(auth()->user());
     }
 
     public static function getPages(): array
