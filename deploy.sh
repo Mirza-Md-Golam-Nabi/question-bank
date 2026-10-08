@@ -25,14 +25,14 @@ fi
 $PHP artisan down
 echo "✅ Maintenance mode ON"
 
+# Migrate
+$PHP artisan migrate --force
+echo "✅ Migration done"
+
 # Cache clear
 $PHP artisan optimize:clear
 $PHP artisan filament:optimize-clear
 echo "✅ Cache cleared"
-
-# Migrate
-$PHP artisan migrate --force
-echo "✅ Migration done"
 
 # Cache rebuild
 $PHP artisan optimize
