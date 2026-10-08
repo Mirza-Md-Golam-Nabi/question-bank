@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Questions\Pages;
 
 use App\Filament\Resources\Questions\QuestionResource;
+use App\Filament\Support\Concerns\NavigatesAdjacentChapters;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\AcademicClass;
 use App\Models\Chapter;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 class BrowseTopics extends Page
 {
-    use TranslatesPageLabels;
+    use NavigatesAdjacentChapters, TranslatesPageLabels;
 
     protected const ADD_ANOTHER_SHORTCUT_HANDLER = 'if (! $event.repeat) { $wire.callMountedAction({ another: true }) }';
 
@@ -51,8 +52,18 @@ class BrowseTopics extends Page
     protected function getHeaderActions(): array
     {
         return [
+            ...$this->getAdjacentChapterActions(),
             $this->createTopicAction(),
         ];
+    }
+
+    protected function getAdjacentChapterUrl(Chapter $chapter): string
+    {
+        return static::getResource()::getUrl('topics', [
+            'class' => $this->class->id,
+            'classSubject' => $this->classSubject->id,
+            'chapter' => $chapter->id,
+        ]);
     }
 
     public function createTopicAction(): Action

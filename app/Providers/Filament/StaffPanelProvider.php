@@ -32,6 +32,7 @@ class StaffPanelProvider extends PanelProvider
             ->path('staff')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Amber,
             ])

@@ -5,17 +5,20 @@ namespace App\Filament\Support;
 use App\Models\AcademicClass;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
+use App\Models\Topic;
 use Closure;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\Rule;
 
 /**
- * The Class → Subject (→ Chapter) cascading select, shared by every form
- * that needs to pin content to a class_subjects row: the Question form
- * (Admin/Teacher/Staff, which goes one level further to `chapter_id`) and
+ * The Class → Subject (→ Chapter → Topic) cascading select, shared by every
+ * form that needs to pin content to a class_subjects row: the Question form
+ * (Admin/Teacher/Staff, which goes further to `chapter_id` and an optional
+ * `topic_id`) and
  * the Board Question Paper form (which stops at `class_subject_id`, since a
  * board paper isn't scoped to one chapter).
  */
@@ -92,7 +95,20 @@ class ContentHierarchySchema
                     ->where('class_subject_id', $get('class_subject_id'))
                     ->ordered()
                     ->pluck('name', 'id'))
+                ->live()
+                // A topic only makes sense within its own chapter, so switching
+                // chapter swaps it for the one this user last used there (if any).
+                ->afterStateUpdated(fn (Set $set, mixed $state) => $set('topic_id', TopicPreference::for(auth()->user(), $state)))
                 ->required(),
+
+            Select::make('topic_id')
+                ->label(__('Topic'))
+                ->options(fn (Get $get) => Topic::query()
+                    ->where('chapter_id', $get('chapter_id'))
+                    ->ordered()
+                    ->pluck('name', 'id'))
+                ->placeholder(__('No topic'))
+                ->rule(fn (Get $get) => Rule::exists(Topic::class, 'id')->where('chapter_id', $get('chapter_id'))),
         ];
     }
 }

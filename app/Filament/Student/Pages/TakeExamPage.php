@@ -32,17 +32,26 @@ class TakeExamPage extends Page
         abort_unless($attempt->student_id === Auth::id(), 403);
         abort_if($attempt->status !== ExamAttemptStatus::InProgress, 403, __('This attempt has already been submitted.'));
 
-        $this->attempt = $attempt->load('exam.questions');
+        $this->attempt = $attempt->load('exam');
+
+        // Anything already on record (e.g. saved when the clock ran out,
+        // before a reload) is shown again rather than appearing blank.
+        $this->answers = $this->attempt->answers()->pluck('student_answer', 'question_id')->all();
+    }
+
+    /**
+     * Called by the page itself the moment the clock runs out, to put the
+     * answers on record before it locks — so a late submit has nothing
+     * left to change (see ExamAttempt::recordAnswers()).
+     */
+    public function saveAnswers(): void
+    {
+        $this->attempt->recordAnswers($this->answers);
     }
 
     public function submit(): void
     {
-        foreach ($this->answers as $questionId => $studentAnswer) {
-            $this->attempt->answers()->updateOrCreate(
-                ['question_id' => $questionId],
-                ['student_answer' => $studentAnswer],
-            );
-        }
+        $this->attempt->recordAnswers($this->answers);
 
         $this->attempt->submitAndAutoGrade();
 

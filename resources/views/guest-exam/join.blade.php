@@ -18,21 +18,27 @@
         </button>
     </div>
 
-    <form id="guest-form" method="POST" action="{{ route('guest-exam.start', $exam->share_token) }}" class="hidden mt-6 space-y-4">
+    <form id="guest-form" method="POST" action="{{ route('guest-exam.start', $exam->share_token) }}" @class(['mt-6 space-y-4', 'hidden' => ! $errors->hasAny(['guest_name', 'guest_contact'])])>
         @csrf
         <div>
             <label class="block text-sm font-medium mb-1">{{ __('Your name') }}</label>
-            <input type="text" name="guest_name" required class="w-full rounded-lg border-gray-300">
+            <input type="text" name="guest_name" required class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
             @error('guest_name')
                 <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
             @enderror
         </div>
         <div>
-            <label class="block text-sm font-medium mb-1">{{ __('Phone/email (optional, to receive your result)') }}</label>
-            <input type="text" name="guest_contact" class="w-full rounded-lg border-gray-300">
+            <label class="block text-sm font-medium mb-1">{{ __('Phone or email') }}</label>
+            <input type="text" name="guest_contact" value="{{ $errors->has('result') ? '' : old('guest_contact') }}" required class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+            <p class="mt-1 text-xs text-gray-500">{{ __('Write your name and phone/email correctly — you will need exactly these to see your answers later.') }}</p>
+            @error('guest_contact')
+                <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+            @enderror
         </div>
         <button type="submit" class="rounded-lg bg-amber-500 text-white px-4 py-2 font-medium hover:bg-amber-600">
             {{ __('Start exam') }}
         </button>
     </form>
+
+    @include('guest-exam.partials.result-lookup', ['exam' => $exam])
 @endsection

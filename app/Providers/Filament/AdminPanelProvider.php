@@ -33,6 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
+            ->sidebarCollapsibleOnDesktop()
             // No ->registration() call: public sign-up stays disabled for
             // Admin/Super Admin. The first Super Admin comes from
             // SuperAdminSeeder; further admins are created from inside the

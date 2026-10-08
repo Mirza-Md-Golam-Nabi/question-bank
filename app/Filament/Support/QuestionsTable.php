@@ -37,6 +37,7 @@ class QuestionsTable
                 TextColumn::make('chapter.classSubject.academicClass.name')->label(__('Class'))->toggleable(),
                 TextColumn::make('chapter.classSubject.subject.name')->label(__('Subject'))->toggleable(),
                 TextColumn::make('chapter.name')->label(__('Chapter'))->searchable(),
+                TextColumn::make('topic.name')->label(__('Topic'))->placeholder('—')->searchable(),
                 TextColumn::make('question_type')->badge(),
                 TextColumn::make('difficulty')->badge(),
                 TextColumn::make('marks'),

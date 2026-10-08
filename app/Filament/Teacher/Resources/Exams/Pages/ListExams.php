@@ -2,6 +2,7 @@
 
 namespace App\Filament\Teacher\Resources\Exams\Pages;
 
+use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -13,7 +14,8 @@ class ListExams extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            // Exams are built from the question picker (CLAUDE.md rule 10).
+            CreateAction::make()->url(fn (): string => SelectQuestions::getUrl()),
         ];
     }
 }

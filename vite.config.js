@@ -12,6 +12,7 @@ export default defineConfig({
                 'resources/css/filament/admin/theme.css',
                 'resources/js/ckeditor-question-editor.js',
                 'resources/js/katex-embed-renderer.js',
+                'resources/js/exam-timer.js',
             ],
             refresh: true,
             fonts: [

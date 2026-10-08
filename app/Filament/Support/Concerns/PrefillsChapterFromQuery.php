@@ -2,13 +2,14 @@
 
 namespace App\Filament\Support\Concerns;
 
+use App\Filament\Support\TopicPreference;
 use App\Models\Chapter;
 
 /**
  * Shared by every panel's CreateQuestion page. When arriving from a
  * Chapter card's "Add question" link (`?chapter=`), pre-selects the
- * Class → Subject → Chapter chain instead of leaving the cascading
- * selects empty.
+ * Class → Subject → Chapter chain (plus the topic this user last used in
+ * that chapter) instead of leaving the cascading selects empty.
  */
 trait PrefillsChapterFromQuery
 {
@@ -46,6 +47,7 @@ trait PrefillsChapterFromQuery
             'academic_class_id' => $chapter->classSubject->academic_class_id,
             'class_subject_id' => $chapter->classSubject->id,
             'chapter_id' => $chapter->id,
+            'topic_id' => TopicPreference::for(auth()->user(), $chapter->id),
         ];
     }
 }

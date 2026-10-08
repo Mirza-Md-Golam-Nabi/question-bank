@@ -27,6 +27,10 @@ class QuestionResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::QuestionBank;
 
+    protected static ?string $navigationLabel = 'My questions';
+
+    protected static ?int $navigationSort = 2;
+
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->visibleTo(auth()->user());

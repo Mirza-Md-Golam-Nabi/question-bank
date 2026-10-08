@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             SuperAdminSeeder::class,
             AcademicClassSeeder::class,
             SubjectSeeder::class,
+            IctQuestionSeeder::class,
         ]);
     }
 }

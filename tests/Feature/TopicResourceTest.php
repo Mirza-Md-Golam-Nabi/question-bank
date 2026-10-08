@@ -31,6 +31,24 @@ it('creates a topic scoped to the current chapter', function () {
     $this->assertDatabaseHas('topics', ['chapter_id' => $this->chapter->id, 'name' => 'Quadratic Equations']);
 });
 
+it('links the topic list to the previous and next chapter of the same subject', function () {
+    $next = Chapter::create(['class_subject_id' => $this->classSubject->id, 'name' => 'Geometry', 'order_index' => 2]);
+
+    $topicsUrl = fn (Chapter $chapter): string => QuestionResource::getUrl('topics', [
+        'class' => $this->class->id,
+        'classSubject' => $this->classSubject->id,
+        'chapter' => $chapter->id,
+    ]);
+
+    livewire(BrowseTopics::class, ['class' => $this->class->id, 'classSubject' => $this->classSubject->id, 'chapter' => $this->chapter->id])
+        ->assertActionDisabled('previousChapter')
+        ->assertActionHasUrl('nextChapter', $topicsUrl($next));
+
+    livewire(BrowseTopics::class, ['class' => $this->class->id, 'classSubject' => $this->classSubject->id, 'chapter' => $next->id])
+        ->assertActionHasUrl('previousChapter', $topicsUrl($this->chapter))
+        ->assertActionDisabled('nextChapter');
+});
+
 it('shows how many questions each topic has', function () {
     $topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Quadratic Equations', 'order_index' => 1]);
     Question::factory()->for($this->chapter)->approved()->create(['topic_id' => $topic->id]);

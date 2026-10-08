@@ -10,6 +10,7 @@ use App\Filament\Resources\Questions\Pages\ListQuestions;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Question;
+use App\Models\Topic;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
@@ -365,4 +366,148 @@ it('opens the View action without error for a cq question with all 4 parts', fun
     livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
         ->callAction(TestAction::make('view')->table($question))
         ->assertHasNoActionErrors();
+});
+
+it('saves the selected topic of the chapter on a question, and allows leaving it empty', function () {
+    $classSubject = ClassSubject::find($this->chapter->class_subject_id);
+    $topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Quadratic Equations', 'order_index' => 1]);
+
+    $formData = [
+        'academic_class_id' => $classSubject->academic_class_id,
+        'class_subject_id' => $classSubject->id,
+        'chapter_id' => $this->chapter->id,
+        'question_type' => 'mcq',
+        'editor_mode' => 'richtext',
+        'difficulty' => 'easy',
+        'marks' => 1,
+        'options' => [
+            ['option' => '3', 'is_correct' => false],
+            ['option' => '4', 'is_correct' => true],
+        ],
+    ];
+
+    livewire(CreateQuestion::class)
+        ->fillForm([...$formData, 'topic_id' => $topic->id, 'question_text' => '<p>With topic</p>'])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    livewire(CreateQuestion::class)
+        ->fillForm([...$formData, 'topic_id' => null, 'question_text' => '<p>Without topic</p>'])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Question::where('topic_id', $topic->id)->count())->toBe(1);
+    expect(Question::whereNull('topic_id')->count())->toBe(1);
+});
+
+it('rejects a topic that belongs to a different chapter', function () {
+    $classSubject = ClassSubject::find($this->chapter->class_subject_id);
+    $otherChapterTopic = Topic::create(['chapter_id' => Chapter::factory()->create()->id, 'name' => 'Elsewhere', 'order_index' => 1]);
+
+    livewire(CreateQuestion::class)
+        ->fillForm([
+            'academic_class_id' => $classSubject->academic_class_id,
+            'class_subject_id' => $classSubject->id,
+            'chapter_id' => $this->chapter->id,
+            'question_type' => 'mcq',
+            'editor_mode' => 'richtext',
+            'difficulty' => 'easy',
+            'question_text' => '<p>Question</p>',
+            'marks' => 1,
+            'options' => [
+                ['option' => '3', 'is_correct' => false],
+                ['option' => '4', 'is_correct' => true],
+            ],
+        ])
+        ->set('data.topic_id', $otherChapterTopic->id)
+        ->call('create')
+        ->assertHasFormErrors(['topic_id']);
+
+    expect(Question::count())->toBe(0);
+});
+
+it('clears the selected topic when the chapter is changed', function () {
+    $topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Quadratic Equations', 'order_index' => 1]);
+
+    livewire(CreateQuestion::class)
+        ->fillForm(['chapter_id' => $this->chapter->id, 'topic_id' => $topic->id])
+        ->set('data.chapter_id', Chapter::factory()->create()->id)
+        ->assertFormSet(['topic_id' => null]);
+});
+
+describe('remembered topic', function () {
+    beforeEach(function () {
+        $this->classSubject = ClassSubject::find($this->chapter->class_subject_id);
+        $this->topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Quadratic Equations', 'order_index' => 1]);
+        $this->questionFormData = [
+            'academic_class_id' => $this->classSubject->academic_class_id,
+            'class_subject_id' => $this->classSubject->id,
+            'chapter_id' => $this->chapter->id,
+            'topic_id' => $this->topic->id,
+            'question_type' => 'mcq',
+            'editor_mode' => 'richtext',
+            'difficulty' => 'easy',
+            'question_text' => '<p>Question</p>',
+            'marks' => 1,
+            'options' => [
+                ['option' => '3', 'is_correct' => false],
+                ['option' => '4', 'is_correct' => true],
+            ],
+        ];
+    });
+
+    it('keeps the class, subject, chapter, and topic selected after "create & create another"', function () {
+        livewire(CreateQuestion::class)
+            ->fillForm($this->questionFormData)
+            ->call('create', true)
+            ->assertHasNoFormErrors()
+            ->assertFormSet([
+                'academic_class_id' => $this->classSubject->academic_class_id,
+                'class_subject_id' => $this->classSubject->id,
+                'chapter_id' => $this->chapter->id,
+                'topic_id' => $this->topic->id,
+            ]);
+    });
+
+    it('pre-selects the last used topic the next time a question is added to that chapter', function () {
+        livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
+
+        Livewire::withQueryParams(['chapter' => $this->chapter->id]);
+
+        livewire(CreateQuestion::class)->assertFormSet(['topic_id' => $this->topic->id]);
+    });
+
+    it('restores the last used topic when its chapter is picked by hand', function () {
+        livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
+
+        livewire(CreateQuestion::class)
+            ->set('data.chapter_id', $this->chapter->id)
+            ->assertFormSet(['topic_id' => $this->topic->id]);
+    });
+
+    it('does not carry a remembered topic over to another chapter or another user', function () {
+        livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
+
+        Livewire::withQueryParams(['chapter' => Chapter::factory()->create()->id]);
+        livewire(CreateQuestion::class)->assertFormSet(['topic_id' => null]);
+
+        $this->actingAs(User::factory()->admin()->create());
+        Livewire::withQueryParams(['chapter' => $this->chapter->id]);
+        livewire(CreateQuestion::class)->assertFormSet(['topic_id' => null]);
+    });
+
+    it('forgets the remembered topic once a question is saved without one, or the topic is deleted', function () {
+        livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
+        livewire(CreateQuestion::class)->fillForm([...$this->questionFormData, 'topic_id' => null])->call('create')->assertHasNoFormErrors();
+
+        Livewire::withQueryParams(['chapter' => $this->chapter->id]);
+        livewire(CreateQuestion::class)->assertFormSet(['topic_id' => null]);
+
+        Livewire::withQueryParams([]);
+        livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
+        $this->topic->delete();
+
+        Livewire::withQueryParams(['chapter' => $this->chapter->id]);
+        livewire(CreateQuestion::class)->assertFormSet(['topic_id' => null]);
+    });
 });

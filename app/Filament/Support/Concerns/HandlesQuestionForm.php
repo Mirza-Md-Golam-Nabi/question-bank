@@ -7,6 +7,7 @@ use App\Enums\EditorMode;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Filament\Support\EditorModePreference;
+use App\Filament\Support\TopicPreference;
 use App\Models\Question;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
@@ -126,6 +127,33 @@ trait HandlesQuestionForm
         if ($editorMode) {
             EditorModePreference::remember(Auth::user(), $editorMode);
         }
+    }
+
+    /**
+     * Saves the topic this question was filed under as this user's
+     * preference for that chapter (TopicPreference), so their next question
+     * in the same chapter starts with it already selected.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function rememberTopicPreference(array $data): void
+    {
+        if (filled($data['chapter_id'] ?? null)) {
+            TopicPreference::remember(Auth::user(), $data['chapter_id'], $data['topic_id'] ?? null);
+        }
+    }
+
+    /**
+     * "Create & create another" resets the form to its defaults; keep the
+     * Class → Subject → Chapter → Topic selection so a run of questions for
+     * the same topic doesn't need re-selecting each time.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function preserveFormDataWhenCreatingAnother(array $data): array
+    {
+        return Arr::only($data, ['academic_class_id', 'class_subject_id', 'chapter_id', 'topic_id']);
     }
 
     protected function syncCqParts(Question $question): void

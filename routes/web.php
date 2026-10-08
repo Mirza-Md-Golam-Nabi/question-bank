@@ -19,6 +19,19 @@ Route::prefix('exam')->name('guest-exam.')->group(function () {
     Route::post('{shareToken}/start', [GuestExamController::class, 'startGuestAttempt'])
         ->middleware('throttle:5,1')
         ->name('start');
+    // Name + phone/email is all that guards a guest's result, so guessing
+    // at it is kept slow.
+    Route::post('{shareToken}/result', [GuestExamController::class, 'findResult'])
+        ->middleware('throttle:10,1')
+        ->name('result');
+    Route::get('attempt/{attempt}', [GuestExamController::class, 'take'])
+        ->middleware('throttle:60,1')
+        ->name('take');
+    // Fired by every exam page at the same instant its clock runs out, so a
+    // whole classroom behind one IP address has to fit under this limit.
+    Route::post('attempt/{attempt}/answers', [GuestExamController::class, 'saveAnswers'])
+        ->middleware('throttle:60,1')
+        ->name('answers');
     Route::post('attempt/{attempt}/submit', [GuestExamController::class, 'submit'])
         ->middleware('throttle:5,1')
         ->name('submit');

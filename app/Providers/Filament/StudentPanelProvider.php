@@ -31,6 +31,7 @@ class StudentPanelProvider extends PanelProvider
             ->path('student')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Indigo,
             ])

@@ -48,4 +48,31 @@ class SubscriptionLimitService
 
         return Exam::createdThisMonthBy($user, $examType)->count() >= $limit;
     }
+
+    /**
+     * Whether an exam that already exists was created inside its month's
+     * allowance. Saving an exam is the moment it counts against the limit
+     * (CLAUDE.md rule 10), so publishing it later must not be blocked just
+     * because that same exam used up the last free slot.
+     */
+    public function isWithinMonthlyAllowance(User $user, Exam $exam): bool
+    {
+        $limit = $this->monthlyExamLimitFor($user);
+
+        if ($limit === null) {
+            return true;
+        }
+
+        $createdAt = $exam->created_at ?? now();
+
+        $examsCreatedUpToThisOne = Exam::query()
+            ->where('created_by', $user->id)
+            ->where('exam_type', $exam->exam_type)
+            ->whereMonth('created_at', $createdAt->month)
+            ->whereYear('created_at', $createdAt->year)
+            ->where('id', '<=', $exam->id)
+            ->count();
+
+        return $examsCreatedUpToThisOne <= $limit;
+    }
 }

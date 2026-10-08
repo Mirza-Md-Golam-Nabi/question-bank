@@ -1,0 +1,334 @@
+/*
+ * Read-only rendering of a question (question-body.blade.php), shared by the
+ * Teacher's question picker (Filament theme) and the printable question
+ * paper (app.css) — plain CSS so both bundles render it identically.
+ */
+.qb-question-body {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+}
+
+.qb-question-text p,
+.qb-question-option-content p {
+    margin: 0 0 0.25rem;
+}
+
+.qb-question-text p:last-child,
+.qb-question-option-content p:last-child {
+    margin-bottom: 0;
+}
+
+.qb-question-image {
+    display: block;
+    max-width: 100%;
+    max-height: 14rem;
+    margin-top: 0.5rem;
+    border-radius: 0.375rem;
+}
+
+.qb-question-options,
+.qb-question-parts {
+    list-style: none;
+    margin: 0.625rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.375rem 1.25rem;
+}
+
+/* Options sit two to a row once there is room for it. */
+@media (min-width: 640px) {
+    .qb-question-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.qb-question-option,
+.qb-question-part {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.qb-question-option-letter {
+    flex: none;
+    min-width: 1.5rem;
+    font-weight: 600;
+}
+
+.qb-question-option-letter::after {
+    content: '.';
+}
+
+.qb-question-option-content {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.qb-question-option--correct {
+    font-weight: 600;
+    color: #15803d;
+}
+
+.qb-question-option-tick {
+    flex: none;
+    width: 1rem;
+    font-weight: 700;
+}
+
+.qb-question-part-marks {
+    flex: none;
+    min-width: 1.5rem;
+    text-align: right;
+    font-weight: 600;
+}
+
+:is(.dark .qb-question-option--correct) {
+    color: #4ade80;
+}
+
+/*
+ * Exam result (exam-result-question.blade.php): every option is shown, the
+ * correct one on a success background and a wrong pick on a danger one.
+ */
+.qb-result-question-head {
+    display: flex;
+    gap: 0.375rem;
+    font-weight: 500;
+}
+
+.qb-result-question-number {
+    flex: none;
+}
+
+.qb-result-options {
+    gap: 0.5rem;
+}
+
+.qb-result-option {
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+}
+
+.qb-result-option--correct {
+    border-color: #86efac;
+    background-color: #dcfce7;
+    color: #14532d;
+}
+
+.qb-result-option--wrong {
+    border-color: #fca5a5;
+    background-color: #fee2e2;
+    color: #7f1d1d;
+}
+
+.qb-result-option-tag {
+    flex: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.qb-result-verdict {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.qb-result-verdict--correct {
+    color: #16a34a;
+}
+
+.qb-result-verdict--wrong {
+    color: #dc2626;
+}
+
+:is(.dark .qb-result-option) {
+    border-color: rgb(255 255 255 / 0.1);
+}
+
+:is(.dark .qb-result-option--correct) {
+    border-color: rgb(34 197 94 / 0.5);
+    background-color: rgb(34 197 94 / 0.15);
+    color: #bbf7d0;
+}
+
+:is(.dark .qb-result-option--wrong) {
+    border-color: rgb(239 68 68 / 0.5);
+    background-color: rgb(239 68 68 / 0.15);
+    color: #fecaca;
+}
+
+/*
+ * Exam countdown (exam-timer.blade.php) and the locked state the answers go
+ * into once it reaches zero.
+ */
+.qb-exam-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e5e7eb;
+    /* Slightly see-through, so it reads as floating over the questions. */
+    background-color: rgb(255 255 255 / 0.92);
+    backdrop-filter: blur(6px);
+}
+
+/* Inside a panel the bar has to stop under the panel's own sticky top bar. */
+.qb-exam-bar--below-topbar {
+    top: 4rem;
+}
+
+.qb-exam-bar-info {
+    min-width: 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* The countdown itself: a small pill on every screen size. */
+.qb-exam-timer {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid #fcd34d;
+    border-radius: 9999px;
+    background-color: #fffbeb;
+    color: #78350f;
+}
+
+.qb-exam-timer-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+}
+
+.qb-exam-timer-clock {
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.qb-exam-timer--ending,
+.qb-exam-timer--ended {
+    border-color: #fca5a5;
+    background-color: #fef2f2;
+    color: #991b1b;
+}
+
+:is(.dark .qb-exam-bar) {
+    border-bottom-color: rgb(255 255 255 / 0.1);
+    background-color: rgb(9 9 11 / 0.92);
+}
+
+:is(.dark .qb-exam-bar-info) {
+    color: #9ca3af;
+}
+
+.qb-exam-timeup {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background-color: #fee2e2;
+    color: #7f1d1d;
+    font-weight: 500;
+}
+
+.qb-exam-answers {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.qb-exam-answers--locked {
+    opacity: 0.6;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* The "unanswered questions" dialog (exam-submit-warning.blade.php). */
+.qb-exam-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgb(3 7 18 / 0.5);
+}
+
+.qb-exam-dialog[hidden] {
+    display: none;
+}
+
+.qb-exam-dialog-box {
+    width: 100%;
+    max-width: 26rem;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    background-color: #fff;
+    color: #111827;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2);
+}
+
+.qb-exam-dialog-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.qb-exam-dialog-text {
+    margin-top: 0.5rem;
+    font-size: 0.9375rem;
+    color: #4b5563;
+}
+
+.qb-exam-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.qb-exam-dialog-button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    color: #111827;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.qb-exam-dialog-button:hover {
+    background-color: #f9fafb;
+}
+
+.qb-exam-dialog-button--danger {
+    border-color: #dc2626;
+    background-color: #dc2626;
+    color: #fff;
+}
+
+.qb-exam-dialog-button--danger:hover {
+    background-color: #b91c1c;
+}
+
+:is(.dark .qb-exam-dialog-box) {
+    background-color: #18181b;
+    color: #fff;
+}
+
+:is(.dark .qb-exam-dialog-text) {
+    color: #d1d5db;
+}

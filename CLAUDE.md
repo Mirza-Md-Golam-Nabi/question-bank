@@ -446,7 +446,8 @@ livewire(ListUsers::class)
 - `exams.share_token` — random, যথেষ্ট লম্বা (কমপক্ষে ৩২ ক্যারেক্টার), অনুমানযোগ্য না।
 - Guest route Filament panel-এর বাইরে, plain Laravel/Livewire route — কারণ unauthenticated (Google OAuth guard-এর সাথে মিশবে না)।
 - Guest submission route-এ **rate limiting বাধ্যতামূলক** (spam/multiple-attempt ঠেকাতে)।
-- Guest attempt-এর ফলাফল শুধু submit করার সাথে সাথেই দেখানো হবে (পরে ফিরে দেখার অ্যাকাউন্ট নেই) — `guest_contact` থাকলে future-এ email/SMS পাঠানোর সুযোগ রাখা যায়।
+- **Teacher-এর exam-এ জমা দেওয়ার পর student শুধু স্কোর দেখে** — প্রশ্ন, অপশন বা সঠিক উত্তর কিছুই না। নইলে খালি খাতা জমা দিয়ে উত্তরপত্র জেনে নিয়ে আবার পরীক্ষা দেওয়া যায় (Guest-এর শুধু আরেকটা নাম লাগে)। Teacher "উত্তর প্রকাশ করুন" চাপলে (`exams.answers_released_at`) তবেই অপশনসহ সঠিক উত্তর ও নিজের উত্তর দেখা যায়। এই সিদ্ধান্ত শুধু `Exam::showsAnswersToStudents()`-এ থাকবে; Self-practice exam-এ উত্তর সাথে সাথেই দেখায় (নিজের exam, ফাঁস হওয়ার কেউ নেই)।
+- **Guest-এর পরিচয় = নাম + ফোন/ইমেইল** (`guest_contact` তাই বাধ্যতামূলক, normalize করে স্টোর হয়)। কোনো একাউন্ট না থাকায় Guest পরে শেয়ার-লিংকে ফিরে এই দুটো দিয়েই নিজের ফলাফল খোঁজে (`ExamAttempt::findGuestResult()`) — লিংক বন্ধ হয়ে গেলেও। একই পরিচয়ে একাধিকবার পরীক্ষা দিলে **প্রথম attempt-টাই** দেখানো হয়। এই lookup route-ও rate-limited।
 
 ### ৯. Self-Practice Exam — দুই মোডই বাধ্যতামূলক
 > **Student self-practice exam বানাতে পারবে দুইভাবে: Auto-Generate (সিস্টেম subject/difficulty/সংখ্যা অনুযায়ী random প্রশ্ন বেছে দেবে) এবং Manual Selection (Student নিজে approved pool থেকে প্রশ্ন বেছে নেবে)। দুটোই থাকতে হবে, একটা বাদ দেওয়া যাবে না।**
@@ -454,6 +455,18 @@ livewire(ListUsers::class)
 - Auto মোডের random selection query সবসময় `status='approved' AND is_latest=true` ফিল্টার সহ (approval rule এখানেও প্রযোজ্য)।
 - Manual মোডের UI Teacher-এর exam builder-এর মতোই (searchable multi-select), শুধু Student Panel-এর নিজস্ব সংস্করণ।
 - দুই মোডের exam-ই monthly free-limit-এর একই কাউন্টে ধরা হবে, আলাদা limit না।
+
+### ১০. Teacher প্রশ্ন বাছাই (Select Questions) → Exam
+> **Teacher exam বানায় "প্রশ্ন বাছাই" পেজ থেকে: Class → Subject → Chapter → Topic ফিল্টার করে approved প্রশ্ন টিক দিয়ে বাছে, তারপর ফাইনাল ভিউ থেকে exam হিসেবে সেভ করে। হাজার হাজার Teacher একসাথে এই কাজ করবে — তাই টিক দেওয়ার সময় সার্ভারে কোনো অনুরোধ যাবে না।**
+
+1. **পরীক্ষার ধরন আগে ঠিক হয়** (`exams.delivery_mode`): `online` (শুধু MCQ, শেয়ার-লিংক), `offline` (MCQ/CQ, প্রিন্ট/PDF), `both` (প্রিন্টে সব প্রশ্ন, অনলাইনে শুধু MCQ)। **CQ কখনো অনলাইনে নেওয়া হয় না** — সিস্টেমে CQ-এর উত্তর নেই, তাই উত্তরও দেখানো হয় না।
+2. **এক exam = এক Class + Subject** (`exams.class_subject_id`)। একই subject-এর যত খুশি chapter থেকে প্রশ্ন মেশানো যায়; Class বা Subject বদলাতে গেলে সতর্কবার্তা দিয়ে অনুমতি নিয়ে আগের সব বাছাই মুছতে হবে।
+3. **Topic ফিল্টার শুধু MCQ-তে খাটে।** CQ topic অনুযায়ী ভাগ হয় না — ধরন CQ হলে ওই chapter-এর সব CQ পেজিনেশনসহ দেখাতে হবে।
+4. **কতগুলো প্রশ্ন লাগবে তা Teacher নিজে ঠিক করে** (MCQ ও CQ-র আলাদা লক্ষ্য সংখ্যা); লক্ষ্য পূরণ হলে আর বাছা যায় না। সিস্টেমে কোনো নির্দিষ্ট ব্যবসায়িক সীমা নেই (কিছু পরীক্ষায় ১২০টা প্রশ্ন লাগে) — শুধু `TeacherExamBuilder::MAX_QUESTIONS` নামে একটা কারিগরি সুরক্ষা-সীমা আছে।
+5. **বাছাই শুধু ব্রাউজারের `localStorage`-এ থাকে, আর সেখানে শুধু প্রশ্নের ID** (লেখা না)। টিক, গণনা, chapter-ভিত্তিক সারাংশ — সব client-side (Alpine); সার্ভারে যায় শুধু ফিল্টার/পেজ বদলালে আর শেষে সেভ করার সময়। প্রশ্নের তালিকা সবসময় paginated — কখনো পুরো subject/chapter একবারে লোড করা যাবে না।
+6. **ব্রাউজারের ডেটা বিশ্বাস করা যাবে না।** সেভের সময় `TeacherExamBuilder` সার্ভারে আবার যাচাই করে: প্রতিটা ID `approved` + `is_latest`, একই `class_subject`-এর, আর `online` হলে সব MCQ। এই যাচাই ও exam তৈরির লজিক শুধু ওই service-এ থাকবে।
+7. **Subscription লিমিট সেভ করার মুহূর্তে একবারই গোনা হয়** — অনলাইনে প্রকাশ হোক বা শুধু PDF। আগে থেকে গোনা exam পরে publish করতে গেলে আবার লিমিটে আটকাবে না (`SubscriptionLimitService::isWithinMonthlyAllowance()`)।
+8. **PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে** (প্রিন্ট-উপযোগী পেজ, "শুধু প্রশ্ন" ও "উত্তরসহ" দুই রূপে) — সার্ভারে PDF বানানো হয় না, কারণ বাংলা যুক্তাক্ষর/গণিতের সূত্র ভাঙে আর সার্ভারে চাপ পড়ে।
 
 ## Roles & Permissions (সংক্ষেপে)
 

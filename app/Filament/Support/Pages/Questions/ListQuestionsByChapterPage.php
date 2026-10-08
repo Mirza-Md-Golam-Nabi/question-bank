@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\Pages\Questions;
 
+use App\Filament\Support\Concerns\NavigatesAdjacentChapters;
 use App\Models\Chapter;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Builder;
  */
 abstract class ListQuestionsByChapterPage extends ListRecords
 {
+    use NavigatesAdjacentChapters;
+
     public Chapter|int|string $chapter;
 
     public function mount(int|string|null $chapter = null): void
@@ -50,16 +53,31 @@ abstract class ListQuestionsByChapterPage extends ListRecords
 
     public function table(Table $table): Table
     {
-        return parent::table($table)->modifyQueryUsing(
+        $table = parent::table($table)->modifyQueryUsing(
             fn (Builder $query) => $query->where('chapter_id', $this->chapter->id),
         );
+
+        // Every row here shares the one class, subject, and chapter already
+        // named in the breadcrumbs, so those columns would only repeat
+        // themselves — the topic is what actually differs between rows.
+        $table->getColumn('chapter.classSubject.academicClass.name')?->hidden();
+        $table->getColumn('chapter.classSubject.subject.name')?->hidden();
+        $table->getColumn('chapter.name')?->hidden();
+
+        return $table;
     }
 
     protected function getHeaderActions(): array
     {
         return [
+            ...$this->getAdjacentChapterActions(),
             CreateAction::make()
                 ->url(fn (): string => static::getResource()::getUrl('create', ['chapter' => $this->chapter->id])),
         ];
+    }
+
+    protected function getAdjacentChapterUrl(Chapter $chapter): string
+    {
+        return static::getResource()::getUrl('list', ['chapter' => $chapter->id]);
     }
 }

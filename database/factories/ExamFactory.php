@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ExamDeliveryMode;
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Models\Exam;
@@ -34,6 +35,13 @@ class ExamFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'exam_type' => ExamType::SelfPractice,
             'created_by' => User::factory()->student(),
+        ]);
+    }
+
+    public function delivery(ExamDeliveryMode $mode): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'delivery_mode' => $mode,
         ]);
     }
 

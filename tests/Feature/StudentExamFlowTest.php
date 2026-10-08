@@ -2,8 +2,10 @@
 
 use App\Enums\ExamType;
 use App\Filament\Student\Pages\BuildPracticeExam;
+use App\Filament\Student\Pages\ExamResultPage;
 use App\Filament\Student\Pages\GeneratePracticeExam;
 use App\Filament\Student\Pages\JoinExam;
+use App\Filament\Student\Pages\TakeExamPage;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Exam;
@@ -14,6 +16,7 @@ use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
+use Filament\Pages\Dashboard;
 
 use function Pest\Livewire\livewire;
 
@@ -96,4 +99,52 @@ it('lets a logged-in student join a shared exam by its token', function () {
         ->call('join');
 
     expect(ExamAttempt::where('exam_id', $exam->id)->where('student_id', $this->student->id)->exists())->toBeTrue();
+});
+
+it('closes a logged-in student\'s result back to their dashboard', function () {
+    $attempt = ExamAttempt::create([
+        'exam_id' => Exam::factory()->published()->create()->id,
+        'student_id' => $this->student->id,
+        'is_guest' => false,
+        'started_at' => now(),
+    ]);
+    $attempt->submitAndAutoGrade();
+
+    livewire(ExamResultPage::class, ['attempt' => $attempt])
+        ->assertSeeHtml('href="'.Dashboard::getUrl(panel: 'student').'"');
+});
+
+it('enforces the exam time limit for a logged-in student', function () {
+    $this->freezeTime();
+
+    $exam = Exam::factory()->published()->create(['duration_minutes' => 10]);
+    $question = Question::factory()->for(Chapter::factory())->approved()->create([
+        'options' => [
+            ['option' => 'right', 'image' => null, 'is_correct' => true],
+            ['option' => 'wrong', 'image' => null, 'is_correct' => false],
+        ],
+    ]);
+    $exam->questions()->attach($question->id, ['order_index' => 1, 'marks_override' => null]);
+
+    $attempt = ExamAttempt::create(['exam_id' => $exam->id, 'student_id' => $this->student->id, 'is_guest' => false, 'started_at' => now()])->fresh();
+
+    $page = livewire(TakeExamPage::class, ['attempt' => $attempt])
+        ->assertSeeHtml('data-seconds="600"')
+        ->set("answers.{$question->id}", 'wrong');
+
+    // The page saves the answers itself as the clock runs out...
+    $this->travel(10)->minutes();
+    $page->call('saveAnswers');
+
+    // ...so changing one afterwards and submitting late has no effect.
+    $this->travel(5)->minutes();
+    $page->set("answers.{$question->id}", 'right')->call('submit');
+
+    expect($attempt->answers()->sole()->student_answer)->toBe('wrong');
+
+    // A reload after the save shows the recorded answer again.
+    $reloadable = ExamAttempt::create(['exam_id' => $exam->id, 'student_id' => $this->student->id, 'is_guest' => false, 'started_at' => now()])->fresh();
+    $reloadable->recordAnswers([$question->id => 'right']);
+
+    livewire(TakeExamPage::class, ['attempt' => $reloadable])->assertSet("answers.{$question->id}", 'right');
 });
