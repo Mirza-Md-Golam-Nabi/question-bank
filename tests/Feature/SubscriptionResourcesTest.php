@@ -51,21 +51,10 @@ it('creates a subscription for a user from the admin panel', function () {
     $this->assertDatabaseHas('subscriptions', ['user_id' => $teacher->id, 'plan_id' => $plan->id]);
 });
 
-it('records a manual payment from the admin panel', function () {
-    $teacher = User::factory()->teacher()->create();
-
+it('offers the admin no way to type in a payment by hand', function () {
     $this->actingAs($this->admin);
 
-    livewire(ManagePayments::class)
-        ->callAction('create', data: [
-            'user_id' => $teacher->id,
-            'amount' => 500,
-            'gateway' => 'manual',
-            'status' => 'success',
-        ])
-        ->assertHasNoActionErrors();
-
-    $this->assertDatabaseHas('payments', ['user_id' => $teacher->id, 'amount' => 500]);
+    livewire(ManagePayments::class)->assertActionDoesNotExist('create');
 });
 
 it('shows a teacher their active subscription on the my-subscription page', function () {

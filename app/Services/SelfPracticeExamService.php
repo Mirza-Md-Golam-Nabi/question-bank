@@ -25,13 +25,20 @@ class SelfPracticeExamService
 {
     public function generateAuto(User $student, int $subjectId, ?Difficulty $difficulty, int $questionCount, ?array $chapterIds = null): ExamAttempt
     {
-        $questions = Question::approvedPool()
+        // The draw is made over ids only, and just the drawn questions are
+        // then loaded. ORDER BY RAND() over the full rows would make the
+        // database read and sort every question of the subject — text,
+        // options and all — to hand back a few of them.
+        $eligibleIds = Question::approvedPool()
             ->ofSubject($subjectId)
             ->when($chapterIds, fn ($query) => $query->whereIn('chapter_id', $chapterIds))
             ->when($difficulty, fn ($q) => $q->where('difficulty', $difficulty))
-            ->inRandomOrder()
-            ->limit($questionCount)
-            ->get();
+            ->pluck('id');
+
+        $questions = Question::approvedPool()
+            ->whereKey($eligibleIds->random(min($questionCount, $eligibleIds->count())))
+            ->get()
+            ->shuffle();
 
         return $this->createExamAndAttempt($student, $subjectId, $questions, GenerationMode::Auto);
     }

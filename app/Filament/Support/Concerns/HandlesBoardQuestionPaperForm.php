@@ -29,6 +29,10 @@ trait HandlesBoardQuestionPaperForm
             return $data;
         }
 
+        // The whole paper in three queries, rather than one more for the
+        // parts of every creative question.
+        $record->loadMissing(['mcqQuestions', 'cqQuestions.parts']);
+
         $data['mcq_questions'] = $record->mcqQuestions->map(fn ($mcq) => [
             'question_text' => $mcq->question_text,
             'question_image' => $mcq->question_image,

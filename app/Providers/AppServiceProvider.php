@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Http\Responses\LogoutResponse;
+use App\Services\Sms\LogSmsSender;
+use App\Services\Sms\SmsSender;
 use Filament\Actions\Action;
+use Filament\Auth\Http\Responses\Contracts\LogoutResponse as LogoutResponseContract;
 use Filament\Forms\Components\Field;
 use Filament\Infolists\Components\Entry;
 use Filament\Support\Facades\FilamentView;
@@ -18,7 +22,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // No SMS provider is integrated yet — swap this binding when one is.
+        $this->app->bind(SmsSender::class, LogSmsSender::class);
+
+        $this->app->bind(LogoutResponseContract::class, LogoutResponse::class);
     }
 
     /**

@@ -45,8 +45,8 @@ class StudentSharedExamController extends Controller
             return redirect()->route('auth.google.redirect', UserRole::Student->value);
         }
 
-        $attempt = ExamAttempt::startFor($exam, $user);
-
-        return redirect()->to(TakeExamPage::getUrl(['attempt' => $attempt->id], panel: 'student'));
+        // Into the exam — or, for a student who has already sat it, to
+        // their result: nobody gets a second go.
+        return redirect()->to(TakeExamPage::urlFor(ExamAttempt::startFor($exam, $user)));
     }
 }

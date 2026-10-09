@@ -179,7 +179,11 @@ class SelectQuestions extends Page
             return null;
         }
 
-        $questions = $this->editingExam->questions()->with('chapter:id,name')->get();
+        // Only what the browser keeps per question — not each question's
+        // text and options, which this summary never reads.
+        $questions = $this->editingExam->questions()
+            ->with('chapter:id,name')
+            ->get(['questions.id', 'questions.chapter_id', 'questions.question_type', 'questions.marks']);
 
         return [
             'items' => $questions->mapWithKeys(fn (Question $question) => [$question->id => [

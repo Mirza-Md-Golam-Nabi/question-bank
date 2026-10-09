@@ -1,6 +1,5 @@
 @php
-    $subscription = $this->subscription();
-    $limit = $this->monthlyLimit();
+    ['subscription' => $subscription, 'monthly_limit' => $limit] = $this->planSummary();
     $used = $this->usedThisMonth();
     $reachedLimit = $limit !== null && $used >= $limit;
 @endphp

@@ -5,11 +5,11 @@ namespace App\Filament\Staff\Pages;
 use App\Enums\MobileBankingProvider;
 use App\Enums\PaymentMethod;
 use App\Enums\QuestionStatus;
-use App\Enums\StaffEarningStatus;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Question;
 use App\Models\StaffEarning;
 use App\Models\StaffProfile;
+use App\Services\ReferralService;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -20,7 +20,6 @@ use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 
@@ -137,39 +136,48 @@ class MyEarnings extends Page implements HasSchemas
     }
 
     /**
-     * @return Collection<int, StaffEarning>
-     */
-    public function earnings(): Collection
-    {
-        return StaffEarning::where('staff_id', Auth::id())
-            ->with(['question.chapter.classSubject.subject', 'question.chapter.classSubject.academicClass'])
-            ->latest('created_at')
-            ->get();
-    }
-
-    /**
+     * The page's three totals, added up by the database in one query and
+     * read once per render (never by loading the earning rows themselves).
+     *
      * Computed straight from `staff_earnings` rather than the StaffProfile
      * counters — those counters are a nice-to-have summary, but they only
      * get bumped when a StaffProfile row already exists (i.e. after the
      * staff member has saved bank info at least once), so a staff member's
      * very first approved question would otherwise show as ৳0 here even
      * though the earning itself was recorded correctly.
+     *
+     * @return array{count: int, earned: float, paid: float, unpaid: float, this_month: float}
      */
+    private function totals(): array
+    {
+        return once(fn (): array => StaffEarning::totalsFor(Auth::id()));
+    }
+
     public function totalQuestionsApproved(): int
     {
-        return $this->earnings()->count();
+        return $this->totals()['count'];
     }
 
     public function totalEarned(): float
     {
-        return (float) $this->earnings()->sum('amount');
+        return $this->totals()['earned'];
     }
 
     public function totalPaid(): float
     {
-        return (float) $this->earnings()
-            ->where('status', StaffEarningStatus::Paid)
-            ->sum('amount');
+        return $this->totals()['paid'];
+    }
+
+    /**
+     * What referring customers has earned this staff member — kept apart
+     * from the per-question earnings above, and paid in the same payout
+     * once matured.
+     *
+     * @return array{maturing: float, matured: float, paid: float}
+     */
+    public function referralRewardSummary(): array
+    {
+        return app(ReferralService::class)->rewardSummaryFor(Auth::user());
     }
 
     /**
@@ -181,19 +189,6 @@ class MyEarnings extends Page implements HasSchemas
      */
     public function subjectBreakdown(): SupportCollection
     {
-        return $this->earnings()
-            ->groupBy(fn (StaffEarning $earning) => $earning->question->chapter->class_subject_id ?? 0)
-            ->map(function (Collection $earnings) {
-                $classSubject = $earnings->first()->question->chapter->classSubject;
-
-                return [
-                    'class' => $classSubject?->academicClass->name ?? __('Unknown'),
-                    'subject' => $classSubject?->subject->name ?? __('Unknown'),
-                    'count' => $earnings->count(),
-                    'total' => $earnings->sum('amount'),
-                ];
-            })
-            ->sortBy(['class', 'subject'])
-            ->values();
+        return StaffEarning::byClassSubjectFor(Auth::id());
     }
 }

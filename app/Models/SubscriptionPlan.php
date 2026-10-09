@@ -29,6 +29,15 @@ class SubscriptionPlan extends Model
         return $this->hasMany(Subscription::class, 'plan_id');
     }
 
+    /**
+     * The plans a user of this role can buy: paid ones only (the free plan
+     * is what they fall back to, not something to purchase).
+     */
+    public function scopePurchasableFor(Builder $query, SubscriptionTargetRole $role): Builder
+    {
+        return $query->where('target_role', $role)->where('price', '>', 0)->orderBy('price');
+    }
+
     public function scopeDefaultFreeFor(Builder $query, SubscriptionTargetRole $role): Builder
     {
         return $query->where('target_role', $role)->where('is_default_free', true);

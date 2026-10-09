@@ -20,11 +20,14 @@ class StaffQuestionRatesWidget extends Widget
      */
     public function rates(): Collection
     {
-        return Subject::orderBy('name')
-            ->get()
-            ->map(fn (Subject $subject) => [
-                'subject' => $subject->name,
-                'rate' => QuestionRate::rateFor($subject->id),
-            ]);
+        $subjects = Subject::orderBy('name')->get(['id', 'name']);
+
+        // Every subject's rate from one query, not one query per subject.
+        $rates = QuestionRate::ratesFor($subjects->modelKeys());
+
+        return $subjects->map(fn (Subject $subject) => [
+            'subject' => $subject->name,
+            'rate' => $rates[$subject->id],
+        ]);
     }
 }

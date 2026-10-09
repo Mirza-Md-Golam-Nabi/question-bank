@@ -189,6 +189,50 @@ describe('refreshing the guest exam page', function () {
         expect(ExamAttempt::count())->toBe(1);
     });
 
+    it('carries on the same attempt and clock when the guest starts again on another device', function () {
+        ($this->start)();
+        $attempt = ExamAttempt::sole();
+        $attempt->recordAnswers([]);
+
+        $this->travel(4)->minutes();
+        $this->flushSession();
+
+        ($this->start)()->assertRedirect(route('guest-exam.take', $attempt));
+
+        // Not a fresh exam with a fresh ten minutes: what is left of the first.
+        $this->get(route('guest-exam.take', $attempt))
+            ->assertOk()
+            ->assertSee('data-seconds="360"', escape: false);
+
+        expect(ExamAttempt::count())->toBe(1);
+    });
+
+    it('hands in what was saved and shows the result when the guest comes back after the time ran out', function () {
+        $question = Question::factory()->approved()->for(Chapter::factory())->create([
+            'options' => [
+                ['option' => 'a', 'image' => null, 'is_correct' => true],
+                ['option' => 'b', 'image' => null, 'is_correct' => false],
+            ],
+            'marks' => 2,
+        ]);
+        $this->exam->questions()->attach([$question->id => ['order_index' => 1, 'marks_override' => null]]);
+
+        ($this->start)();
+        $attempt = ExamAttempt::sole();
+        $this->post(route('guest-exam.answers', $attempt), ['answers' => [$question->id => 'a']]);
+
+        $this->travel(11)->minutes();
+        $this->flushSession();
+
+        ($this->start)()
+            ->assertOk()
+            ->assertSee('You have already taken this exam. Here is your result.');
+
+        expect(ExamAttempt::count())->toBe(1);
+        expect($attempt->refresh()->isInProgress())->toBeFalse()
+            ->and((float) $attempt->total_score)->toBe(2.0);
+    });
+
     it('resumes the attempt under way instead of starting a new one', function () {
         ($this->start)();
         $attempt = ExamAttempt::sole();
@@ -200,13 +244,47 @@ describe('refreshing the guest exam page', function () {
         expect(ExamAttempt::count())->toBe(1);
     });
 
-    it('starts a fresh attempt once the previous one was submitted', function () {
+    it('shows a guest who already sat the exam their result instead of a second attempt', function () {
         ($this->start)();
         $this->post(route('guest-exam.submit', ExamAttempt::sole()));
 
+        ($this->start)()
+            ->assertOk()
+            ->assertSee('You have already taken this exam. Here is your result.')
+            ->assertSee('Score');
+
+        expect(ExamAttempt::count())->toBe(1);
+    });
+
+    it('refuses a second attempt from another browser and however the details are typed', function () {
         ($this->start)();
+        $this->post(route('guest-exam.submit', ExamAttempt::sole()));
+        $this->flushSession();
+
+        $this->post(route('guest-exam.start', $this->exam->share_token), ['guest_name' => '  rahim ', 'guest_contact' => '0170-0000001'])
+            ->assertOk()
+            ->assertSee('You have already taken this exam. Here is your result.');
+
+        expect(ExamAttempt::count())->toBe(1);
+    });
+
+    it('still lets a different guest sit the exam after someone else has', function () {
+        ($this->start)();
+        $this->post(route('guest-exam.submit', ExamAttempt::sole()));
+
+        $this->post(route('guest-exam.start', $this->exam->share_token), ['guest_name' => 'Karim', 'guest_contact' => '01700000002'])
+            ->assertRedirect();
 
         expect(ExamAttempt::count())->toBe(2);
+    });
+
+    it('lets a guest sit the exam again after the teacher cancelled it', function () {
+        ($this->start)();
+        $this->post(route('guest-exam.submit', ExamAttempt::sole()));
+        $this->exam->cancel();
+        $this->exam->publish();
+
+        ($this->start)()->assertRedirect(route('guest-exam.take', ExamAttempt::sole()));
     });
 
     it('does not open an attempt that was started in another browser', function () {

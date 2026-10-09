@@ -1,13 +1,17 @@
 @php
     /**
-     * The students who answered one question wrongly, and what each chose.
+     * The students behind one of a question's counts: those who answered it
+     * wrongly (each with what they chose) or those who left it blank (no
+     * answer to show, so no "Their answer" column).
      *
-     * @var \Illuminate\Support\Collection<int, array{position: int, name: string, contact: string|null, answer: string|null}> $students
+     * @var \Illuminate\Support\Collection<int, array{position: int, name: string, contact: string|null, answer?: string|null}> $students
+     * @var string $emptyMessage
+     * @var bool $showAnswer
      */
 @endphp
 
 @if ($students->isEmpty())
-    <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Nobody answered this question wrongly.') }}</p>
+    <p class="text-sm text-gray-500 dark:text-gray-400">{{ $emptyMessage }}</p>
 @else
     <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">{{ trans_choice(':count student|:count students', $students->count()) }}</p>
 
@@ -18,7 +22,9 @@
                     <th class="qb-result-sheet-num">{{ __('Position') }}</th>
                     <th>{{ __('Name') }}</th>
                     <th>{{ __('Phone/Email') }}</th>
-                    <th>{{ __('Their answer') }}</th>
+                    @if ($showAnswer)
+                        <th>{{ __('Their answer') }}</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -27,7 +33,9 @@
                         <td class="qb-result-sheet-num">{{ $student['position'] }}</td>
                         <td>{{ $student['name'] }}</td>
                         <td>{{ $student['contact'] ?: '—' }}</td>
-                        <td class="qb-question-text">{!! $student['answer'] !!}</td>
+                        @if ($showAnswer)
+                            <td class="qb-question-text">{!! $student['answer'] !!}</td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>

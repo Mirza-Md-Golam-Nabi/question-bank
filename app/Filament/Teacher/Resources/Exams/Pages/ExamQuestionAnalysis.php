@@ -5,6 +5,7 @@ namespace App\Filament\Teacher\Resources\Exams\Pages;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
 use App\Models\Exam;
 use App\Services\ExamResultSheet;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
@@ -68,10 +69,44 @@ class ExamQuestionAnalysis extends Page
      */
     public function wrongStudentsAction(): Action
     {
-        return Action::make('wrongStudents')
-            ->modalHeading(__('Students who answered this wrongly'))
-            ->modalContent(fn (array $arguments) => view('filament.teacher.resources.exams.partials.wrong-students', [
-                'students' => app(ExamResultSheet::class)->wrongAnswersFor($this->getRecord(), (int) ($arguments['question'] ?? 0)),
+        return $this->studentListAction(
+            name: 'wrongStudents',
+            heading: __('Students who answered this wrongly'),
+            emptyMessage: __('Nobody answered this question wrongly.'),
+            students: fn (int $questionId): Collection => app(ExamResultSheet::class)->wrongAnswersFor($this->getRecord(), $questionId),
+            showAnswer: true,
+        );
+    }
+
+    /**
+     * "Who left this blank": the students behind one question's "not
+     * answered" count, looked up the same way.
+     */
+    public function unansweredStudentsAction(): Action
+    {
+        return $this->studentListAction(
+            name: 'unansweredStudents',
+            heading: __('Students who did not answer this'),
+            emptyMessage: __('Everybody answered this question.'),
+            students: fn (int $questionId): Collection => app(ExamResultSheet::class)->unansweredBy($this->getRecord(), $questionId),
+            showAnswer: false,
+        );
+    }
+
+    /**
+     * A read-only modal listing the students behind one of a question's
+     * counts.
+     *
+     * @param  Closure(int): Collection<int, array<string, mixed>>  $students
+     */
+    private function studentListAction(string $name, string $heading, string $emptyMessage, Closure $students, bool $showAnswer): Action
+    {
+        return Action::make($name)
+            ->modalHeading($heading)
+            ->modalContent(fn (array $arguments) => view('filament.teacher.resources.exams.partials.question-students', [
+                'students' => $students((int) ($arguments['question'] ?? 0)),
+                'emptyMessage' => $emptyMessage,
+                'showAnswer' => $showAnswer,
             ]))
             ->modalSubmitAction(false)
             ->modalCancelActionLabel(__('Close'));

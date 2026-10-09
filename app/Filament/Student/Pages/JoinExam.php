@@ -57,8 +57,8 @@ class JoinExam extends Page implements HasSchemas
             return;
         }
 
-        $attempt = ExamAttempt::startFor($exam, Auth::user());
-
-        $this->redirect(TakeExamPage::getUrl(['attempt' => $attempt->id]));
+        // Into the exam — or, for a student who has already sat it, to
+        // their result: nobody gets a second go.
+        $this->redirect(TakeExamPage::urlFor(ExamAttempt::startFor($exam, Auth::user())));
     }
 }

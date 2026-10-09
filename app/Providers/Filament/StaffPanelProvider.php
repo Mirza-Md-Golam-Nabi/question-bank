@@ -9,7 +9,6 @@ use App\Http\Middleware\EnsureStaffIsApproved;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
 
 class StaffPanelProvider extends PanelProvider
 {
@@ -24,7 +23,7 @@ class StaffPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Staff/Pages'), for: 'App\Filament\Staff\Pages')
             ->discoverWidgets(in: app_path('Filament/Staff/Widgets'), for: 'App\Filament\Staff\Widgets')
             ->widgets([
-                // AccountWidget::class,
+                // widget list
             ])
             ->authMiddleware([
                 EnsureStaffIsApproved::class,

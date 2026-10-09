@@ -101,6 +101,79 @@ it('lets a logged-in student join a shared exam by its token', function () {
     expect(ExamAttempt::where('exam_id', $exam->id)->where('student_id', $this->student->id)->exists())->toBeTrue();
 });
 
+it('sends a student who already sat a shared exam to their result instead of a second attempt', function () {
+    $exam = Exam::factory()->published()->create();
+    $attempt = ExamAttempt::startFor($exam, $this->student);
+    $attempt->submitAndAutoGrade();
+
+    livewire(JoinExam::class)
+        ->fillForm(['share_token' => $exam->share_token])
+        ->call('join')
+        ->assertRedirect(ExamResultPage::getUrl(['attempt' => $attempt->id, ExamResultPage::ALREADY_TAKEN => 1]));
+
+    expect(ExamAttempt::where('exam_id', $exam->id)->count())->toBe(1);
+});
+
+it('sends a student who already sat the exam to their result when they open its share link again', function () {
+    $exam = Exam::factory()->published()->create();
+    $attempt = ExamAttempt::startFor($exam, $this->student);
+    $attempt->submitAndAutoGrade();
+
+    $this->get(route('guest-exam.join', $exam->share_token))
+        ->assertRedirect(ExamResultPage::getUrl(['attempt' => $attempt->id, ExamResultPage::ALREADY_TAKEN => 1]));
+
+    expect(ExamAttempt::where('exam_id', $exam->id)->count())->toBe(1);
+});
+
+it('tells the student the exam was already taken when they land on the result that way', function () {
+    $exam = Exam::factory()->published()->create();
+    $attempt = ExamAttempt::startFor($exam, $this->student);
+    $attempt->submitAndAutoGrade();
+
+    $this->get(ExamResultPage::getUrl(['attempt' => $attempt->id, ExamResultPage::ALREADY_TAKEN => 1]))
+        ->assertOk()
+        ->assertSee('You have already taken this exam. Here is your result.');
+});
+
+it('puts a student back into the attempt they have under way rather than a new one', function () {
+    $exam = Exam::factory()->published()->create();
+    $attempt = ExamAttempt::startFor($exam, $this->student);
+
+    $this->get(route('guest-exam.join', $exam->share_token))
+        ->assertRedirect(TakeExamPage::getUrl(['attempt' => $attempt->id]));
+
+    expect(ExamAttempt::where('exam_id', $exam->id)->count())->toBe(1);
+});
+
+it('hands in a student\'s attempt whose time ran out and sends them to its result when they come back', function () {
+    $exam = Exam::factory()->published()->create(['duration_minutes' => 10]);
+    $attempt = ExamAttempt::startFor($exam, $this->student);
+
+    $this->travel(11)->minutes();
+
+    $this->get(route('guest-exam.join', $exam->share_token))
+        ->assertRedirect(ExamResultPage::getUrl(['attempt' => $attempt->id, ExamResultPage::ALREADY_TAKEN => 1]));
+
+    expect($attempt->refresh()->isInProgress())->toBeFalse();
+    expect(ExamAttempt::where('exam_id', $exam->id)->count())->toBe(1);
+});
+
+it('lets a student sit a shared exam again after the teacher cancelled it', function () {
+    $exam = Exam::factory()->published()->create();
+    ExamAttempt::startFor($exam, $this->student)->submitAndAutoGrade();
+    $exam->cancel();
+    $exam->publish();
+
+    expect(ExamAttempt::startFor($exam, $this->student)->isInProgress())->toBeTrue();
+});
+
+it('lets another student sit an exam someone else has already sat', function () {
+    $exam = Exam::factory()->published()->create();
+    ExamAttempt::startFor($exam, User::factory()->student()->create())->submitAndAutoGrade();
+
+    expect(ExamAttempt::startFor($exam, $this->student)->isInProgress())->toBeTrue();
+});
+
 it('closes a logged-in student\'s result back to their dashboard', function () {
     $attempt = ExamAttempt::create([
         'exam_id' => Exam::factory()->published()->create()->id,

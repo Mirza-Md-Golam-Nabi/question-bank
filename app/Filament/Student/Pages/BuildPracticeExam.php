@@ -29,7 +29,11 @@ class BuildPracticeExam extends SelfPracticeExamPage
                 $this->subjectSelect(fn ($set) => $set('question_ids', [])),
                 Select::make('question_ids')
                     ->label(__('Questions'))
-                    ->options(fn (Get $get) => Question::approvedOptionsForSubject($get('subject_id')))
+                    // Searched on the server, a short list at a time — the
+                    // subject's whole pool is never sent to the browser.
+                    ->getSearchResultsUsing(fn (string $search, Get $get): array => Question::approvedOptionsForSubject($get('subject_id'), $search))
+                    ->getOptionLabelsUsing(fn (array $values): array => Question::approvedOptionLabels($values))
+                    ->helperText(__('Type a few words of a question to find it.'))
                     ->multiple()
                     ->searchable()
                     ->required(),

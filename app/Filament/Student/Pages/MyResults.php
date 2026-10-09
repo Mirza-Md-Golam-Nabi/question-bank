@@ -2,7 +2,6 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Enums\ExamAttemptStatus;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\ExamAttempt;
 use Filament\Pages\Page;
@@ -36,7 +35,7 @@ class MyResults extends Page
     {
         return ExamAttempt::query()
             ->where('student_id', Auth::id())
-            ->where('status', ExamAttemptStatus::Submitted)
+            ->submitted()
             ->with('exam')
             ->latest('submitted_at')
             ->paginate(15);

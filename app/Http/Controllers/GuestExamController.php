@@ -71,7 +71,7 @@ class GuestExamController extends Controller
      * would re-send the form, start a brand-new attempt and restart the
      * clock.
      */
-    public function startGuestAttempt(Request $request, string $shareToken): RedirectResponse
+    public function startGuestAttempt(Request $request, string $shareToken): View|RedirectResponse
     {
         $exam = $this->activeSharedExamOrFail($shareToken);
 
@@ -84,33 +84,25 @@ class GuestExamController extends Controller
             'guest_contact' => ['required', 'string', 'max:255'],
         ]);
 
-        // The same person going back and pressing "Start" again resumes the
-        // attempt they already have under way in this browser, clock and
-        // all. Only the same person, though: on a shared phone or lab
-        // computer the next student gives their own name and contact, and
-        // must get their own exam — not the previous student's.
-        $attemptInProgress = $this->guestAttemptsOfThisBrowser($request)
-            ->where('exam_id', $exam->id)
-            ->where('status', ExamAttemptStatus::InProgress)
-            ->where('guest_contact', ExamAttempt::normalizeGuestContact($data['guest_contact']))
-            ->latest('id')
-            ->get()
-            ->first(fn (ExamAttempt $attempt) => ExamAttempt::normalizeGuestName((string) $attempt->guest_name) === ExamAttempt::normalizeGuestName($data['guest_name']));
+        // Who this is and what they get — their result, the exam they have
+        // under way (from whichever device they started it on), or a new
+        // one — is ExamAttempt's rule, the same one a logged-in student
+        // goes through. On a shared phone or lab computer the next student
+        // gives their own name and contact, and so gets their own exam.
+        $attempt = ExamAttempt::startForGuest($exam, $data['guest_name'], $data['guest_contact']);
 
-        if ($attemptInProgress) {
-            return redirect()->route('guest-exam.take', $attemptInProgress);
+        if (! $attempt->isInProgress()) {
+            return view('guest-exam.result', [
+                'attempt' => $attempt->load('answers.question'),
+                'alreadyTaken' => true,
+            ]);
         }
 
-        $attempt = ExamAttempt::create([
-            'exam_id' => $exam->id,
-            'student_id' => null,
-            'is_guest' => true,
-            'guest_name' => trim($data['guest_name']),
-            'guest_contact' => ExamAttempt::normalizeGuestContact($data['guest_contact']),
-            'started_at' => now(),
-        ]);
-
-        $request->session()->push(self::SESSION_KEY, $attempt->id);
+        // This browser may now open the attempt (see take()).
+        $request->session()->put(
+            self::SESSION_KEY,
+            collect($request->session()->get(self::SESSION_KEY, []))->push($attempt->id)->unique()->values()->all(),
+        );
 
         return redirect()->route('guest-exam.take', $attempt);
     }

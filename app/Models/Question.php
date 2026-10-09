@@ -30,6 +30,11 @@ class Question extends Model
 {
     use HasApprovalStatus, HasFactory, SoftDeletes;
 
+    /**
+     * How many matches a question select shows for one search.
+     */
+    public const SELECT_OPTIONS_LIMIT = 50;
+
     protected function casts(): array
     {
         return [
@@ -127,20 +132,57 @@ class Question extends Model
     }
 
     /**
-     * The approved pool of a subject as select options — the plain text of
-     * each question, keyed by id.
+     * Questions from the approved pool of a subject as select options —
+     * the plain text of each, keyed by id — matching what was typed into
+     * the select's search box.
+     *
+     * Never the whole pool: a subject has thousands of questions, and
+     * sending them all to the browser as options is exactly what a picker
+     * must not do. A select built on this searches on the server and gets
+     * a short list back.
      *
      * @return array<int, string>
      */
-    public static function approvedOptionsForSubject(int|string|null $subjectId): array
+    public static function approvedOptionsForSubject(int|string|null $subjectId, ?string $search = null): array
     {
         if (blank($subjectId)) {
             return [];
         }
 
-        return self::query()
+        return self::asSelectOptions(self::query()
             ->approvedPool()
             ->ofSubject($subjectId)
+            // What was typed is matched as plain text: its own % and _ are
+            // escaped (with "!", which every database accepts as the
+            // escape character) rather than acting as wildcards.
+            ->when(filled($search), fn (Builder $query) => $query->whereRaw(
+                "question_text like ? escape '!'",
+                ['%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search).'%'],
+            ))
+            ->orderBy('id')
+            ->limit(self::SELECT_OPTIONS_LIMIT));
+    }
+
+    /**
+     * The select labels of questions that are already chosen — still only
+     * from the approved pool, so an id typed into the request by hand
+     * can't smuggle in a pending or rejected question.
+     *
+     * @param  array<int, int|string>  $questionIds
+     * @return array<int, string>
+     */
+    public static function approvedOptionLabels(array $questionIds): array
+    {
+        return self::asSelectOptions(self::query()->approvedPool()->whereKey($questionIds));
+    }
+
+    /**
+     * @param  Builder<self>  $questions
+     * @return array<int, string>
+     */
+    private static function asSelectOptions(Builder $questions): array
+    {
+        return $questions
             ->get(['id', 'question_text'])
             ->mapWithKeys(fn (self $question) => [$question->id => strip_tags($question->question_text)])
             ->all();

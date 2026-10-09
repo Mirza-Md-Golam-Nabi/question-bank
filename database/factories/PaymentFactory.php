@@ -25,4 +25,23 @@ class PaymentFactory extends Factory
             'paid_at' => now(),
         ];
     }
+
+    /**
+     * Approved, and still inside its refund period.
+     */
+    public function refundable(): static
+    {
+        return $this->state(fn (array $attributes) => ['refundable_until' => now()->addDays(7)]);
+    }
+
+    /**
+     * A customer's manual payment the Admin hasn't checked yet.
+     */
+    public function pending(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => PaymentStatus::Pending,
+            'paid_at' => null,
+        ]);
+    }
 }

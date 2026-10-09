@@ -105,6 +105,21 @@
         </table>
     </x-filament::section>
 
+    @php $referralRewards = $this->referralRewardSummary(); @endphp
+
+    @if (array_sum($referralRewards) > 0)
+        <x-filament::section :heading="__('Referral earnings')" icon="heroicon-o-gift">
+            <x-referral-reward-summary :summary="$referralRewards" show-paid />
+
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {{ __('Paid together with your question earnings once the refund period has passed.') }}
+                <x-filament::link :href="\App\Filament\Staff\Pages\MyProfile::getUrl(panel: 'staff')" wire:navigate>
+                    {{ __('See the details') }}
+                </x-filament::link>
+            </p>
+        </x-filament::section>
+    @endif
+
     <x-filament::section>
         <x-slot name="heading">
             <span class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-rose-500 to-orange-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm lg:text-base">

@@ -40,6 +40,30 @@ enum UserRole: string implements HasLabel
     }
 
     /**
+     * The side of the subscription plans this role buys from — also the
+     * roles that take part in referrals and hold a wallet. Null for the
+     * roles that have no subscription at all.
+     */
+    public function subscriptionTargetRole(): ?SubscriptionTargetRole
+    {
+        return match ($this) {
+            self::Teacher => SubscriptionTargetRole::Teacher,
+            self::Student => SubscriptionTargetRole::Student,
+            default => null,
+        };
+    }
+
+    /**
+     * Whether this role's referral rewards become wallet credit. The roles
+     * with a subscription to spend it on do; Staff are paid theirs in cash
+     * with their earnings instead.
+     */
+    public function holdsWallet(): bool
+    {
+        return $this->subscriptionTargetRole() !== null;
+    }
+
+    /**
      * The Filament panel id this role is allowed into.
      */
     public function panelId(): string

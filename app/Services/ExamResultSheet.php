@@ -40,7 +40,7 @@ class ExamResultSheet
     {
         $rows = ExamAttempt::query()
             ->where('exam_id', $exam->id)
-            ->whereIn('status', [ExamAttemptStatus::Submitted, ExamAttemptStatus::AutoSubmitted])
+            ->submitted()
             ->with('student:id,name,email')
             ->orderBy('id')
             ->get()
@@ -163,6 +163,40 @@ class ExamResultSheet
     }
 
     /**
+     * The participants who left one question blank — the ones behind its
+     * "not answered" count, i.e. everyone on the result sheet who has no
+     * graded answer to it. Fetched for that single question only, like
+     * wrongAnswersFor().
+     *
+     * Empty for a question that isn't part of the exam.
+     *
+     * @return Collection<int, array{position: int, name: string, contact: string|null}>
+     */
+    public function unansweredBy(Exam $exam, int $questionId): Collection
+    {
+        if (! $exam->onlineQuestions->contains('id', $questionId)) {
+            return collect();
+        }
+
+        $rows = $this->rowsFor($exam);
+
+        $answeredAttemptIds = AttemptAnswer::query()
+            ->where('question_id', $questionId)
+            ->whereNotNull('is_correct')
+            ->whereIn('attempt_id', $rows->map(fn (array $row) => $row['attempt']->id))
+            ->pluck('attempt_id');
+
+        return $rows
+            ->reject(fn (array $row): bool => $answeredAttemptIds->contains($row['attempt']->id))
+            ->map(fn (array $row): array => [
+                'position' => $row['position'],
+                'name' => $row['name'],
+                'contact' => $row['contact'],
+            ])
+            ->values();
+    }
+
+    /**
      * One participant's attempt, ready to show answer by answer — only if
      * it really belongs to this exam.
      */
@@ -170,7 +204,7 @@ class ExamResultSheet
     {
         return ExamAttempt::query()
             ->where('exam_id', $exam->id)
-            ->whereIn('status', [ExamAttemptStatus::Submitted, ExamAttemptStatus::AutoSubmitted])
+            ->submitted()
             ->with(['student:id,name,email', 'answers'])
             ->find($attemptId)
             ?->setRelation('exam', $exam);

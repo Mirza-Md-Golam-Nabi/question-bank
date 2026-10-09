@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Enums\ExamType;
+use App\Models\BillingSetting;
 use App\Models\Exam;
 use App\Models\Subscription;
+use App\Models\SubscriptionPlan;
 use App\Models\User;
 
 /**
@@ -21,11 +23,50 @@ class SubscriptionLimitService
     }
 
     /**
-     * Null means unlimited.
+     * The plan whose limits apply: the one the user is subscribed to, or —
+     * for someone who never bought anything, or whose paid period ran out
+     * — their role's default free plan. Null only when the Admin hasn't
+     * set up a free plan for the role.
+     */
+    public function effectivePlanFor(User $user): ?SubscriptionPlan
+    {
+        return $this->planSummaryFor($user)['plan'];
+    }
+
+    /**
+     * Null means unlimited. A user who has given their phone number gets
+     * the Admin's bonus exams on top of a limited plan every month.
      */
     public function monthlyExamLimitFor(User $user): ?int
     {
-        return $this->activeSubscriptionFor($user)?->plan?->monthly_exam_limit;
+        return $this->planSummaryFor($user)['monthly_limit'];
+    }
+
+    /**
+     * Everything a page showing "your plan" needs — the subscription, the
+     * plan whose limits apply, and the monthly limit — from one lookup,
+     * for a caller that would otherwise ask for each separately.
+     *
+     * @return array{subscription: ?Subscription, plan: ?SubscriptionPlan, monthly_limit: ?int}
+     */
+    public function planSummaryFor(User $user): array
+    {
+        $subscription = $this->activeSubscriptionFor($user);
+        $plan = $subscription?->plan;
+
+        if (! $plan && ($role = $user->role->subscriptionTargetRole())) {
+            $plan = SubscriptionPlan::defaultFreeFor($role)->first();
+        }
+
+        $limit = $plan?->monthly_exam_limit;
+
+        return [
+            'subscription' => $subscription,
+            'plan' => $plan,
+            'monthly_limit' => $limit === null
+                ? null
+                : $limit + (filled($user->phone) ? BillingSetting::current()->phone_bonus_exams : 0),
+        ];
     }
 
     public function hasActiveSubscription(User $user): bool
@@ -66,10 +107,7 @@ class SubscriptionLimitService
         $createdAt = $exam->created_at ?? now();
 
         $examsCreatedUpToThisOne = Exam::query()
-            ->where('created_by', $user->id)
-            ->where('exam_type', $exam->exam_type)
-            ->whereMonth('created_at', $createdAt->month)
-            ->whereYear('created_at', $createdAt->year)
+            ->createdInMonthBy($user, $exam->exam_type, $createdAt)
             ->where('id', '<=', $exam->id)
             ->count();
 

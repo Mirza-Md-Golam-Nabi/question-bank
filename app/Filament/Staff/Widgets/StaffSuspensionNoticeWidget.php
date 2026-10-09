@@ -2,19 +2,13 @@
 
 namespace App\Filament\Staff\Widgets;
 
-use Filament\Widgets\Widget;
-use Illuminate\Support\Facades\Auth;
+use App\Filament\Staff\Pages\RequestReactivation;
+use App\Filament\Support\Widgets\SuspensionNoticeWidget;
 
-class StaffSuspensionNoticeWidget extends Widget
+class StaffSuspensionNoticeWidget extends SuspensionNoticeWidget
 {
-    protected string $view = 'filament.staff.widgets.suspension-notice';
-
-    protected static ?int $sort = 1;
-
-    protected int|string|array $columnSpan = 'full';
-
-    public static function canView(): bool
+    protected function reactivationPage(): string
     {
-        return Auth::user()?->isSuspended() ?? false;
+        return RequestReactivation::class;
     }
 }

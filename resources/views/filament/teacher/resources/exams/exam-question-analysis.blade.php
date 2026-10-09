@@ -49,15 +49,28 @@
                                 </div>
                             </dl>
 
-                            @if ($stat['wrong'] > 0)
-                                <div class="mt-3">
-                                    <x-filament::link
-                                        tag="button"
-                                        icon="heroicon-m-users"
-                                        wire:click="mountAction('wrongStudents', { question: {{ $stat['question']->id }} })"
-                                    >
-                                        {{ __('See who answered wrongly') }}
-                                    </x-filament::link>
+                            @if ($stat['wrong'] > 0 || $stat['unanswered'] > 0)
+                                <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+                                    @if ($stat['wrong'] > 0)
+                                        <x-filament::link
+                                            tag="button"
+                                            icon="heroicon-m-users"
+                                            wire:click="mountAction('wrongStudents', { question: {{ $stat['question']->id }} })"
+                                        >
+                                            {{ __('See who answered wrongly') }}
+                                        </x-filament::link>
+                                    @endif
+
+                                    @if ($stat['unanswered'] > 0)
+                                        <x-filament::link
+                                            tag="button"
+                                            color="gray"
+                                            icon="heroicon-m-users"
+                                            wire:click="mountAction('unansweredStudents', { question: {{ $stat['question']->id }} })"
+                                        >
+                                            {{ __('See who did not answer') }}
+                                        </x-filament::link>
+                                    @endif
                                 </div>
                             @endif
                         </div>

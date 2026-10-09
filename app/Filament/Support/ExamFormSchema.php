@@ -9,6 +9,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Database\Eloquent\Builder;
 
 class ExamFormSchema
 {
@@ -37,12 +38,18 @@ class ExamFormSchema
             ]),
 
             Select::make('questions')
-                ->relationship('questions', 'question_text')
+                // The relationship itself is limited to the subject's approved
+                // pool and searched on the server a short list at a time —
+                // never preloaded, since a subject has thousands of questions.
+                ->relationship(
+                    'questions',
+                    'question_text',
+                    fn (Builder $query, Get $get) => $query->approvedPool()->ofSubject($get('subject_id') ?? 0),
+                )
                 ->getOptionLabelFromRecordUsing(fn (Question $record) => strip_tags($record->question_text))
-                ->options(fn (Get $get) => Question::approvedOptionsForSubject($get('subject_id')))
+                ->optionsLimit(Question::SELECT_OPTIONS_LIMIT)
                 ->multiple()
                 ->searchable()
-                ->preload()
                 ->required(),
         ];
     }

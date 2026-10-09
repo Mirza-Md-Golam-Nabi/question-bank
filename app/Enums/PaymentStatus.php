@@ -9,6 +9,8 @@ enum PaymentStatus: string implements HasLabel
     case Pending = 'pending';
     case Success = 'success';
     case Failed = 'failed';
+    case Rejected = 'rejected';
+    case Refunded = 'refunded';
 
     public function getLabel(): ?string
     {
@@ -16,6 +18,8 @@ enum PaymentStatus: string implements HasLabel
             self::Pending => __('Pending'),
             self::Success => __('Success'),
             self::Failed => __('Failed'),
+            self::Rejected => __('Rejected'),
+            self::Refunded => __('Refunded'),
         };
     }
 }

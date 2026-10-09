@@ -5,12 +5,15 @@ namespace App\Models;
 use App\Enums\ExamAttemptStatus;
 use App\Enums\QuestionType;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
@@ -78,36 +81,130 @@ class ExamAttempt extends Model
      */
     public static function findGuestResult(Exam $exam, string $name, string $contact): ?self
     {
+        return self::ofGuest($exam, $name, $contact)->first(fn (self $attempt): bool => ! $attempt->isInProgress());
+    }
+
+    /**
+     * Every attempt one guest has on an exam, oldest first — "one guest"
+     * being the same name and phone/email, on whatever device. The contact
+     * is matched in the query (it is stored normalized and indexed); the
+     * name, which is stored as typed, on the handful of rows that leaves.
+     *
+     * @return Collection<int, self>
+     */
+    private static function ofGuest(Exam $exam, string $name, string $contact): Collection
+    {
         return self::query()
             ->where('exam_id', $exam->id)
             ->where('is_guest', true)
             ->where('guest_contact', self::normalizeGuestContact($contact))
-            ->where('status', ExamAttemptStatus::Submitted)
             ->orderBy('id')
             ->get()
-            ->first(fn (self $attempt) => self::normalizeGuestName((string) $attempt->guest_name) === self::normalizeGuestName($name));
+            ->filter(fn (self $attempt): bool => self::normalizeGuestName((string) $attempt->guest_name) === self::normalizeGuestName($name))
+            ->values();
     }
 
     /**
-     * Puts a logged-in student into an exam: the attempt they already have
-     * under way on it, if any (so coming back never restarts their clock),
-     * otherwise a new one starting now.
+     * Handed in, whichever way — by the participant or by the clock.
+     */
+    public function scopeSubmitted(Builder $query): Builder
+    {
+        return $query->whereIn('status', [ExamAttemptStatus::Submitted, ExamAttemptStatus::AutoSubmitted]);
+    }
+
+    public function isInProgress(): bool
+    {
+        return $this->status === ExamAttemptStatus::InProgress;
+    }
+
+    /**
+     * Puts a logged-in student into an exam, by the one rule enter()
+     * applies to everyone.
      */
     public static function startFor(Exam $exam, User $student): self
     {
-        $attemptInProgress = self::query()
-            ->where('exam_id', $exam->id)
-            ->where('student_id', $student->id)
-            ->where('status', ExamAttemptStatus::InProgress)
-            ->latest('id')
-            ->first();
+        return self::enter(
+            $exam,
+            fn (): Collection => self::query()
+                ->where('exam_id', $exam->id)
+                ->where('student_id', $student->id)
+                ->orderBy('id')
+                ->get(),
+            ['student_id' => $student->id, 'is_guest' => false],
+        );
+    }
 
-        return $attemptInProgress ?? self::create([
-            'exam_id' => $exam->id,
-            'student_id' => $student->id,
-            'is_guest' => false,
-            'started_at' => now(),
-        ]);
+    /**
+     * Puts a guest into an exam, by the same rule. A guest has no account,
+     * so they are recognised by their name and phone/email — which is what
+     * lets them carry on from another device, and what stops a second
+     * device from getting a fresh exam with a fresh clock.
+     */
+    public static function startForGuest(Exam $exam, string $name, string $contact): self
+    {
+        return self::enter(
+            $exam,
+            fn (): Collection => self::ofGuest($exam, $name, $contact),
+            [
+                'student_id' => null,
+                'is_guest' => true,
+                'guest_name' => trim($name),
+                'guest_contact' => self::normalizeGuestContact($contact),
+            ],
+        );
+    }
+
+    /**
+     * The one rule for getting into an exam, which a participant may sit
+     * only once and against a single clock:
+     *
+     *  - already handed in → that attempt, to be shown its result;
+     *  - one under way     → that same attempt, clock and saved answers and
+     *                        all — unless its time has run out, in which
+     *                        case it is handed in now with whatever was
+     *                        saved, and is their result;
+     *  - otherwise         → a new attempt starting now.
+     *
+     * So the caller only has to look at isInProgress(): into the exam, or
+     * to the result. A teacher cancelling the exam deletes its attempts,
+     * which is what lets everyone sit it again afterwards.
+     *
+     * @param  Closure(): Collection<int, self>  $ownAttempts  The participant's attempts on this exam, oldest first.
+     * @param  array<string, mixed>  $identity  What marks a new attempt as theirs.
+     */
+    private static function enter(Exam $exam, Closure $ownAttempts, array $identity): self
+    {
+        // Locking the exam row makes two "Start" presses arriving together
+        // (two devices, a double click) take turns, so the second one finds
+        // the attempt the first one created instead of creating another.
+        return DB::transaction(function () use ($exam, $ownAttempts, $identity): self {
+            Exam::whereKey($exam->id)->lockForUpdate()->value('id');
+
+            $attempts = $ownAttempts()->each->setRelation('exam', $exam);
+
+            $attempt = $attempts->first(fn (self $attempt): bool => ! $attempt->isInProgress())
+                ?? $attempts->first();
+
+            if (! $attempt) {
+                return self::create(['exam_id' => $exam->id, 'started_at' => now(), ...$identity])
+                    ->setRelation('exam', $exam);
+            }
+
+            if ($attempt->isInProgress() && $attempt->hasRunOutOfTime()) {
+                $attempt->submitAndAutoGrade();
+            }
+
+            return $attempt;
+        });
+    }
+
+    /**
+     * The clock has run out and the short grace period for late answers
+     * with it: nothing more can be added to this attempt.
+     */
+    public function hasRunOutOfTime(): bool
+    {
+        return ! $this->isAcceptingAnswers();
     }
 
     /**
@@ -213,16 +310,25 @@ class ExamAttempt extends Model
 
         $examQuestionIds = $this->exam->onlineQuestions->pluck('id')->flip();
 
-        foreach ($answers as $questionId => $studentAnswer) {
-            if (! $examQuestionIds->has($questionId) || ! is_string($studentAnswer) || $studentAnswer === '') {
-                continue;
-            }
+        $rows = collect($answers)
+            ->filter(fn (mixed $studentAnswer, int|string $questionId): bool => $examQuestionIds->has($questionId)
+                && is_string($studentAnswer)
+                && $studentAnswer !== '')
+            ->map(fn (string $studentAnswer, int|string $questionId): array => [
+                'attempt_id' => $this->id,
+                'question_id' => (int) $questionId,
+                'student_answer' => $studentAnswer,
+            ])
+            ->values();
 
-            $this->answers()->updateOrCreate(
-                ['question_id' => $questionId],
-                ['student_answer' => $studentAnswer],
-            );
+        // One statement for the whole paper rather than two per question —
+        // a whole class's pages send this at the same instant when the
+        // clock runs out.
+        if ($rows->isNotEmpty()) {
+            AttemptAnswer::upsert($rows->all(), ['attempt_id', 'question_id'], ['student_answer']);
         }
+
+        $this->unsetRelation('answers');
     }
 
     /**
@@ -234,12 +340,17 @@ class ExamAttempt extends Model
      */
     public function submitAndAutoGrade(): void
     {
+        // The exam's questions are already in memory, so no answer has to
+        // load its own question.
         $examQuestionsById = $this->exam->questions->keyBy('id');
 
-        foreach ($this->answers as $answer) {
-            $question = $answer->question;
+        /** @var array<string, array{is_correct: bool, obtained_marks: float, ids: array<int, int>}> $outcomes */
+        $outcomes = [];
 
-            if ($question->question_type !== QuestionType::Mcq) {
+        foreach ($this->answers()->get(['id', 'question_id', 'student_answer']) as $answer) {
+            $question = $examQuestionsById->get($answer->question_id);
+
+            if ($question?->question_type !== QuestionType::Mcq) {
                 continue;
             }
 
@@ -247,13 +358,23 @@ class ExamAttempt extends Model
                 ->first(fn (array $option) => (bool) ($option['is_correct'] ?? false));
 
             $isCorrect = $correctOption && $answer->student_answer === $correctOption['option'];
-            $marks = $examQuestionsById->get($question->id)?->pivot?->marks_override ?? $question->marks;
+            $marks = $isCorrect ? (float) ($question->pivot?->marks_override ?? $question->marks) : 0.0;
 
-            $answer->update([
-                'is_correct' => $isCorrect,
-                'obtained_marks' => $isCorrect ? $marks : 0,
+            $outcomes["{$isCorrect}|{$marks}"] ??= ['is_correct' => (bool) $isCorrect, 'obtained_marks' => $marks, 'ids' => []];
+            $outcomes["{$isCorrect}|{$marks}"]['ids'][] = $answer->id;
+        }
+
+        // Answers that came out the same are marked together: one update
+        // per distinct outcome (usually two — right and wrong) instead of
+        // one per answer.
+        foreach ($outcomes as $outcome) {
+            AttemptAnswer::whereKey($outcome['ids'])->update([
+                'is_correct' => $outcome['is_correct'],
+                'obtained_marks' => $outcome['obtained_marks'],
             ]);
         }
+
+        $this->unsetRelation('answers');
 
         $this->forceFill([
             'status' => ExamAttemptStatus::Submitted,

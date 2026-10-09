@@ -3,8 +3,8 @@
 namespace App\Filament\Support\Concerns;
 
 use App\Enums\QuestionStatus;
+use App\Models\ClassSubject;
 use App\Models\Question;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 
@@ -23,22 +23,19 @@ trait GroupsQuestionsByClassSubject
      */
     protected function classSubjectBreakdown(QuestionStatus $status): SupportCollection
     {
-        return Question::where('created_by', Auth::id())
-            ->where('status', $status)
-            ->where('is_latest', true)
-            ->with(['chapter.classSubject.subject', 'chapter.classSubject.academicClass'])
-            ->get()
-            ->groupBy(fn (Question $question) => $question->chapter->class_subject_id ?? 0)
-            ->map(function (Collection $questions) {
-                $classSubject = $questions->first()->chapter->classSubject;
+        // Counted by the database: the questions themselves (their text
+        // and options) are never loaded just to be counted.
+        $counts = Question::query()
+            ->where('questions.created_by', Auth::id())
+            ->where('questions.status', $status)
+            ->where('questions.is_latest', true)
+            ->join('chapters', 'chapters.id', '=', 'questions.chapter_id')
+            ->groupBy('chapters.class_subject_id')
+            ->selectRaw('chapters.class_subject_id, count(*) as questions_count')
+            ->toBase()
+            ->pluck('questions_count', 'class_subject_id')
+            ->map(fn (int|string $count): array => ['count' => (int) $count]);
 
-                return [
-                    'class' => $classSubject?->academicClass->name ?? __('Unknown'),
-                    'subject' => $classSubject?->subject->name ?? __('Unknown'),
-                    'count' => $questions->count(),
-                ];
-            })
-            ->sortBy(['class', 'subject'])
-            ->values();
+        return ClassSubject::describe($counts);
     }
 }

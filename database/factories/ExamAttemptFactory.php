@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ExamAttemptStatus;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\User;
@@ -22,6 +23,14 @@ class ExamAttemptFactory extends Factory
             'is_guest' => false,
             'started_at' => now(),
         ];
+    }
+
+    public function submitted(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => ExamAttemptStatus::Submitted,
+            'submitted_at' => now(),
+        ]);
     }
 
     public function guest(): static

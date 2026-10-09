@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\StaffPayouts\Pages;
 
-use App\Enums\StaffEarningStatus;
 use App\Filament\Resources\StaffPayouts\StaffPayoutResource;
 use App\Models\StaffPayout;
 use App\Models\User;
@@ -24,13 +23,10 @@ class ManageStaffPayouts extends ManageRecords
                 ->schema([
                     Select::make('staff_id')
                         ->label(__('Staff'))
-                        ->options(fn () => User::query()
-                            ->whereHas('staffEarnings', fn ($q) => $q->where('status', StaffEarningStatus::PendingPayout))
+                        ->options(fn () => StaffPayout::staffOwedMoney()
                             ->get()
                             ->mapWithKeys(fn (User $staff) => [
-                                $staff->id => "{$staff->name} (৳".$staff->staffEarnings()
-                                    ->where('status', StaffEarningStatus::PendingPayout)
-                                    ->sum('amount').' pending)',
+                                $staff->id => "{$staff->name} (৳".StaffPayout::amountDueOn($staff).' pending)',
                             ]))
                         ->required(),
                     TextInput::make('reference_note')

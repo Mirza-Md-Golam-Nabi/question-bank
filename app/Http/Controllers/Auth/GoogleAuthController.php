@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Auth;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ReferralLinkController;
 use App\Http\Controllers\StudentSharedExamController;
 use App\Models\User;
+use App\Services\ReferralService;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Http\RedirectResponse;
@@ -80,6 +82,9 @@ class GoogleAuthController extends Controller
         ]);
 
         $user->assignRole($role->value);
+
+        // Only a brand-new account can arrive through a referral link.
+        app(ReferralService::class)->attach($user, session()->pull(ReferralLinkController::SESSION_KEY));
 
         return $user;
     }

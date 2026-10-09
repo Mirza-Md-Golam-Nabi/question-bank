@@ -42,25 +42,12 @@ class MonthlyEarnings extends Page
 
     /**
      * The last 24 months (this month first, oldest last) with how much was
-     * earned in each. Grouped in PHP from one query rather than 24 separate
-     * `whereMonth` round-trips.
+     * earned in each.
      *
      * @return Collection<int, array{label: string, total: float}>
      */
     public function monthlyEarnings(): Collection
     {
-        $earnings = StaffEarning::where('staff_id', Auth::id())->get(['amount', 'created_at']);
-
-        return collect(range(0, 23))
-            ->map(function (int $monthsAgo) use ($earnings) {
-                $month = now()->subMonthsNoOverflow($monthsAgo);
-
-                return [
-                    'label' => $month->format('M \'y'),
-                    'total' => (float) $earnings
-                        ->filter(fn (StaffEarning $earning) => $earning->created_at->isSameMonth($month) && $earning->created_at->isSameYear($month))
-                        ->sum('amount'),
-                ];
-            });
+        return StaffEarning::monthlyTotalsFor(Auth::id(), months: 24);
     }
 }

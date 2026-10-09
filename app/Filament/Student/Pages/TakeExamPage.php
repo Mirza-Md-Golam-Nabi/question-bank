@@ -27,6 +27,18 @@ class TakeExamPage extends Page
      */
     public array $answers = [];
 
+    /**
+     * Where a student is sent for an attempt ExamAttempt::startFor() gave
+     * them: into the exam while it is under way, and to its result once
+     * it has been handed in — an exam is sat only once.
+     */
+    public static function urlFor(ExamAttempt $attempt): string
+    {
+        return $attempt->isInProgress()
+            ? self::getUrl(['attempt' => $attempt->id], panel: 'student')
+            : ExamResultPage::getUrl(['attempt' => $attempt->id, ExamResultPage::ALREADY_TAKEN => 1], panel: 'student');
+    }
+
     public function mount(ExamAttempt $attempt): void
     {
         abort_unless($attempt->student_id === Auth::id(), 403);

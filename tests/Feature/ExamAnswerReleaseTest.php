@@ -120,14 +120,12 @@ describe('guest', function () {
     });
 
     it('shows the first attempt when the same guest sat the exam more than once', function () {
-        ($this->startAsGuest)();
-        $this->post(route('guest-exam.submit', ExamAttempt::sole()));
+        // The same guest can no longer start a second attempt, so two only
+        // exist in records from before that rule.
+        $first = ExamAttempt::factory()->submitted()->create(['exam_id' => $this->exam->id, 'is_guest' => true, 'student_id' => null, 'guest_name' => 'Rahim Uddin', 'guest_contact' => '01712345678']);
+        ExamAttempt::factory()->submitted()->create(['exam_id' => $this->exam->id, 'is_guest' => true, 'student_id' => null, 'guest_name' => 'Rahim Uddin', 'guest_contact' => '01712345678']);
 
-        ($this->startAsGuest)();
-        $second = ExamAttempt::latest('id')->first();
-        $this->post(route('guest-exam.submit', $second), ['answers' => [$this->question->id => 'Dhaka']]);
-
-        expect(ExamAttempt::count())->toBe(2);
+        expect($first->id)->toBe(ExamAttempt::oldest('id')->first()->id);
         expect(ExamAttempt::findGuestResult($this->exam, 'Rahim Uddin', '01712345678')->id)->toBe(ExamAttempt::oldest('id')->first()->id);
     });
 

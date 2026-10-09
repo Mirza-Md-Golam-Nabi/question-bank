@@ -323,6 +323,45 @@ describe('drilling into the results', function () {
             ->not->toContain('Right One');
     });
 
+    it('lists exactly the students who left a question blank', function () {
+        ($this->participant)('Right One', 'Dhaka');
+        ($this->participant)('Wrong One', 'Khulna');
+        ($this->participant)('Blank One', null);
+
+        $unanswered = app(ExamResultSheet::class)->unansweredBy($this->exam->fresh(), $this->question->id);
+
+        expect($unanswered->pluck('name')->all())->toBe(['Blank One']);
+    });
+
+    it('lists nobody as leaving blank a question that is not part of the exam', function () {
+        ($this->participant)('Blank One', null);
+
+        $foreign = Question::factory()->approved()->for(Chapter::factory())->create();
+
+        expect(app(ExamResultSheet::class)->unansweredBy($this->exam->fresh(), $foreign->id))->toBeEmpty();
+    });
+
+    it('shows the teacher who left a question blank from the analysis page', function () {
+        ($this->participant)('Right One', 'Dhaka');
+        ($this->participant)('Blank One', null);
+
+        $page = livewire(ExamQuestionAnalysis::class, ['record' => $this->exam->id])
+            ->assertSee('See who did not answer')
+            // The names are not on the page until asked for.
+            ->assertDontSee('Blank One');
+
+        expect(($this->modalOf)($page, 'unansweredStudents', ['question' => $this->question->id]))
+            ->toContain('Blank One')
+            ->not->toContain('Right One', 'Their answer');
+    });
+
+    it('offers no not-answered list for a question everybody answered', function () {
+        ($this->participant)('Right One', 'Dhaka');
+
+        livewire(ExamQuestionAnalysis::class, ['record' => $this->exam->id])
+            ->assertDontSee('See who did not answer');
+    });
+
     it('opens one student\'s answers from the eye button, correct answer and their own pick marked', function () {
         $attempt = ($this->participant)('Wrong One', 'Khulna');
 

@@ -3,12 +3,17 @@
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\GuestExamController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\ReferralLinkController;
 use App\Http\Controllers\StudentSharedExamController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
 Route::get('locale/{locale}', LocaleController::class)->name('locale.switch');
+
+Route::get('r/{code}', ReferralLinkController::class)
+    ->middleware('throttle:30,1')
+    ->name('referral.visit');
 
 Route::prefix('auth/google')->name('auth.google.')->group(function () {
     Route::get('redirect/{role}', [GoogleAuthController::class, 'redirect'])->name('redirect');

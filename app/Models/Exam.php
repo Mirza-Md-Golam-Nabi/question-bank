@@ -7,6 +7,7 @@ use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
 use App\Enums\QuestionType;
+use App\Models\Concerns\FiltersByMonth;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +27,7 @@ use Illuminate\Support\Str;
 ])]
 class Exam extends Model
 {
+    use FiltersByMonth;
     use HasFactory;
 
     /**
@@ -107,10 +109,18 @@ class Exam extends Model
      */
     public function scopeCreatedThisMonthBy(Builder $query, User $user, ExamType $examType): Builder
     {
+        return $query->createdInMonthBy($user, $examType, now());
+    }
+
+    /**
+     * One creator's exams of a type made in the calendar month `$month`
+     * falls in — what the monthly limit counts.
+     */
+    public function scopeCreatedInMonthBy(Builder $query, User $user, ExamType $examType, CarbonInterface $month): Builder
+    {
         return $query->where('created_by', $user->id)
             ->where('exam_type', $examType)
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year);
+            ->inMonth($month);
     }
 
     /**

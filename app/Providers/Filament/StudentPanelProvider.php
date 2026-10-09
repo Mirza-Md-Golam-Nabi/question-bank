@@ -8,7 +8,6 @@ use App\Filament\Support\QuestionEditorAssets;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
 
 class StudentPanelProvider extends PanelProvider
 {
@@ -23,7 +22,7 @@ class StudentPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Student/Pages'), for: 'App\Filament\Student\Pages')
             ->discoverWidgets(in: app_path('Filament/Student/Widgets'), for: 'App\Filament\Student\Widgets')
             ->widgets([
-                AccountWidget::class,
+                // widget list
             ]));
     }
 }
