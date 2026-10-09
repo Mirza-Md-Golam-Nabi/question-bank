@@ -402,8 +402,8 @@ livewire(ListUsers::class)
 1. প্রতিটা প্রশ্নের `status`: `pending | approved | rejected`
 2. Admin-এর নিজের আপলোড সরাসরি `approved`; Teacher/Staff-এরটা ডিফল্টভাবে `pending`
 3. **প্রতিটা Filament Resource-এর `getEloquentQuery()`-তে filter হার্ডকোড থাকতে হবে**, শুধু UI hide না। Teacher Panel-এর "আমার প্রশ্ন" ও Staff Panel দুটোই শুধু নিজের প্রশ্ন দেখায় (`Question::ownedBy()`)। Teacher অন্যদের approved প্রশ্ন দেখে ও বাছে শুধু "প্রশ্ন বাছাই" পেজে, যা সরাসরি approved pool (`Question::approvedPool()` — `status='approved' AND is_latest=true`) পড়ে।
-4. Exam-এ প্রশ্ন attach করার সময় (relationship field ও model-level Observer উভয় জায়গায়) নিশ্চিত করতে হবে `status='approved' AND is_latest=true`।
-5. `QuestionPolicy`-তেও owner+status ডাবল-চেক থাকবে।
+4. Exam-এ প্রশ্ন attach করার সময় (relationship field ও model-level Observer উভয় জায়গায়) নিশ্চিত করতে হবে `status='approved' AND is_latest=true`। **একমাত্র ব্যতিক্রম:** Teacher নিজের `pending` (ও `is_latest`) প্রশ্ন **নিজের** exam-এ ব্যবহার করতে পারে, যাতে আজ লেখা প্রশ্নে আজই পরীক্ষা নেওয়া যায় — অন্য কেউ সেটা approve না হওয়া পর্যন্ত দেখে না, আর Student-এর self-practice সবসময় শুধু approved pool। `rejected` প্রশ্ন নতুন exam-এ যায় না, কিন্তু যে exam-এ আগে থেকে আছে সেখানে থেকে যায়। এই ব্যতিক্রম শুধু `Question::scopeUsableInExamBy()`-এ লেখা।
+5. `QuestionPolicy`-তেও owner+status ডাবল-চেক থাকবে। Teacher/Staff নিজের প্রশ্ন ডিলিট করতে পারে শুধু যতক্ষণ সেটা `approved` না এবং কোনো exam-এ নেই (`isOnAnExam()`); আর কোনো student ওই প্রশ্নসহ পরীক্ষা শুরু করার পর approved-নয় এমন প্রশ্ন কেউ (Admin-ও না) এডিট করতে পারে না (`Question::isFrozenByAttempts()`) — approved প্রশ্নের এডিট নতুন version বানায় বলে সেটা চলে।
 6. এই ফিল্টার মিস হলে সেটা **critical security bug**।
 
 ### ৩. Question Types ও Content Hierarchy
@@ -464,7 +464,7 @@ livewire(ListUsers::class)
 3. **Topic ফিল্টার শুধু MCQ-তে খাটে।** CQ topic অনুযায়ী ভাগ হয় না — ধরন CQ হলে ওই chapter-এর সব CQ পেজিনেশনসহ দেখাতে হবে।
 4. **কতগুলো প্রশ্ন লাগবে তা Teacher নিজে ঠিক করে** (MCQ ও CQ-র আলাদা লক্ষ্য সংখ্যা); লক্ষ্য পূরণ হলে আর বাছা যায় না। সিস্টেমে কোনো নির্দিষ্ট ব্যবসায়িক সীমা নেই (কিছু পরীক্ষায় ১২০টা প্রশ্ন লাগে) — শুধু `TeacherExamBuilder::MAX_QUESTIONS` নামে একটা কারিগরি সুরক্ষা-সীমা আছে।
 5. **বাছাই শুধু ব্রাউজারের `localStorage`-এ থাকে, আর সেখানে শুধু প্রশ্নের ID** (লেখা না)। টিক, গণনা, chapter-ভিত্তিক সারাংশ — সব client-side (Alpine); সার্ভারে যায় শুধু ফিল্টার/পেজ বদলালে আর শেষে সেভ করার সময়। প্রশ্নের তালিকা সবসময় paginated — কখনো পুরো subject/chapter একবারে লোড করা যাবে না।
-6. **ব্রাউজারের ডেটা বিশ্বাস করা যাবে না।** সেভের সময় `TeacherExamBuilder` সার্ভারে আবার যাচাই করে: প্রতিটা ID `approved` + `is_latest`, একই `class_subject`-এর, আর `online` হলে সব MCQ। এই যাচাই ও exam তৈরির লজিক শুধু ওই service-এ থাকবে।
+6. **ব্রাউজারের ডেটা বিশ্বাস করা যাবে না।** সেভের সময় `TeacherExamBuilder` সার্ভারে আবার যাচাই করে: প্রতিটা ID Teacher-এর ব্যবহারযোগ্য (`Question::usableInExamBy()` — approved pool অথবা নিজের pending), একই `class_subject`-এর, আর `online` হলে সব MCQ। এই যাচাই ও exam তৈরির লজিক শুধু ওই service-এ থাকবে।
 7. **Subscription লিমিট সেভ করার মুহূর্তে একবারই গোনা হয়** — অনলাইনে প্রকাশ হোক বা শুধু PDF। আগে থেকে গোনা exam পরে publish করতে গেলে আবার লিমিটে আটকাবে না (`SubscriptionLimitService::isWithinMonthlyAllowance()`)।
 9. **Exam এডিটও এই পেজ দিয়েই হয়** (`?exam=`; `TeacherExamBuilder::update()`), তৈরি করার মতো একই যাচাইসহ, আর লিমিটে আবার গোনা হয় না। **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`canBeEdited()`) — নইলে তার নম্বর/পজিশন আর প্রশ্নপত্রের সাথে মিলবে না। তখন একমাত্র পথ **"পরীক্ষা বাতিল"** (`Exam::cancel()`): ওই exam-এর সব attempt ও উত্তর স্থায়ীভাবে মুছে exam-কে draft-এ ফেরায় (লিংক বন্ধ থাকে, যাতে এডিটের মাঝে কেউ শুরু না করে); পরে একই লিংকে আবার publish করা যায়। এটা ফেরানো যায় না, তাই confirmation ও log বাধ্যতামূলক।
 8. **PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে** (প্রিন্ট-উপযোগী পেজ, "শুধু প্রশ্ন" ও "উত্তরসহ" দুই রূপে) — সার্ভারে PDF বানানো হয় না, কারণ বাংলা যুক্তাক্ষর/গণিতের সূত্র ভাঙে আর সার্ভারে চাপ পড়ে।
@@ -609,6 +609,7 @@ CLAUDE.md
 | Class → Subject → Chapter → Topic select | `Support\ContentHierarchySchema` (`classSelect()` … `topicSelect()`) |
 | MCQ অপশনের ফিল্ড + "একটাই সঠিক উত্তর" নিয়ম | `Support\McqOptionsSchema` |
 | প্রশ্নের ফর্ম / টেবিল / View | `Support\QuestionFormSchema`, `QuestionsTable`, `QuestionInfolist` |
+| JSON পেস্ট করে একসাথে অনেক প্রশ্ন যোগ (Teacher/Admin; Staff না) — যাচাই, গণিত (`$...$` → KaTeX embed) ও তৈরি | `App\Services\QuestionJsonImporter`, `QuestionImportText`; বাটন `Support\QuestionJsonImportAction`; অনুমতি `QuestionPolicy::import()`; একবারের সীমা `BillingSetting.question_import_max` |
 | টেবিলের edit/delete/bulk-delete অ্যাকশন | `Support\TableActions` |
 | ফর্মে "কোন user" সিলেক্ট | `Support\UserSelect` |
 | নাম + ক্রমসহ আইটেম (class/chapter/topic) যোগ-এডিট-ডিলিট | `Support\Concerns\ManagesOrderedItems` |

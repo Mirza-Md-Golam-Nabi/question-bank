@@ -63,7 +63,9 @@ class QuestionsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    // Each selected question is checked on its own, so an
+                    // approved one among them is left alone.
+                    DeleteBulkAction::make()->authorizeIndividualRecords('delete'),
                     RestoreBulkAction::make(),
                     ForceDeleteBulkAction::make(),
                 ]),

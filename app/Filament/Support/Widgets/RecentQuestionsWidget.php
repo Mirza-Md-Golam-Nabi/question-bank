@@ -3,6 +3,7 @@
 namespace App\Filament\Support\Widgets;
 
 use App\Enums\QuestionStatus;
+use App\Filament\Support\SubjectColumn;
 use App\Models\Question;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -36,7 +37,7 @@ abstract class RecentQuestionsWidget extends TableWidget
             ->paginated(false)
             ->recordUrl(fn (Question $record) => $this->editQuestionUrl($record))
             ->columns([
-                TextColumn::make('chapter.classSubject.subject.name')->label(__('Subject')),
+                SubjectColumn::make('chapter.classSubject.subject'),
                 TextColumn::make('chapter.name')->label(__('Chapter')),
                 TextColumn::make('question_type')->badge(),
                 TextColumn::make('status')

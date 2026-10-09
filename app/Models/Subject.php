@@ -27,6 +27,19 @@ class Subject extends Model
         );
     }
 
+    /**
+     * What a narrow column shows for the subject: its short name where one
+     * has been entered, otherwise its name in the active language.
+     *
+     * @return Attribute<string, never>
+     */
+    protected function shortLabel(): Attribute
+    {
+        return Attribute::get(
+            fn (): string => filled($this->short_name) ? $this->short_name : $this->display_name,
+        );
+    }
+
     public function classSubjects(): HasMany
     {
         return $this->hasMany(ClassSubject::class);

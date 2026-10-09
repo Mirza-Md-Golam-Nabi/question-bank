@@ -2,8 +2,10 @@
 
 namespace App\Filament\Teacher\Widgets;
 
+use App\Filament\Support\SubjectColumn;
 use App\Filament\Teacher\Resources\Exams\Pages\EditExam;
 use App\Models\Exam;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -30,14 +32,22 @@ class TeacherRecentExamsWidget extends TableWidget
             ->recordUrl(fn (Exam $record) => EditExam::getUrl(['record' => $record], panel: 'teacher'))
             ->columns([
                 TextColumn::make('title')->searchable(),
-                TextColumn::make('subject.name')->label(__('Subject')),
+                SubjectColumn::make(),
                 TextColumn::make('status')->badge(),
                 TextColumn::make('attempts_count')->label(__('Attempts')),
+                // Just a link icon, not the whole URL spelled out: a click
+                // copies the link. Blank until the exam has one.
                 TextColumn::make('share_token')
                     ->label(__('Share link'))
-                    ->formatStateUsing(fn (?string $state) => $state ? url("/exam/{$state}") : '—')
+                    ->formatStateUsing(fn (): string => '')
+                    ->icon(Heroicon::OutlinedLink)
+                    ->iconColor('primary')
+                    ->tooltip(__('Copy share link'))
+                    ->alignCenter()
                     ->copyable()
-                    ->copyMessage(__('Link copied')),
+                    ->copyableState(fn (Exam $record): ?string => $record->shareUrl())
+                    ->copyMessage(__('Link copied'))
+                    ->placeholder('—'),
                 TextColumn::make('created_at')->dateTime('d M, h:i A')->label(__('Created')),
             ]);
     }

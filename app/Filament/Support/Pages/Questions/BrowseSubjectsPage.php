@@ -58,7 +58,7 @@ abstract class BrowseSubjectsPage extends Page
             ->with('subject')
             ->withCount([
                 'chapters',
-                'questions as questions_count' => fn ($query) => $query->where('is_latest', true),
+                'questions as questions_count' => fn ($query) => static::getResource()::scopeCountedQuestions($query),
             ])
             ->ordered()
             ->get();

@@ -2,10 +2,10 @@
 
 namespace App\Filament\Teacher\Resources\Questions\Pages;
 
-use App\Filament\Support\Pages\Questions\ListQuestionsByChapterPage;
+use App\Filament\Support\Pages\Questions\BrowseChaptersPage;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
 
-class ListQuestions extends ListQuestionsByChapterPage
+class BrowseChapters extends BrowseChaptersPage
 {
     protected static string $resource = QuestionResource::class;
 }

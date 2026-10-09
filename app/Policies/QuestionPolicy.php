@@ -29,14 +29,39 @@ class QuestionPolicy
         return $user->status === UserStatus::Active;
     }
 
-    public function update(User $user, Question $question): bool
+    /**
+     * Adding many questions at once from pasted JSON. Staff are paid for
+     * every approved question, so they keep adding theirs one at a time.
+     */
+    public function import(User $user): bool
     {
-        return $this->isAdmin($user) || $this->isOwner($user, $question);
+        return $this->create($user) && $user->role !== UserRole::Staff;
     }
 
+    /**
+     * Nobody — an Admin included — edits a question in place once a
+     * student has sat it (Question::isFrozenByAttempts()).
+     */
+    public function update(User $user, Question $question): bool
+    {
+        return ($this->isAdmin($user) || $this->isOwner($user, $question))
+            && ! $question->isFrozenByAttempts();
+    }
+
+    /**
+     * Its Teacher or Staff owner can remove a question only while nothing
+     * depends on it: once approved it belongs to the shared pool, and
+     * while it is on an exam — a teacher may put their own pending
+     * questions on theirs — removing it would take it off that paper.
+     * Only an Admin can remove it then.
+     */
     public function delete(User $user, Question $question): bool
     {
-        return $this->isAdmin($user) || $this->isOwner($user, $question);
+        return $this->isAdmin($user) || (
+            $this->isOwner($user, $question)
+            && $question->status !== QuestionStatus::Approved
+            && ! $question->isOnAnExam()
+        );
     }
 
     public function restore(User $user, Question $question): bool

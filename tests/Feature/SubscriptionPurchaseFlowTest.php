@@ -124,6 +124,7 @@ it('lets an admin change the billing settings', function () {
             'credit_expiry_months' => 12,
             'phone_bonus_exams' => 2,
             'bkash_number' => '01700000000',
+            'question_import_max' => 50,
         ])
         ->call('save')
         ->assertHasNoFormErrors()
@@ -137,6 +138,7 @@ it('lets an admin change the billing settings', function () {
         ->and($settings->referee_discount_percent)->toBe(15.0)
         ->and($settings->credit_expiry_months)->toBe(12)
         ->and($settings->phone_bonus_exams)->toBe(2)
+        ->and($settings->question_import_max)->toBe(50)
         ->and($settings->receivingNumbers())->toBe(['bkash' => '01700000000']);
     expect(BillingSetting::count())->toBe(1);
 });

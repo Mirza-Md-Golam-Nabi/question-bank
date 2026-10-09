@@ -64,7 +64,7 @@ abstract class BrowseChaptersPage extends Page
     {
         return Chapter::query()
             ->where('class_subject_id', $this->classSubject->id)
-            ->withCount(['questions as questions_count' => fn ($query) => $query->where('is_latest', true)])
+            ->withCount(['questions as questions_count' => fn ($query) => static::getResource()::scopeCountedQuestions($query)])
             ->ordered()
             ->get();
     }

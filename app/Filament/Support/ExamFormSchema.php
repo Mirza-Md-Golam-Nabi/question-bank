@@ -38,13 +38,14 @@ class ExamFormSchema
             ]),
 
             Select::make('questions')
-                // The relationship itself is limited to the subject's approved
-                // pool and searched on the server a short list at a time —
+                // The relationship itself is limited to what the teacher may
+                // use from the subject (the approved pool and their own
+                // pending questions) and searched on the server a short list at a time —
                 // never preloaded, since a subject has thousands of questions.
                 ->relationship(
                     'questions',
                     'question_text',
-                    fn (Builder $query, Get $get) => $query->approvedPool()->ofSubject($get('subject_id') ?? 0),
+                    fn (Builder $query, Get $get) => $query->usableInExamBy(auth()->user())->ofSubject($get('subject_id') ?? 0),
                 )
                 ->getOptionLabelFromRecordUsing(fn (Question $record) => strip_tags($record->question_text))
                 ->optionsLimit(Question::SELECT_OPTIONS_LIMIT)

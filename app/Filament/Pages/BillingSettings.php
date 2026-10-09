@@ -103,6 +103,15 @@ class BillingSettings extends Page
                             ->helperText(__('Turn on only after an SMS provider is connected — until then no code reaches the phone.'))
                             ->columnSpan(2),
                     ]),
+
+                Section::make(__('Question bank'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('question_import_max')
+                            ->label(__('Most questions in one JSON import'))
+                            ->helperText(__('How many questions a Teacher or an Admin can add at once by pasting JSON.'))
+                            ->integer()->minValue(1)->maxValue(1000)->required(),
+                    ]),
             ])
             ->statePath('data');
     }

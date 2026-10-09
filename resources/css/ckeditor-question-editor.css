@@ -126,6 +126,51 @@
     color: #9ca3af;
 }
 
+/* Preview step of the "Add from JSON" window (json-import-preview.blade.php):
+   one .qb-question-preview box per question, in a list that scrolls. */
+.qb-import-preview {
+    display: grid;
+    gap: 0.75rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* The boxes keep their light background in dark mode, so the question
+   inside keeps dark text. */
+.qb-import-preview .qb-question-body {
+    color: #111827;
+}
+
+/* The format shown on the first step (json-import-format.blade.php). */
+.qb-import-format-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.qb-import-format-head .qb-question-preview-label {
+    margin: 0;
+}
+
+.qb-import-format-text {
+    max-height: 14rem;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #111827;
+}
+
+.qb-import-preview-warning {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #dc2626;
+}
+
 /* MCQ option editor (CkEditorField ->compact()) — short single-line content,
    so it gets a much shorter editing area than the full question/CQ editors. */
 .qb-ck-editor-host--compact .ck-editor__editable {

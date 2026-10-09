@@ -20,8 +20,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Turns a Teacher's question selection into a saved exam (CLAUDE.md rule
  * 10). The selection itself lives in the teacher's browser, so nothing
- * about it is trusted: every id is re-checked here against the approved
- * pool and the chosen class + subject, and the monthly limit is counted at
+ * about it is trusted: every id is re-checked here against what this
+ * teacher may use and the chosen class + subject, and the monthly limit is counted at
  * this one moment. The only place this validation and exam creation live.
  */
 class TeacherExamBuilder
@@ -35,15 +35,17 @@ class TeacherExamBuilder
     public function __construct(private readonly SubscriptionLimitService $subscriptionLimits) {}
 
     /**
-     * The approved, latest questions among `$questionIds` that belong to
-     * the given class + subject — anything else (edited since, rejected,
-     * from another subject, or simply made up) is silently left out, which
-     * is how the caller finds out a selection has gone stale.
+     * The questions among `$questionIds` that the teacher may put on an
+     * exam (Question::usableInExamBy() — the approved pool and their own
+     * pending questions) and that belong to the given class + subject.
+     * Anything else (edited since, rejected, someone else's pending
+     * question, from another subject, or simply made up) is silently left
+     * out, which is how the caller finds out a selection has gone stale.
      *
      * @param  array<int, mixed>  $questionIds
      * @return Collection<int, Question>
      */
-    public function selectableQuestions(ClassSubject $classSubject, array $questionIds): Collection
+    public function selectableQuestions(User $teacher, ClassSubject $classSubject, array $questionIds): Collection
     {
         $questionIds = $this->normalizeIds($questionIds);
 
@@ -52,7 +54,7 @@ class TeacherExamBuilder
         }
 
         return Question::query()
-            ->approvedPool()
+            ->usableInExamBy($teacher)
             ->whereIn('questions.id', $questionIds)
             ->whereHas('chapter', fn (Builder $query) => $query->where('class_subject_id', $classSubject->id))
             ->with(['chapter:id,name,order_index', 'topic:id,name', 'cqParts'])
@@ -81,7 +83,7 @@ class TeacherExamBuilder
         int $durationMinutes,
         ?CarbonInterface $endsAt = null,
     ): Exam {
-        $questions = $this->validatedQuestions($classSubject, $deliveryMode, $questionIds);
+        $questions = $this->validatedQuestions($teacher, $classSubject, $deliveryMode, $questionIds);
 
         if ($this->subscriptionLimits->hasReachedMonthlyLimit($teacher, ExamType::TeacherExam)) {
             $this->fail(__('You have reached the monthly exam limit. Upgrade your subscription to create more exams.'));
@@ -132,7 +134,7 @@ class TeacherExamBuilder
             $this->fail(__('Students have already taken this exam, so its questions can no longer be changed.'));
         }
 
-        $questions = $this->validatedQuestions($classSubject, $deliveryMode, $questionIds);
+        $questions = $this->validatedQuestions($exam->creator, $classSubject, $deliveryMode, $questionIds);
 
         return DB::transaction(function () use ($exam, $classSubject, $deliveryMode, $questions, $title, $durationMinutes) {
             $exam->update([
@@ -169,7 +171,7 @@ class TeacherExamBuilder
      *
      * @throws ValidationException
      */
-    private function validatedQuestions(ClassSubject $classSubject, ExamDeliveryMode $deliveryMode, array $questionIds): Collection
+    private function validatedQuestions(User $teacher, ClassSubject $classSubject, ExamDeliveryMode $deliveryMode, array $questionIds): Collection
     {
         $questionIds = $this->normalizeIds($questionIds);
 
@@ -181,7 +183,7 @@ class TeacherExamBuilder
             $this->fail(__('An exam can have at most :max questions.', ['max' => self::MAX_QUESTIONS]));
         }
 
-        $questions = $this->selectableQuestions($classSubject, $questionIds);
+        $questions = $this->selectableQuestions($teacher, $classSubject, $questionIds);
 
         if ($questions->count() !== count($questionIds)) {
             $this->fail(__('Some selected questions are no longer available. They have been removed from your selection — please review it again.'));

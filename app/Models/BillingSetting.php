@@ -12,19 +12,22 @@ use Illuminate\Database\Eloquent\Model;
  * Everything about billing and referrals that the Admin sets rather than
  * the code: the referral percentages, the refund window, how long wallet credit lasts, the
  * bonus for giving a phone number, whether spending credit needs an OTP,
- * and the numbers customers send their payment to. One row, read through
- * current() — no amount or percentage of these lives anywhere in the code.
+ * the numbers customers send their payment to, and — the one setting here
+ * that is not about money — how many questions one JSON import may carry.
+ * One row, read through current() — no amount or percentage of these lives
+ * anywhere in the code.
  */
 #[Fillable([
     'referral_enabled', 'referrer_reward_percent', 'staff_reward_percent', 'referee_discount_percent',
     'credit_expiry_months', 'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
+    'question_import_max',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
 ])]
 class BillingSetting extends Model
 {
     /**
      * What applies until the Admin has saved the settings once: everything
-     * switched off.
+     * about money switched off.
      *
      * @var array<string, mixed>
      */
@@ -36,6 +39,7 @@ class BillingSetting extends Model
         'referee_discount_percent' => 0,
         'phone_bonus_exams' => 0,
         'otp_required_for_credit' => false,
+        'question_import_max' => 100,
     ];
 
     protected function casts(): array
@@ -49,6 +53,7 @@ class BillingSetting extends Model
             'credit_expiry_months' => 'integer',
             'phone_bonus_exams' => 'integer',
             'otp_required_for_credit' => 'boolean',
+            'question_import_max' => 'integer',
         ];
     }
 

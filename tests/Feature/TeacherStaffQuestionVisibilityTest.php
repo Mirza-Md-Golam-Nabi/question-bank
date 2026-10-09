@@ -31,7 +31,7 @@ it('lists only a teacher\'s own questions under "My questions", whatever their s
 
     $this->actingAs($teacherA);
 
-    livewire(TeacherListQuestions::class)
+    livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
         ->assertCanSeeTableRecords([$ownPending, $ownApproved, $ownRejected])
         // Other people's questions don't belong here, approved or not; the
         // approved pool is browsed on the Select questions page instead.

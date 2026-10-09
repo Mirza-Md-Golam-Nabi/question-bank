@@ -3,6 +3,7 @@
 namespace App\Filament\Support\Pages\Questions;
 
 use App\Filament\Support\Concerns\NavigatesAdjacentChapters;
+use App\Filament\Support\QuestionJsonImportAction;
 use App\Models\Chapter;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -71,6 +72,7 @@ abstract class ListQuestionsByChapterPage extends ListRecords
     {
         return [
             ...$this->getAdjacentChapterActions(),
+            QuestionJsonImportAction::make($this->chapter),
             CreateAction::make()
                 ->url(fn (): string => static::getResource()::getUrl('create', ['chapter' => $this->chapter->id])),
         ];

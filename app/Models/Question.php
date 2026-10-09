@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,17 @@ class Question extends Model
      * How many matches a question select shows for one search.
      */
     public const SELECT_OPTIONS_LIMIT = 50;
+
+    /**
+     * How few and how many options an MCQ may have, and the marks it
+     * carries unless stated — the same for a question typed into the form
+     * and one arriving through a JSON import.
+     */
+    public const MIN_MCQ_OPTIONS = 2;
+
+    public const MAX_MCQ_OPTIONS = 6;
+
+    public const DEFAULT_MCQ_MARKS = 1;
 
     protected function casts(): array
     {
@@ -82,6 +94,11 @@ class Question extends Model
         return $this->hasMany(QuestionCqPart::class)->orderBy('part_order');
     }
 
+    public function exams(): BelongsToMany
+    {
+        return $this->belongsToMany(Exam::class, 'exam_questions');
+    }
+
     public function approvalLogs(): HasMany
     {
         return $this->hasMany(QuestionApprovalLog::class)->latest('created_at');
@@ -121,6 +138,61 @@ class Question extends Model
     public function scopeApprovedPool(Builder $query): Builder
     {
         return $query->where('status', QuestionStatus::Approved)->where('is_latest', true);
+    }
+
+    /**
+     * What a teacher may put on an exam of their own: the approved pool,
+     * plus their own questions still waiting for review — so a question
+     * written today can be on today's exam. Nobody else sees a pending
+     * question, and a rejected one can't go on a new exam at all. The only
+     * place this exception to the approved-only rule is written; students'
+     * self-practice stays on approvedPool().
+     */
+    public function scopeUsableInExamBy(Builder $query, User $teacher): Builder
+    {
+        return $query->where('is_latest', true)->where(fn (Builder $query) => $query
+            ->where('status', QuestionStatus::Approved)
+            ->orWhere(fn (Builder $query) => $query
+                ->where('status', QuestionStatus::Pending)
+                ->where('created_by', $teacher->id)));
+    }
+
+    /**
+     * Adds, in the same query, whether each question is on an exam and
+     * whether any student has started such an exam — what isOnAnExam() and
+     * hasBeenSat() then answer from, instead of a query per question.
+     */
+    public function scopeWithExamUsage(Builder $query): Builder
+    {
+        return $query->withExists([
+            'exams as is_on_an_exam',
+            'exams as has_been_sat' => fn (Builder $query) => $query->whereHas('attempts'),
+        ]);
+    }
+
+    public function isOnAnExam(): bool
+    {
+        return (bool) ($this->getAttribute('is_on_an_exam') ?? $this->exams()->exists());
+    }
+
+    /**
+     * Whether a student has started an exam this question is on.
+     */
+    public function hasBeenSat(): bool
+    {
+        return (bool) ($this->getAttribute('has_been_sat') ?? $this->exams()->whereHas('attempts')->exists());
+    }
+
+    /**
+     * An approved question is never changed in place — editing it makes a
+     * new version and leaves this one as it is on every exam. Any other
+     * question is edited in place, so once a student has sat it, it must
+     * stay as they saw it: their marks were given against this wording and
+     * this answer.
+     */
+    public function isFrozenByAttempts(): bool
+    {
+        return $this->status !== QuestionStatus::Approved && $this->hasBeenSat();
     }
 
     /**

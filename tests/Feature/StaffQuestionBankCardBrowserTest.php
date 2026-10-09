@@ -26,7 +26,9 @@ it('renders the class, subject, and chapter card browsers with correct counts', 
     $subject = Subject::factory()->create(['name' => 'Physics']);
     $classSubject = ClassSubject::create(['academic_class_id' => $class->id, 'subject_id' => $subject->id, 'order_index' => 1]);
     $chapter = Chapter::create(['class_subject_id' => $classSubject->id, 'name' => 'Motion', 'order_index' => 1]);
-    Question::factory()->for($chapter)->approved()->count(3)->create();
+    Question::factory()->for($chapter)->approved()->count(3)->create(['created_by' => auth()->id()]);
+    // Someone else's questions are not behind these cards, so not counted.
+    Question::factory()->for($chapter)->approved()->count(2)->create(['created_by' => User::factory()->staff()->create()->id]);
 
     $classesHtml = livewire(BrowseClasses::class)->html();
     expect($classesHtml)->toContain('Class 9');

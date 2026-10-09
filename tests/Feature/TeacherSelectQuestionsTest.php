@@ -144,6 +144,24 @@ it('paginates the question list instead of loading the whole chapter', function 
     expect($page->instance()->questions->total())->toBe(25);
 });
 
+it('offers to select every question of the page at once, handing the browser that page only', function () {
+    $questions = Question::factory()->approved()->for($this->chapter)->count(25)->create(['marks' => 2]);
+
+    $page = livewire(SelectQuestions::class)->set('data', ($this->filters)());
+
+    $page->assertSee('Select all on this page')
+        ->assertSee('selectAll(page)', false);
+
+    // What the button works on is written into the page as a JS string
+    // holding JSON: unwrap the string, then read the JSON.
+    preg_match('/x-data="\{ page: JSON\.parse\(\'(.*?)\'\) \}"/s', $page->html(), $matches);
+    $handedOver = json_decode(json_decode('"'.$matches[1].'"'), true);
+
+    // The first page's questions, and not the 21st.
+    expect(array_column($handedOver, 'id'))->toBe($questions->take(20)->pluck('id')->all())
+        ->and($handedOver[0])->toMatchArray(['chapter' => $this->chapter->id, 'type' => 'mcq', 'marks' => 2]);
+});
+
 it('reviews only the ids that are still selectable and tells the browser which survived', function () {
     $kept = ($this->question)();
     $pending = Question::factory()->for($this->chapter)->create();

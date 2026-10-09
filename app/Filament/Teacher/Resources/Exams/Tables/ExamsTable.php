@@ -5,6 +5,7 @@ namespace App\Filament\Teacher\Resources\Exams\Tables;
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Filament\Support\FutureDateTimePicker;
+use App\Filament\Support\SubjectColumn;
 use App\Filament\Support\TableActions;
 use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
@@ -55,13 +56,7 @@ class ExamsTable
                     ->label(__('Class'))
                     ->alignCenter()
                     ->placeholder('—'),
-                // The short form keeps this column narrow (hover for the full
-                // name); a subject without one falls back to its name.
-                TextColumn::make('subject.short_name')
-                    ->label(__('Subject'))
-                    ->state(fn (Exam $record): string => $record->subject->short_name ?: $record->subject->display_name)
-                    ->tooltip(fn (Exam $record): string => $record->subject->display_name)
-                    ->alignCenter(),
+                SubjectColumn::make()->alignCenter(),
                 TextColumn::make('title')->searchable(),
                 TextColumn::make('delivery_mode')->label(__('Exam mode'))->badge()->color('gray')->alignCenter(),
                 TextColumn::make('status')->badge()->alignCenter(),

@@ -3,6 +3,9 @@
 namespace App\Filament\Teacher\Resources\Questions;
 
 use App\Filament\Support\Resources\QuestionResourceBase;
+use App\Filament\Teacher\Resources\Questions\Pages\BrowseChapters;
+use App\Filament\Teacher\Resources\Questions\Pages\BrowseClasses;
+use App\Filament\Teacher\Resources\Questions\Pages\BrowseSubjects;
 use App\Filament\Teacher\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Teacher\Resources\Questions\Pages\EditQuestion;
 use App\Filament\Teacher\Resources\Questions\Pages\ListQuestions;
@@ -26,7 +29,10 @@ class QuestionResource extends QuestionResourceBase
     public static function getPages(): array
     {
         return [
-            'index' => ListQuestions::route('/'),
+            'index' => BrowseClasses::route('/'),
+            'subjects' => BrowseSubjects::route('/classes/{class}/subjects'),
+            'chapters' => BrowseChapters::route('/classes/{class}/subjects/{classSubject}/chapters'),
+            'list' => ListQuestions::route('/chapters/{chapter}/questions'),
             'create' => CreateQuestion::route('/create'),
             'edit' => EditQuestion::route('/{record}/edit'),
         ];

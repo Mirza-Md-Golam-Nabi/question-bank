@@ -12,6 +12,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * What the Admin, Teacher and Staff QuestionResource have in common: the
@@ -41,5 +42,33 @@ abstract class QuestionResourceBase extends Resource
     public static function table(Table $table): Table
     {
         return QuestionsTable::configure($table);
+    }
+
+    /**
+     * Every panel's query starts here, and each panel then narrows it to
+     * what its users may reach. What is added for all of them is what
+     * QuestionPolicy asks of every listed question — whether it is on an
+     * exam — so that isn't looked up once per row.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->withExamUsage();
+    }
+
+    /**
+     * Narrows a question count shown on the browse cards to the current
+     * versions this panel's users can actually open — so a card never
+     * promises more questions than the list behind it shows. It reads the
+     * panel's own `getEloquentQuery()`, so that filter stays the one place
+     * deciding who sees what.
+     *
+     * @param  Builder<Question>  $query
+     * @return Builder<Question>
+     */
+    public static function scopeCountedQuestions(Builder $query): Builder
+    {
+        return $query
+            ->where($query->qualifyColumn('is_latest'), true)
+            ->whereIn($query->qualifyColumn('id'), static::getEloquentQuery()->select('questions.id'));
     }
 }

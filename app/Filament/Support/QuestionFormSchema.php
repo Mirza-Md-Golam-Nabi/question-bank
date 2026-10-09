@@ -7,6 +7,7 @@ use App\Enums\Difficulty;
 use App\Enums\EditorMode;
 use App\Enums\QuestionType;
 use App\Filament\Forms\Components\CkEditorField;
+use App\Models\Question;
 use Closure;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
@@ -99,7 +100,7 @@ class QuestionFormSchema
                             ->numeric()
                             ->step(0.5)
                             ->minValue(0.5)
-                            ->default(1)
+                            ->default(Question::DEFAULT_MCQ_MARKS)
                             ->required()
                             ->visible(fn (Get $get) => $get('question_type') === QuestionType::Mcq),
 
@@ -208,8 +209,8 @@ class QuestionFormSchema
                 ->grid(4)
                 ->addActionLabel(__('Add option'))
                 ->defaultItems(4)
-                ->minItems(2)
-                ->maxItems(6)
+                ->minItems(Question::MIN_MCQ_OPTIONS)
+                ->maxItems(Question::MAX_MCQ_OPTIONS)
                 ->reorderable()
                 ->live()
                 ->required()

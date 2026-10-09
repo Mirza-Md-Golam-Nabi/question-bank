@@ -77,10 +77,50 @@
                                 icon="heroicon-o-inbox"
                             />
                         @else
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ trans_choice(':count Question|:count Questions', $questions->total()) }}
-                                &middot; {{ $this->chapter->name }}
-                            </p>
+                            @php
+                                // What the browser keeps of each question on this page when
+                                // it is ticked — one at a time, or all of them at once.
+                                $pageItems = $questions->getCollection()->map(fn ($question): array => [
+                                    'id' => $question->id,
+                                    'chapter' => $question->chapter_id,
+                                    'chapterName' => $this->chapter->name,
+                                    'type' => $question->question_type->value,
+                                    'marks' => (float) $question->marks,
+                                ])->values();
+                            @endphp
+
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    {{ trans_choice(':count Question|:count Questions', $questions->total()) }}
+                                    &middot; {{ $this->chapter->name }}
+                                </p>
+
+                                {{-- Works on the questions of this page only, in the browser —
+                                     and stops at the number of questions asked for. --}}
+                                <div x-data="{ page: @js($pageItems) }" wire:key="select-all-{{ $questions->currentPage() }}-{{ $pageItems->pluck('id')->implode('-') }}">
+                                    <x-filament::button
+                                        size="sm"
+                                        color="gray"
+                                        icon="heroicon-m-check-circle"
+                                        x-show="! allSelected(page)"
+                                        x-bind:disabled="! canSelectAny(page)"
+                                        x-on:click="selectAll(page)"
+                                    >
+                                        {{ __('Select all on this page') }}
+                                    </x-filament::button>
+
+                                    <x-filament::button
+                                        size="sm"
+                                        color="gray"
+                                        icon="heroicon-m-x-circle"
+                                        x-cloak
+                                        x-show="allSelected(page)"
+                                        x-on:click="unselectAll(page)"
+                                    >
+                                        {{ __('Unselect all on this page') }}
+                                    </x-filament::button>
+                                </div>
+                            </div>
 
                             <p
                                 x-show="needsTarget()"
@@ -90,16 +130,10 @@
                                 {{ __('Enter how many questions you want above — then you can start selecting.') }}
                             </p>
 
-                            @foreach ($questions as $question)
+                            @foreach ($questions as $index => $question)
                                 @php
-                                    $type = $question->question_type->value;
-                                    $item = [
-                                        'id' => $question->id,
-                                        'chapter' => $question->chapter_id,
-                                        'chapterName' => $this->chapter->name,
-                                        'type' => $type,
-                                        'marks' => (float) $question->marks,
-                                    ];
+                                    $item = $pageItems[$index];
+                                    $type = $item['type'];
                                 @endphp
 
                                 <label
@@ -432,14 +466,45 @@
                     if (this.has(question.id)) {
                         this.remove(question.id);
                     } else if (this.canSelect(question.id, question.type)) {
-                        this.items[question.id] = { c: question.chapter, t: question.type, m: question.marks };
-                        this.chapters[question.chapter] = question.chapterName;
+                        this.add(question);
                         this.save();
                     }
 
                     // The tick-box always ends up showing the real selection,
                     // whatever the browser did to it on click.
                     event.target.checked = this.has(question.id);
+                },
+
+                add(question) {
+                    this.items[question.id] = { c: question.chapter, t: question.type, m: question.marks };
+                    this.chapters[question.chapter] = question.chapterName;
+                },
+
+                // Ticks every question of the page that still fits: each one
+                // goes through the same check as a single tick, so the
+                // number of questions asked for is never exceeded.
+                selectAll(questions) {
+                    questions
+                        .filter((question) => ! this.has(question.id))
+                        .forEach((question) => {
+                            if (this.canSelect(question.id, question.type)) {
+                                this.add(question);
+                            }
+                        });
+
+                    this.save();
+                },
+
+                unselectAll(questions) {
+                    questions.filter((question) => this.has(question.id)).forEach((question) => this.remove(question.id));
+                },
+
+                allSelected(questions) {
+                    return questions.length > 0 && questions.every((question) => this.has(question.id));
+                },
+
+                canSelectAny(questions) {
+                    return questions.some((question) => ! this.has(question.id) && this.canSelect(question.id, question.type));
                 },
 
                 remove(id) {

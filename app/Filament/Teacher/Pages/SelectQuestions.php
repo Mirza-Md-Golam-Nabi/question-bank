@@ -140,7 +140,7 @@ class SelectQuestions extends Page
         // goes back to the chapters to add more.
         if ($classSubject) {
             $this->reviewIds = app(TeacherExamBuilder::class)
-                ->selectableQuestions($classSubject, $exam->questions()->pluck('questions.id')->all())
+                ->selectableQuestions(auth()->user(), $classSubject, $exam->questions()->pluck('questions.id')->all())
                 ->pluck('id')
                 ->all();
 
@@ -357,7 +357,8 @@ class SelectQuestions extends Page
     }
 
     /**
-     * One page of the chapter's approved questions. Null until a chapter is
+     * One page of the chapter's questions the teacher may use — the
+     * approved pool and their own pending ones. Null until a chapter is
      * chosen — the whole pool is never listed at once.
      *
      * @return LengthAwarePaginator<int, Question>|null
@@ -373,7 +374,7 @@ class SelectQuestions extends Page
         $topicId = $type === self::TYPE_CQ ? null : ($this->data['topic_id'] ?? null);
 
         return Question::query()
-            ->approvedPool()
+            ->usableInExamBy(auth()->user())
             ->where('chapter_id', $this->chapter->id)
             ->when($type !== self::TYPE_BOTH, fn (Builder $query) => $query->where('question_type', $type))
             ->when(filled($topicId), fn (Builder $query) => $query->where(fn (Builder $query) => $query
@@ -399,7 +400,7 @@ class SelectQuestions extends Page
             return;
         }
 
-        $questions = app(TeacherExamBuilder::class)->selectableQuestions($this->classSubject, $questionIds);
+        $questions = app(TeacherExamBuilder::class)->selectableQuestions(auth()->user(), $this->classSubject, $questionIds);
 
         if (! $this->deliveryMode()->allowsCq()) {
             $questions = $questions->reject(fn (Question $question) => $question->question_type === QuestionType::Cq);
@@ -450,7 +451,7 @@ class SelectQuestions extends Page
         }
 
         return app(TeacherExamBuilder::class)
-            ->selectableQuestions($this->classSubject, $this->reviewIds)
+            ->selectableQuestions(auth()->user(), $this->classSubject, $this->reviewIds)
             ->groupBy('chapter_id');
     }
 

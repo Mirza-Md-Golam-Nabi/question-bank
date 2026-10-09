@@ -6,6 +6,7 @@
      *
      * @var \App\Models\Question $question
      */
+    use App\Enums\QuestionStatus;
     use App\Enums\QuestionType;
     use App\Filament\Support\QuestionDisplay;
 @endphp
@@ -21,6 +22,12 @@
         @endif
 
         <x-filament::badge color="gray">{{ $question->difficulty->getLabel() }}</x-filament::badge>
+
+        {{-- The teacher's own question, not reviewed yet: usable on their
+             exams, invisible to everyone else. --}}
+        @if ($question->status === QuestionStatus::Pending)
+            <x-filament::badge color="warning" icon="heroicon-m-clock">{{ __('Yours — awaiting approval') }}</x-filament::badge>
+        @endif
 
         <span class="ms-auto text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ __(':marks marks', ['marks' => QuestionDisplay::marks($question->marks)]) }}
