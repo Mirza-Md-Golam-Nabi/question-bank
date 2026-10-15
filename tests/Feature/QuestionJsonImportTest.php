@@ -5,6 +5,7 @@ use App\Enums\Difficulty;
 use App\Enums\EditorMode;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
+use App\Filament\Pages\BillingSettings;
 use App\Filament\Staff\Resources\Questions\Pages\ListQuestions as StaffListQuestions;
 use App\Filament\Teacher\Resources\Questions\Pages\ListQuestions as TeacherListQuestions;
 use App\Models\BillingSetting;
@@ -263,6 +264,34 @@ it('does not let staff or a suspended teacher import', function (User $user) {
     'staff' => fn () => User::factory()->staff()->create(),
     'suspended teacher' => fn () => User::factory()->teacher()->suspended()->create(),
 ]);
+
+it('takes the JSON import away from teachers, but not from admins, when the admin switches it off', function () {
+    expect($this->teacher->can('import', Question::class))->toBeTrue();
+
+    BillingSetting::current()->fill(['teacher_question_import_enabled' => false])->save();
+
+    expect($this->teacher->can('import', Question::class))->toBeFalse()
+        ->and(User::factory()->admin()->create()->can('import', Question::class))->toBeTrue();
+
+    livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+        ->assertActionHidden('importQuestionsFromJson');
+
+    // Not just a hidden button: the import itself is refused.
+    expect(fn () => ($this->import)([($this->mcq)()]))->toThrow(AuthorizationException::class);
+    expect(Question::count())->toBe(0);
+});
+
+it('lets the admin switch the teachers\' JSON import off on the settings page', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    livewire(BillingSettings::class)
+        ->assertFormSet(['teacher_question_import_enabled' => true])
+        ->fillForm(['teacher_question_import_enabled' => false])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect(BillingSetting::current()->teacher_question_import_enabled)->toBeFalse();
+});
 
 it('adds questions through the "Add from JSON" button of a chapter\'s question list', function () {
     livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])

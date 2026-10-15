@@ -13,19 +13,23 @@ class SetLocale
 
     /**
      * Applies the language the visitor picked from the language switcher.
-     * Falls back to the configured application locale when nothing (or
-     * something unsupported) is stored in the session.
+     * When they haven't picked one (or something unsupported is stored),
+     * the page's own default applies if it has one — the Admin panel opens
+     * in English — and otherwise the configured application locale.
      *
      * @param  Closure(Request): (Response)  $next
+     * @param  string|null  $defaultLocale  A default of the route's own, given as `SetLocale::class.':en'`.
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, ?string $defaultLocale = null): Response
     {
-        if ($request->hasSession()) {
-            $locale = Locale::tryFrom((string) $request->session()->get(self::SESSION_KEY));
+        $chosen = $request->hasSession()
+            ? Locale::tryFrom((string) $request->session()->get(self::SESSION_KEY))
+            : null;
 
-            if ($locale !== null) {
-                app()->setLocale($locale->value);
-            }
+        $locale = $chosen ?? Locale::tryFrom((string) $defaultLocale);
+
+        if ($locale !== null) {
+            app()->setLocale($locale->value);
         }
 
         return $next($request);

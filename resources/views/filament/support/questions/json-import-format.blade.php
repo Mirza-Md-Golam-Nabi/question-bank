@@ -31,7 +31,7 @@
             setTimeout(() => (this.copied = false), 2000);
         },
     }"
-    class="qb-question-preview"
+    class="qb-question-preview qb-import-format"
 >
     <div class="qb-import-format-head">
         <p class="qb-question-preview-label">{{ __('Format — copy it and give it to the AI') }}</p>

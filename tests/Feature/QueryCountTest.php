@@ -7,6 +7,7 @@ use App\Filament\Staff\Pages\MyEarnings;
 use App\Filament\Staff\Widgets\StaffEarningsTrendChartWidget;
 use App\Filament\Staff\Widgets\StaffQuestionRatesWidget;
 use App\Filament\Staff\Widgets\StaffStatsOverviewWidget;
+use App\Models\BillingSetting;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
 use App\Models\BoardMcqQuestion;
@@ -71,6 +72,10 @@ beforeEach(function () {
 
 it('saves and grades a paper in the same number of queries however many questions it has', function () {
     $queries = [];
+
+    // Grading reads the difficulty settings, which are fetched once per
+    // request however many papers it grades — so not part of the comparison.
+    BillingSetting::current();
 
     foreach ([3, 30] as $questionCount) {
         [$exam, $answers] = ($this->examWith)($questionCount);

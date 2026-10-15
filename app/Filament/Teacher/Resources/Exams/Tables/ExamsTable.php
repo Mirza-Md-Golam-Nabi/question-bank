@@ -43,6 +43,45 @@ class ExamsTable
         return (bool) ($exam->attempts_exists ?? $exam->attempts()->exists());
     }
 
+    /**
+     * The trophy button to an exam's results: who sat it and how they
+     * ranked. There is something to show as soon as the exam is out for
+     * students to take online. Shared with the dashboard's "Recent exams".
+     */
+    public static function resultsAction(): Action
+    {
+        return Action::make('results')
+            ->label(__('Results'))
+            ->tooltip(__('Results'))
+            ->icon('heroicon-o-trophy')
+            ->iconButton()
+            ->color('warning')
+            ->visible(fn (Exam $record) => $record->status !== ExamStatus::Draft && $record->delivery_mode->includesOnline())
+            ->url(fn (Exam $record): string => ExamResults::getUrl(['record' => $record], panel: 'teacher'));
+    }
+
+    /**
+     * One click copies the exam's share link — an icon instead of a column
+     * spelling out the whole URL. Only there once the exam is published and
+     * so actually has a link. Shared with the dashboard's "Recent exams".
+     */
+    public static function copyShareLinkAction(): Action
+    {
+        return Action::make('copyShareLink')
+            ->label(__('Copy share link'))
+            ->tooltip(__('Copy share link'))
+            ->icon('heroicon-o-link')
+            ->iconButton()
+            ->color('primary')
+            ->visible(fn (Exam $record) => filled($record->share_token))
+            // Copied in the browser itself; nothing to ask the server.
+            ->alpineClickHandler(fn (Exam $record): string => sprintf(
+                'window.navigator.clipboard.writeText(%s); $tooltip(%s, { theme: $store.theme, timeout: 2000 })',
+                Js::from($record->shareUrl()),
+                Js::from(__('Link copied')),
+            ));
+    }
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -108,32 +147,8 @@ class ExamsTable
 
                         Notification::make()->title(__('Exam published'))->success()->send();
                     }),
-                // Who sat the exam and how they ranked — there is something
-                // to show as soon as the exam is out for students to take.
-                Action::make('results')
-                    ->label(__('Results'))
-                    ->tooltip(__('Results'))
-                    ->icon('heroicon-o-trophy')
-                    ->iconButton()
-                    ->color('warning')
-                    ->visible(fn (Exam $record) => $record->status !== ExamStatus::Draft && $record->delivery_mode->includesOnline())
-                    ->url(fn (Exam $record): string => ExamResults::getUrl(['record' => $record])),
-                // One click copies the exam's share link — an icon instead of
-                // a column spelling out the whole URL. Only there once the
-                // exam is published and so actually has a link.
-                Action::make('copyShareLink')
-                    ->label(__('Copy share link'))
-                    ->tooltip(__('Copy share link'))
-                    ->icon('heroicon-o-link')
-                    ->iconButton()
-                    ->color('primary')
-                    ->visible(fn (Exam $record) => filled($record->share_token))
-                    // Copied in the browser itself; nothing to ask the server.
-                    ->alpineClickHandler(fn (Exam $record): string => sprintf(
-                        'window.navigator.clipboard.writeText(%s); $tooltip(%s, { theme: $store.theme, timeout: 2000 })',
-                        Js::from($record->shareUrl()),
-                        Js::from(__('Link copied')),
-                    )),
+                self::resultsAction(),
+                self::copyShareLinkAction(),
                 // The last moment a student can start the exam; after it the
                 // share link stops taking new attempts on its own.
                 Action::make('setEndTime')

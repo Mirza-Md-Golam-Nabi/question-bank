@@ -23,6 +23,19 @@ export function renderMathInto(domElement, latex) {
 }
 
 /**
+ * Whether an embed still holds its raw LaTeX and so has to be drawn.
+ *
+ * Told from its content, not from a "done" class: when Livewire re-renders
+ * a list (a filter, a page change) it puts the raw LaTeX back inside a span
+ * it keeps — class and all — so a class would say "rendered" about a span
+ * showing plain "\frac{1}{2}". Drawn maths always has elements inside;
+ * raw LaTeX is only text.
+ */
+function needsRendering(el) {
+    return el.firstElementChild === null;
+}
+
+/**
  * Renders every not-yet-rendered `.qb-katex-embed` span under `root`.
  * Idempotent: an already-rendered span is skipped, so calling it again on
  * every DOM change is cheap.
@@ -32,10 +45,14 @@ export function renderKatexEmbeds(root = document) {
     // that was patched, which can itself be a `.qb-katex-embed` span rather
     // than a container around one — querySelectorAll alone only searches
     // descendants, so it would silently skip that case.
-    const isEmbed = root instanceof Element && root.matches('.qb-katex-embed:not(.qb-katex-embed--rendered)');
-    const targets = isEmbed ? [root] : root.querySelectorAll('.qb-katex-embed:not(.qb-katex-embed--rendered)');
+    const isEmbed = root instanceof Element && root.matches('.qb-katex-embed');
+    const targets = isEmbed ? [root] : root.querySelectorAll('.qb-katex-embed');
 
     targets.forEach((el) => {
+        if (! needsRendering(el)) {
+            return;
+        }
+
         const latex = el.textContent;
         el.classList.add('qb-katex-embed--rendered');
         el.innerHTML = '';

@@ -8,7 +8,7 @@ use App\Models\Question;
 
 class TeacherRecentQuestionsWidget extends RecentQuestionsWidget
 {
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 5;
 
     protected function editQuestionUrl(Question $question): string
     {

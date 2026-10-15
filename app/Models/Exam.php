@@ -8,6 +8,7 @@ use App\Enums\ExamType;
 use App\Enums\GenerationMode;
 use App\Enums\QuestionType;
 use App\Models\Concerns\FiltersByMonth;
+use App\Services\QuestionDifficultyTracker;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -247,6 +248,10 @@ class Exam extends Model
     {
         return DB::transaction(function (): int {
             $attemptIds = $this->attempts()->pluck('id');
+
+            // These papers are being thrown away, so they stop counting
+            // towards the questions' difficulty — while they can still be read.
+            app(QuestionDifficultyTracker::class)->forgetAttemptsOf($this);
 
             AttemptAnswer::whereIn('attempt_id', $attemptIds)->delete();
             $this->attempts()->delete();

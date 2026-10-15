@@ -12,10 +12,11 @@ use App\Models\Question;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Builds a self-practice exam (Auto-Generate or Manual Selection — CLAUDE.md
- * rule 9 requires both) and starts the student's attempt on it in one shot,
+ * rule 9 requires both — or one made of the student's own mistakes) and starts the student's attempt on it in one shot,
  * since a self-practice exam only ever exists for that one student's own
  * attempt. Both modes fall through to the same createExamAndAttempt() so the
  * "approved+latest pool only" rule and the exam/attempt creation logic are
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  */
 class SelfPracticeExamService
 {
+    public function __construct(private readonly StudentMistakeTracker $mistakes) {}
+
     public function generateAuto(User $student, int $subjectId, ?Difficulty $difficulty, int $questionCount, ?array $chapterIds = null): ExamAttempt
     {
         // The draw is made over ids only, and just the drawn questions are
@@ -51,6 +54,26 @@ class SelfPracticeExamService
         $questions = Question::approvedPool()->whereIn('id', $questionIds)->get();
 
         return $this->createExamAndAttempt($student, $subjectId, $questions, GenerationMode::Manual);
+    }
+
+    /**
+     * A practice exam drawn from the questions the student keeps getting
+     * wrong (StudentMistakeTracker decides which those are, and which of
+     * them may be shown yet).
+     *
+     * @throws ValidationException when the student has no mistakes to practise in the subject
+     */
+    public function generateFromMistakes(User $student, int $subjectId, int $questionCount): ExamAttempt
+    {
+        $questions = $this->mistakes->drawForPractice($student, $subjectId, $questionCount);
+
+        if ($questions->isEmpty()) {
+            throw ValidationException::withMessages([
+                'data.subject_id' => __('You have no mistakes to practise in this subject right now.'),
+            ]);
+        }
+
+        return $this->createExamAndAttempt($student, $subjectId, $questions, GenerationMode::Mistakes);
     }
 
     /**

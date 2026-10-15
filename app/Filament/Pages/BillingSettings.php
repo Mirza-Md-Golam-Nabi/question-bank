@@ -107,10 +107,41 @@ class BillingSettings extends Page
                 Section::make(__('Question bank'))
                     ->columns(3)
                     ->schema([
+                        Toggle::make('teacher_question_import_enabled')
+                            ->label(__('Teachers can add questions from JSON'))
+                            ->helperText(__('When off, only an Admin sees the "Add from JSON" button.'))
+                            ->columnSpanFull(),
                         TextInput::make('question_import_max')
                             ->label(__('Most questions in one JSON import'))
                             ->helperText(__('How many questions a Teacher or an Admin can add at once by pasting JSON.'))
                             ->integer()->minValue(1)->maxValue(1000)->required(),
+                    ]),
+
+                Section::make(__('Question difficulty'))
+                    ->description(__('The difficulty of an MCQ is set from how students answer it on teacher exams, once enough of them have.'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('difficulty_min_answers')
+                            ->label(__('Answers needed before the difficulty is calculated'))
+                            ->helperText(__('Until then the question keeps the difficulty its author chose.'))
+                            ->integer()->minValue(1)->required(),
+                        TextInput::make('difficulty_hard_max_percent')
+                            ->label(__('Hard: up to this % answer correctly'))
+                            ->numeric()->minValue(0)->maxValue(100)->required()
+                            ->lt('difficulty_medium_max_percent'),
+                        TextInput::make('difficulty_medium_max_percent')
+                            ->label(__('Medium: up to this % answer correctly'))
+                            ->helperText(__('Above this the question is Easy.'))
+                            ->numeric()->minValue(0)->maxValue(100)->required(),
+                    ]),
+
+                Section::make(__('Practising mistakes'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('mistake_clear_streak')
+                            ->label(__('Correct answers in a row that clear a mistake'))
+                            ->helperText(__('A question a student got wrong leaves their mistakes list once they have answered it correctly this many times in a row.'))
+                            ->integer()->minValue(1)->maxValue(20)->required(),
                     ]),
             ])
             ->statePath('data');

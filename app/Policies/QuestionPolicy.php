@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\QuestionStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\BillingSetting;
 use App\Models\Question;
 use App\Models\User;
 
@@ -30,12 +31,19 @@ class QuestionPolicy
     }
 
     /**
-     * Adding many questions at once from pasted JSON. Staff are paid for
-     * every approved question, so they keep adding theirs one at a time.
+     * Adding many questions at once from pasted JSON. An Admin always can;
+     * a Teacher can while the Admin leaves it switched on in the settings;
+     * Staff never — they are paid for every approved question, so they
+     * keep adding theirs one at a time.
      */
     public function import(User $user): bool
     {
-        return $this->create($user) && $user->role !== UserRole::Staff;
+        if (! $this->create($user)) {
+            return false;
+        }
+
+        return $this->isAdmin($user)
+            || ($user->role === UserRole::Teacher && BillingSetting::current()->teacher_question_import_enabled);
     }
 
     /**

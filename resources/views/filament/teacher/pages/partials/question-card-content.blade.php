@@ -29,6 +29,14 @@
             <x-filament::badge color="warning" icon="heroicon-m-clock">{{ __('Yours — awaiting approval') }}</x-filament::badge>
         @endif
 
+        {{-- How the teacher's own students have done on it, where the list
+             was loaded with those numbers (TeacherQuestionStats::addTo()). --}}
+        @if ($question->students_answered)
+            <x-filament::badge :color="$question->students_wrong > 0 ? 'danger' : 'success'" icon="heroicon-m-users">
+                {{ __(':wrong of :answered wrong', ['wrong' => $question->students_wrong, 'answered' => $question->students_answered]) }}
+            </x-filament::badge>
+        @endif
+
         <span class="ms-auto text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ __(':marks marks', ['marks' => QuestionDisplay::marks($question->marks)]) }}
         </span>

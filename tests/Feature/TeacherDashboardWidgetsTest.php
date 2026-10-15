@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
 use App\Filament\Teacher\Widgets\TeacherQuickActionsWidget;
 use App\Filament\Teacher\Widgets\TeacherRecentExamsWidget;
@@ -91,6 +92,19 @@ it('lists a teacher\'s own recent questions with the rejection reason for reject
         ->assertSee('তথ্যে ভুল আছে');
 });
 
+it('offers the results of a recent exam once it is out online, as the exams list does', function () {
+    $teacher = User::factory()->teacher()->create();
+    $this->actingAs($teacher);
+
+    $published = Exam::factory()->published()->create(['created_by' => $teacher->id]);
+    $draft = Exam::factory()->create(['created_by' => $teacher->id]);
+
+    livewire(TeacherRecentExamsWidget::class)
+        ->assertTableActionVisible('results', $published)
+        ->assertTableActionHasUrl('results', ExamResults::getUrl(['record' => $published], panel: 'teacher'), $published)
+        ->assertTableActionHidden('results', $draft);
+});
+
 it('lists a teacher\'s own recent exams with a copyable share link', function () {
     $teacher = User::factory()->teacher()->create();
     $this->actingAs($teacher);
@@ -100,13 +114,16 @@ it('lists a teacher\'s own recent exams with a copyable share link', function ()
         'title' => 'মধ্যবর্তী পরীক্ষা',
     ]);
 
+    $draft = Exam::factory()->create(['created_by' => $teacher->id]);
+
     $html = livewire(TeacherRecentExamsWidget::class)
         ->assertSee('মধ্যবর্তী পরীক্ষা')
+        ->assertTableActionVisible('copyShareLink', $exam)
+        ->assertTableActionHidden('copyShareLink', $draft)
         ->html();
 
     // The link is there to be copied, but only an icon is on show.
-    expect($html)->toContain('fi-copyable')
-        ->and($html)->toContain($exam->share_token)
+    expect($html)->toContain($exam->share_token)
         ->and(strip_tags($html))->not->toContain($exam->share_token);
 });
 

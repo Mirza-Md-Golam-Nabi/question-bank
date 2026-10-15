@@ -141,7 +141,18 @@
     color: #111827;
 }
 
-/* The format shown on the first step (json-import-format.blade.php). */
+/* The format shown on the first step (json-import-format.blade.php). Unlike
+   the question previews it follows the panel's dark mode, so its "Copy"
+   button — a panel button — stays readable on it. */
+:is(.dark .qb-import-format) {
+    border-color: rgb(255 255 255 / 0.1);
+    background-color: #18181b;
+}
+
+:is(.dark .qb-import-format) .qb-import-format-text {
+    color: #e5e7eb;
+}
+
 .qb-import-format-head {
     display: flex;
     align-items: center;

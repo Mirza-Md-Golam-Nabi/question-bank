@@ -4,6 +4,9 @@ namespace App\Models;
 
 use App\Enums\ExamAttemptStatus;
 use App\Enums\QuestionType;
+use App\Services\QuestionDifficultyTracker;
+use App\Services\StudentMistakeTracker;
+use App\Services\TeacherQuestionStats;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -346,6 +349,7 @@ class ExamAttempt extends Model
 
         /** @var array<string, array{is_correct: bool, obtained_marks: float, ids: array<int, int>}> $outcomes */
         $outcomes = [];
+        $correctQuestionIds = [];
 
         foreach ($this->answers()->get(['id', 'question_id', 'student_answer']) as $answer) {
             $question = $examQuestionsById->get($answer->question_id);
@@ -362,6 +366,10 @@ class ExamAttempt extends Model
 
             $outcomes["{$isCorrect}|{$marks}"] ??= ['is_correct' => (bool) $isCorrect, 'obtained_marks' => $marks, 'ids' => []];
             $outcomes["{$isCorrect}|{$marks}"]['ids'][] = $answer->id;
+
+            if ($isCorrect) {
+                $correctQuestionIds[] = $question->id;
+            }
         }
 
         // Answers that came out the same are marked together: one update
@@ -381,5 +389,58 @@ class ExamAttempt extends Model
             'submitted_at' => now(),
             'total_score' => $this->answers()->sum('obtained_marks'),
         ])->save();
+
+        // How the paper went feeds each question's difficulty.
+        app(QuestionDifficultyTracker::class)->recordAttempt($this, $correctQuestionIds);
+
+        $this->recordStatistics($correctQuestionIds);
+    }
+
+    /**
+     * Passes a graded paper on to what is kept about answers beyond the
+     * paper itself: the student's own mistakes list, and their teacher's
+     * numbers for each question. Does nothing the second time for the
+     * same attempt.
+     *
+     * @param  array<int, int>  $correctQuestionIds  The questions this attempt answered correctly.
+     */
+    public function recordStatistics(array $correctQuestionIds): void
+    {
+        // Claiming the attempt and finding it already claimed are one
+        // statement, so two submissions arriving together record it once.
+        $claimed = DB::table('exam_attempts')
+            ->where('id', $this->id)
+            ->whereNull('statistics_recorded_at')
+            ->update(['statistics_recorded_at' => now()]);
+
+        if ($claimed === 0) {
+            return;
+        }
+
+        app(StudentMistakeTracker::class)->recordAttempt($this, $correctQuestionIds);
+        app(TeacherQuestionStats::class)->recordAttempt($this, $correctQuestionIds);
+    }
+
+    /**
+     * Records every handed-in attempt that hasn't been yet, oldest first —
+     * what brings in the exams sat before these records existed, by the
+     * very same path a paper handed in today takes. Safe to run again.
+     */
+    public static function recordUnrecordedStatistics(): void
+    {
+        self::query()
+            ->submitted()
+            ->whereNull('statistics_recorded_at')
+            ->with([
+                'exam.questions',
+                'answers' => fn (HasMany $answers) => $answers->where('is_correct', true)->select(['id', 'attempt_id', 'question_id']),
+            ])
+            ->chunkById(200, function (Collection $attempts): void {
+                foreach ($attempts as $attempt) {
+                    if ($attempt->exam) {
+                        $attempt->recordStatistics($attempt->answers->pluck('question_id')->all());
+                    }
+                }
+            });
     }
 }

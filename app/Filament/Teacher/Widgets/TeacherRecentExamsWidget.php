@@ -4,8 +4,8 @@ namespace App\Filament\Teacher\Widgets;
 
 use App\Filament\Support\SubjectColumn;
 use App\Filament\Teacher\Resources\Exams\Pages\EditExam;
+use App\Filament\Teacher\Resources\Exams\Tables\ExamsTable;
 use App\Models\Exam;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Auth;
 
 class TeacherRecentExamsWidget extends TableWidget
 {
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 4;
 
     protected int|string|array $columnSpan = 1;
 
@@ -31,24 +31,21 @@ class TeacherRecentExamsWidget extends TableWidget
             ->paginated(false)
             ->recordUrl(fn (Exam $record) => EditExam::getUrl(['record' => $record], panel: 'teacher'))
             ->columns([
-                TextColumn::make('title')->searchable(),
+                // The date goes under the title rather than in a column of
+                // its own, so the share link and the results button still
+                // fit in this half-width widget.
+                TextColumn::make('title')
+                    ->searchable()
+                    ->description(fn (Exam $record): string => $record->created_at->translatedFormat('d M, h:i A')),
                 SubjectColumn::make(),
                 TextColumn::make('status')->badge(),
-                TextColumn::make('attempts_count')->label(__('Attempts')),
-                // Just a link icon, not the whole URL spelled out: a click
-                // copies the link. Blank until the exam has one.
-                TextColumn::make('share_token')
-                    ->label(__('Share link'))
-                    ->formatStateUsing(fn (): string => '')
-                    ->icon(Heroicon::OutlinedLink)
-                    ->iconColor('primary')
-                    ->tooltip(__('Copy share link'))
-                    ->alignCenter()
-                    ->copyable()
-                    ->copyableState(fn (Exam $record): ?string => $record->shareUrl())
-                    ->copyMessage(__('Link copied'))
-                    ->placeholder('—'),
-                TextColumn::make('created_at')->dateTime('d M, h:i A')->label(__('Created')),
+                TextColumn::make('attempts_count')->label(__('Attempts'))->alignCenter(),
+            ])
+            // The same two buttons as on the exams list, side by side:
+            // straight to the results, and copy the share link.
+            ->recordActions([
+                ExamsTable::resultsAction(),
+                ExamsTable::copyShareLinkAction(),
             ]);
     }
 }

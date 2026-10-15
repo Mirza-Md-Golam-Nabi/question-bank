@@ -10,6 +10,7 @@ use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\Concerns\HasApprovalStatus;
 use App\Observers\QuestionObserver;
+use App\Services\QuestionDifficultyTracker;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -56,6 +57,8 @@ class Question extends Model
             'status' => QuestionStatus::class,
             'options' => 'array',
             'is_latest' => 'boolean',
+            'answer_count' => 'integer',
+            'correct_answer_count' => 'integer',
         ];
     }
 
@@ -309,6 +312,28 @@ class Question extends Model
     }
 
     /**
+     * Whether the difficulty is the one worked out from students' answers
+     * (QuestionDifficultyTracker) rather than the one its author picked —
+     * from then on it is no longer the author's to set.
+     */
+    public function hasCalculatedDifficulty(): bool
+    {
+        return $this->question_type === QuestionType::Mcq
+            && QuestionDifficultyTracker::hasEnoughAnswers((int) $this->answer_count);
+    }
+
+    /**
+     * The share of students who answered correctly, as a whole percentage
+     * — null while nobody has answered.
+     */
+    public function correctAnswerPercent(): ?int
+    {
+        return $this->answer_count > 0
+            ? (int) round($this->correct_answer_count * 100 / $this->answer_count)
+            : null;
+    }
+
+    /**
      * Editing an approved question never mutates it in place — a new pending
      * revision is created (pointing `parent_id` at the root version), the
      * current row is marked `is_latest = false`, and (for CQ) fresh
@@ -322,8 +347,11 @@ class Question extends Model
     public function createRevisionWith(array $attributes, ?array $cqPartsData = null): self
     {
         return DB::transaction(function () use ($attributes, $cqPartsData) {
-            $revision = self::create([
+            $revision = new self([
                 'created_by' => $this->created_by,
+                // The form leaves the difficulty out once it is the
+                // calculated one, so the new version starts from this one's.
+                'difficulty' => $this->difficulty,
                 ...$attributes,
                 'parent_id' => $this->parent_id ?? $this->id,
                 'version' => ($this->version ?? 1) + 1,
@@ -332,6 +360,14 @@ class Question extends Model
                 'rejection_reason' => null,
                 'is_latest' => true,
             ]);
+
+            // A correction doesn't wipe what students have shown about the
+            // question: the new version carries on counting from here.
+            $revision->forceFill([
+                'answer_count' => (int) $this->answer_count,
+                'correct_answer_count' => (int) $this->correct_answer_count,
+                ...($this->hasCalculatedDifficulty() ? ['difficulty' => $this->difficulty] : []),
+            ])->save();
 
             $this->newQuery()->whereKey($this->id)->update(['is_latest' => false]);
 

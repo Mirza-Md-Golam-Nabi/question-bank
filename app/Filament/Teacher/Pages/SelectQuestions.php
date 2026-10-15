@@ -16,8 +16,10 @@ use App\Models\Exam;
 use App\Models\Question;
 use App\Models\Topic;
 use App\Services\TeacherExamBuilder;
+use App\Services\TeacherQuestionStats;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -272,6 +274,11 @@ class SelectQuestions extends Page
                             $set('topic_id', null);
                         }
                     }),
+
+                Toggle::make('most_missed_only')
+                    ->label(__('Only the questions my students get wrong'))
+                    ->helperText(__('From all your exams, the most-missed first — to set them again.'))
+                    ->live(),
             ])
             ->statePath('data');
     }
@@ -328,6 +335,15 @@ class SelectQuestions extends Page
         return in_array($type, [self::TYPE_MCQ, self::TYPE_CQ, self::TYPE_BOTH], strict: true) ? $type : self::TYPE_MCQ;
     }
 
+    /**
+     * Whether the list is narrowed to the questions the teacher's own
+     * students have got wrong.
+     */
+    public function showsMostMissedOnly(): bool
+    {
+        return (bool) ($this->data['most_missed_only'] ?? false);
+    }
+
     #[Computed]
     public function classSubject(): ?ClassSubject
     {
@@ -373,9 +389,13 @@ class SelectQuestions extends Page
         $type = $this->questionTypeFilter();
         $topicId = $type === self::TYPE_CQ ? null : ($this->data['topic_id'] ?? null);
 
-        return Question::query()
+        $stats = app(TeacherQuestionStats::class);
+
+        return $stats->addTo(Question::query(), auth()->user())
             ->usableInExamBy(auth()->user())
             ->where('chapter_id', $this->chapter->id)
+            // Only what this teacher's students have got wrong, worst first.
+            ->when($this->showsMostMissedOnly(), fn (Builder $query) => $stats->mostMissedFirst($query))
             ->when($type !== self::TYPE_BOTH, fn (Builder $query) => $query->where('question_type', $type))
             ->when(filled($topicId), fn (Builder $query) => $query->where(fn (Builder $query) => $query
                 ->where('topic_id', $topicId)
@@ -385,7 +405,7 @@ class SelectQuestions extends Page
             ->with(['topic:id,name', 'cqParts'])
             // 'mcq' sorts after 'cq', so descending lists MCQ first.
             ->orderByDesc('question_type')
-            ->orderBy('id')
+            ->orderBy('questions.id')
             ->paginate(self::QUESTIONS_PER_PAGE);
     }
 

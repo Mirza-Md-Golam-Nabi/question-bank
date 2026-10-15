@@ -382,7 +382,7 @@ livewire(ListUsers::class)
 - **Staff Panel** — শুধু প্রশ্ন যোগ করা (content-only), নিজের earning দেখা
 - **Student Panel** — শেয়ার-লিংকে (Login/Guest) exam দেওয়া, নিজের subscription দিয়ে self-practice exam জেনারেট করা
 
-বিস্তারিত ডিজাইনের জন্য দেখুন: `System-Design.md`
+বিস্তারিত ডকুমেন্টেশন (সিস্টেম কীভাবে কাজ করে, ডেটাবেজ, প্রতিটা ফিচারের কোড ও টেস্ট কোথায়): `docs/README.md`
 
 ## ⭐ মূল বিজনেস রুলসমূহ (কখনো ভাঙা যাবে না)
 
@@ -582,11 +582,21 @@ database/
   migrations/
   seeders/
     SuperAdminSeeder.php
-System-Design.md
+docs/                              ← পুরো ডকুমেন্টেশন (আসল ফোল্ডার কাঠামো docs/02-architecture.md-এ)
 CLAUDE.md
 ```
 
 ## Coding Conventions
+
+### ডকুমেন্টেশন হালনাগাদ রাখা (বাধ্যতামূলক)
+
+> **কোনো ফিচার বা আচরণ বদলালে একই কাজের অংশ হিসেবে `docs/` হালনাগাদ করতে হবে — কাজ শেষ বলার আগে।**
+
+1. সংশ্লিষ্ট `docs/` ফাইলটা নতুন আচরণ অনুযায়ী বদলান (কোন ফাইল কোন বিষয়ের, `docs/README.md`-এর সূচিতে)।
+2. `docs/CHANGELOG.md`-এর ওপরে আজকের তারিখে এক-দুই লাইনে লিখুন কী বদলেছে।
+3. নতুন টেবিল/কলাম হলে `docs/03-database.md`, নতুন Admin সেটিং হলে `docs/09-admin-settings.md`-ও।
+4. ব্যবসায়িক নিয়মের একমাত্র উৎস এই ফাইল (CLAUDE.md); `docs/` নিয়ম ব্যাখ্যা করে ও কোডের সাথে মেলায়। নিয়ম বদলালে আগে এখানে, তারপর `docs/`-এ।
+5. শুধু ভেতরের refactor (আচরণ অপরিবর্তিত) বা টেস্ট যোগ করলে `docs/` বদলানোর দরকার নেই, যদি না কোনো ফাইলের পথ বদলায়।
 
 ### DRY — কোথাও কোনো কোড ডুপ্লিকেট লেখা যাবে না (Don't Repeat Yourself)
 
@@ -610,6 +620,10 @@ CLAUDE.md
 | MCQ অপশনের ফিল্ড + "একটাই সঠিক উত্তর" নিয়ম | `Support\McqOptionsSchema` |
 | প্রশ্নের ফর্ম / টেবিল / View | `Support\QuestionFormSchema`, `QuestionsTable`, `QuestionInfolist` |
 | JSON পেস্ট করে একসাথে অনেক প্রশ্ন যোগ (Teacher/Admin; Staff না) — যাচাই, গণিত (`$...$` → KaTeX embed) ও তৈরি | `App\Services\QuestionJsonImporter`, `QuestionImportText`; বাটন `Support\QuestionJsonImportAction`; অনুমতি `QuestionPolicy::import()`; একবারের সীমা `BillingSetting.question_import_max` |
+| MCQ-র difficulty student-দের উত্তর থেকে নিজে ঠিক হওয়া (শুধু Teacher-এর পরীক্ষা, ফাঁকা = ভুল; গণনা প্রশ্নের নিজের `answer_count`/`correct_answer_count`-এ, তাই পুরনো attempt মুছলেও থাকে; "পরীক্ষা বাতিল"-এ গণনা কমে) | `App\Services\QuestionDifficultyTracker` (গণনা ও নিয়মের একমাত্র জায়গা); সংখ্যাগুলো `BillingSetting.difficulty_*`; `Question::hasCalculatedDifficulty()` |
+| Student-এর ভুলের তালিকা ও "ভুলগুলো অনুশীলন" (যেকোনো পরীক্ষার ভুল/ফাঁকা MCQ জমে; পরপর `BillingSetting.mistake_clear_streak` বার সঠিক হলে বাদ; **Teacher-এর পরীক্ষার ভুল সেই পরীক্ষার উত্তর প্রকাশের আগে অনুশীলনে আসে না** — নইলে উত্তর ফাঁস হয়) | `App\Services\StudentMistakeTracker` (একমাত্র জায়গা); পরীক্ষা বানায় `SelfPracticeExamService::generateFromMistakes()` (`generation_mode='mistakes'`, একই মাসিক লিমিটে গোনা); পেজ `Student\Pages\PractiseMistakes`, widget `StudentWeakChaptersWidget` |
+| Teacher-এর নিজের ছাত্ররা কোন প্রশ্নে কতবার ভুল করেছে (তার সব পরীক্ষা মিলিয়ে) ও "প্রশ্ন বাছাই"-এ সেই ফিল্টার | `App\Services\TeacherQuestionStats` |
+| খাতা জমার পর উত্তর থেকে যা যা হিসাব রাখা হয় তার প্রবেশপথ (একই খাতা দুইবার গোনা আটকায়) | `ExamAttempt::recordStatistics()` — difficulty আলাদাভাবে `QuestionDifficultyTracker`-এ |
 | টেবিলের edit/delete/bulk-delete অ্যাকশন | `Support\TableActions` |
 | ফর্মে "কোন user" সিলেক্ট | `Support\UserSelect` |
 | নাম + ক্রমসহ আইটেম (class/chapter/topic) যোগ-এডিট-ডিলিট | `Support\Concerns\ManagesOrderedItems` |
@@ -633,6 +647,7 @@ CLAUDE.md
 
 - **Filament v5 কনভেনশন মেনে চলুন** — v3-এর পুরনো Form/Table syntax v4/v5-এ কাজ নাও করতে পারে; কোড লেখার আগে official v5 docs চেক করুন।
 - প্রতিটা নতুন Resource/Page লেখার আগে কোন role/panel-এর জন্য তা ঠিক করে সেই অনুযায়ী middleware/policy লাগান।
+- **DEV-LOGIN-BYPASS (শুধু `APP_ENV=local`, অস্থায়ী):** ব্রাউজারে পরিবর্তন যাচাইয়ের জন্য `/dev-login/{user}` Google ছাড়া লগইন করায় — নিয়ম ১-এর একমাত্র ব্যতিক্রম, লাইভে রুটটার অস্তিত্বই নেই। এর সব অংশের তালিকা ও মুছে ফেলার ধাপ এক ফাইলে: `DEV-LOGIN-BYPASS.md` (রিপোজিটরির মূলে) — user "বাইপাস মুছে দাও" বললে সেই তালিকা ধরে সব মুছতে হবে। বাইপাসে নতুন কিছু যোগ হলে ওই তালিকাতেও যোগ করতে হবে। লাইভের `.env`-এ `APP_ENV` কখনো `local` রাখা যাবে না।
 - Teacher/Staff/Student প্যানেলে কখনো password-based login/registration কম্পোনেন্ট যোগ করবেন না — Google OAuth-ই একমাত্র পথ।
 - আর্থিক লজিক (`staff_earnings`, `payments`) কখনো UI/controller-এ ছড়িয়ে না রেখে Observer/Service class-এ কেন্দ্রীভূত রাখুন — টাকার হিসাব দুই জায়গায় লেখা থাকলে একটা জায়গা মিস হয়ে বাগ হওয়ার ঝুঁকি বেশি।
 - CQ marks calculation (`questions` ও `board_cq_questions` দুই জায়গাতেই) Observer-এ রাখুন, ফর্ম submit handler-এ ম্যানুয়ালি যোগ করবেন না।

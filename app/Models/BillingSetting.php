@@ -20,7 +20,9 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable([
     'referral_enabled', 'referrer_reward_percent', 'staff_reward_percent', 'referee_discount_percent',
     'credit_expiry_months', 'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
-    'question_import_max',
+    'question_import_max', 'teacher_question_import_enabled',
+    'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
+    'mistake_clear_streak',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
 ])]
 class BillingSetting extends Model
@@ -40,6 +42,11 @@ class BillingSetting extends Model
         'phone_bonus_exams' => 0,
         'otp_required_for_credit' => false,
         'question_import_max' => 100,
+        'teacher_question_import_enabled' => true,
+        'difficulty_min_answers' => 30,
+        'difficulty_hard_max_percent' => 33,
+        'difficulty_medium_max_percent' => 66,
+        'mistake_clear_streak' => 2,
     ];
 
     protected function casts(): array
@@ -54,6 +61,11 @@ class BillingSetting extends Model
             'phone_bonus_exams' => 'integer',
             'otp_required_for_credit' => 'boolean',
             'question_import_max' => 'integer',
+            'teacher_question_import_enabled' => 'boolean',
+            'difficulty_min_answers' => 'integer',
+            'difficulty_hard_max_percent' => 'float',
+            'difficulty_medium_max_percent' => 'float',
+            'mistake_clear_streak' => 'integer',
         ];
     }
 

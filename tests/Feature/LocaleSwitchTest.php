@@ -47,6 +47,33 @@ it('shows the language switcher on every panel sign-in page', function (string $
         ->assertSee(route('locale.switch', ['locale' => 'en']), false);
 })->with(['admin', 'teacher', 'staff', 'student']);
 
+it('opens the admin panel in english and every other panel in bangla until a language is picked', function () {
+    // The suite itself runs in English; each request here starts from the
+    // real default, as a fresh request on the server does.
+    $visit = function (string $url) {
+        app()->setLocale('bn');
+
+        return $this->get($url)->assertOk();
+    };
+
+    $visit('/admin/login')->assertSee('lang="en"', false);
+
+    foreach (['teacher', 'staff', 'student'] as $panel) {
+        $visit("/{$panel}/login")->assertSee('lang="bn"', false);
+    }
+
+    $visit('/')->assertSee('আপনি কোন প্যানেলে লগইন করবেন?');
+});
+
+it('lets an admin who picked bangla keep the admin panel in bangla', function () {
+    app()->setLocale('bn');
+
+    $this->withSession([SetLocale::SESSION_KEY => 'bn'])
+        ->get('/admin/login')
+        ->assertOk()
+        ->assertSee('lang="bn"', false);
+});
+
 it('renders a panel in bangla once the language is switched', function () {
     $this->seed(RoleSeeder::class);
 

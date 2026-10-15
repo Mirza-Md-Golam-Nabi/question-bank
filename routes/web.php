@@ -46,3 +46,9 @@ Route::prefix('exam')->name('guest-exam.')->group(function () {
         ->middleware('throttle:5,1')
         ->name('submit');
 });
+
+// DEV-LOGIN-BYPASS — a login without Google, on a developer's machine only.
+// What it is and how to remove it: DEV-LOGIN-BYPASS.md.
+if (app()->environment('local')) {
+    require __DIR__.'/dev.php';
+}

@@ -12,8 +12,18 @@ enum NavigationGroup: string implements HasLabel
     case Billing = 'Billing';
     case Exams = 'Exams';
 
+    /**
+     * The menu heading in the active language. Each label is written out
+     * here so the translation check (LocaleSwitchTest) can see it.
+     */
     public function getLabel(): ?string
     {
-        return $this->value;
+        return match ($this) {
+            self::QuestionBank => __('Question Bank'),
+            self::People => __('People'),
+            self::Payroll => __('Payroll'),
+            self::Billing => __('Billing'),
+            self::Exams => __('Exams'),
+        };
     }
 }

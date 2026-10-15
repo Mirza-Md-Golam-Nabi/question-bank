@@ -90,11 +90,21 @@ class QuestionFormSchema
                             ->inlineLabel(false)
                             ->required(),
 
+                        // The author's pick only stands until enough students
+                        // have answered; after that the difficulty follows
+                        // from their answers and is shown, not chosen.
                         Select::make('difficulty')
                             ->options(Difficulty::class)
                             ->default(Difficulty::Easy)
                             ->required()
-                            ->native(false),
+                            ->native(false)
+                            ->disabled(fn (?Question $record): bool => (bool) $record?->hasCalculatedDifficulty())
+                            ->helperText(fn (?Question $record): ?string => $record?->hasCalculatedDifficulty()
+                                ? __('Set from the answers of :count students: :percent% got it right.', [
+                                    'count' => $record->answer_count,
+                                    'percent' => $record->correctAnswerPercent(),
+                                ])
+                                : null),
 
                         TextInput::make('marks')
                             ->numeric()
