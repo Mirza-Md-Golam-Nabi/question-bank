@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\Pages\SelfPracticeExamPage;
 use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
@@ -20,6 +21,10 @@ use Filament\Support\Icons\Heroicon;
 class BuildPracticeExam extends SelfPracticeExamPage
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
+
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Practice;
+
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $title = 'Build Your Own Practice Exam';
 

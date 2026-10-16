@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Enums\Difficulty;
+use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\Pages\SelfPracticeExamPage;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
@@ -22,6 +23,10 @@ use Filament\Support\Icons\Heroicon;
 class GeneratePracticeExam extends SelfPracticeExamPage
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedSparkles;
+
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Practice;
+
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $title = 'Auto-Generate Practice Exam';
 

@@ -4,6 +4,7 @@ namespace App\Filament\Student\Pages;
 
 use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\NavigationGroup;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use Filament\Forms\Components\TextInput;
@@ -24,6 +25,10 @@ class JoinExam extends Page implements HasSchemas
     protected string $view = 'filament.student.pages.join-exam';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedLink;
+
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Exams;
+
+    protected static ?int $navigationSort = 1;
 
     /**
      * @var array<string, mixed>|null

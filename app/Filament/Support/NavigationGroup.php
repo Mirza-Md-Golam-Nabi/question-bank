@@ -11,6 +11,8 @@ enum NavigationGroup: string implements HasLabel
     case Payroll = 'Payroll';
     case Billing = 'Billing';
     case Exams = 'Exams';
+    case Practice = 'Practice';
+    case Account = 'Account';
 
     /**
      * The menu heading in the active language. Each label is written out
@@ -24,6 +26,8 @@ enum NavigationGroup: string implements HasLabel
             self::Payroll => __('Payroll'),
             self::Billing => __('Billing'),
             self::Exams => __('Exams'),
+            self::Practice => __('Practice'),
+            self::Account => __('Account'),
         };
     }
 }

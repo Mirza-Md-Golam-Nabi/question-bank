@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\NavigationGroup;
 use App\Models\ExamAttempt;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -24,6 +25,10 @@ class MyResults extends Page
     protected string $view = 'filament.student.pages.my-results';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
+
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Exams;
+
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $title = 'My results';
 

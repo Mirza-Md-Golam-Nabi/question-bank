@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\Pages\SelfPracticeExamPage;
 use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
@@ -23,6 +24,10 @@ use Illuminate\Support\Facades\Auth;
 class PractiseMistakes extends SelfPracticeExamPage
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPath;
+
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Practice;
+
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $title = 'Practise my mistakes';
 
