@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\ReferralSource;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ReferralLinkController;
 use App\Http\Controllers\StudentSharedExamController;
 use App\Models\User;
+use App\Services\DeviceSessionService;
 use App\Services\ReferralService;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -58,6 +60,9 @@ class GoogleAuthController extends Controller
 
         auth()->login($user);
 
+        // One more device than allowed signs out the one used longest ago.
+        app(DeviceSessionService::class)->enforceLimit($user, session()->getId());
+
         // A student who came from an exam's share link goes straight on to
         // that exam instead of landing on the dashboard.
         $examToJoin = session()->pull(StudentSharedExamController::SESSION_KEY);
@@ -84,7 +89,7 @@ class GoogleAuthController extends Controller
         $user->assignRole($role->value);
 
         // Only a brand-new account can arrive through a referral link.
-        app(ReferralService::class)->attach($user, session()->pull(ReferralLinkController::SESSION_KEY));
+        app(ReferralService::class)->attach($user, session()->pull(ReferralLinkController::SESSION_KEY), ReferralSource::Link);
 
         return $user;
     }

@@ -21,4 +21,11 @@
     @if ($className)
         <p class="text-gray-600">{{ $className }}</p>
     @endif
+
+    {{-- Said before the first answer, since it changes whether to guess. --}}
+    @if ($exam->marksLostPerWrongAnswer() > 0)
+        <p class="mt-1 text-sm font-medium text-red-600">
+            {{ __('Negative marking: :marks taken off for each wrong answer. A blank answer loses nothing.', ['marks' => rtrim(rtrim(number_format($exam->marksLostPerWrongAnswer(), 2), '0'), '.')]) }}
+        </p>
+    @endif
 </header>

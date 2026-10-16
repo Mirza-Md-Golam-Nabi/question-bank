@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * or a refund is corrected by a further row, never by editing one — and the
  * balance is worked out from them by WalletService.
  */
-#[Fillable(['user_id', 'type', 'amount', 'payment_id', 'expires_at'])]
+#[Fillable(['user_id', 'type', 'amount', 'payment_id', 'withdrawal_id', 'expires_at'])]
 class WalletTransaction extends Model
 {
     use HasFactory;

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\BoardQuestionPapers\Tables;
 
+use App\Enums\PaperSourceType;
 use App\Enums\QuestionStatus;
 use App\Filament\Support\TableActions;
 use App\Models\BoardQuestionPaper;
@@ -12,6 +13,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class BoardQuestionPapersTable
 {
@@ -20,7 +22,8 @@ class BoardQuestionPapersTable
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('board.short_name')->label(__('Board'))->badge(),
+                TextColumn::make('board.short_name')->label(__('Source'))->badge()
+                    ->description(fn ($record): ?string => $record->board?->type->getLabel()),
                 TextColumn::make('classSubject.academicClass.name')->label(__('Class')),
                 TextColumn::make('classSubject.subject.name')->label(__('Subject')),
                 TextColumn::make('year'),
@@ -31,6 +34,10 @@ class BoardQuestionPapersTable
             ])
             ->filters([
                 SelectFilter::make('status')->options(QuestionStatus::class),
+                SelectFilter::make('source_type')
+                    ->label(__('Kind'))
+                    ->options(PaperSourceType::class)
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null, fn (Builder $query, string $type) => $query->whereHas('board', fn (Builder $board) => $board->where('type', $type)))),
             ])
             ->recordActions([
                 self::approveAction(),

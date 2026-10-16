@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\Pages;
 
+use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\ReactivationRequest;
 use Filament\Forms\Components\Textarea;
@@ -9,7 +10,6 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Shared by the Teacher and Staff panels: where a suspended user asks an
@@ -19,6 +19,7 @@ use Illuminate\Validation\ValidationException;
  */
 abstract class RequestReactivationPage extends Page
 {
+    use NotifiesValidationFailures;
     use TranslatesPageLabels;
 
     protected string $view = 'filament.pages.request-reactivation';
@@ -58,11 +59,7 @@ abstract class RequestReactivationPage extends Page
         // its fields, not in the notification below.
         $message = $this->form->getState()['message'];
 
-        try {
-            ReactivationRequest::submitFor(Auth::user(), $message);
-        } catch (ValidationException $exception) {
-            Notification::make()->title($exception->getMessage())->danger()->send();
-
+        if (! $this->rescueWithNotification(fn () => ReactivationRequest::submitFor(Auth::user(), $message))) {
             return;
         }
 

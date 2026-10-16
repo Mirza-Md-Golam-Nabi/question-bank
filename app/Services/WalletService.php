@@ -3,18 +3,20 @@
 namespace App\Services;
 
 use App\Enums\WalletTransactionType;
-use App\Models\BillingSetting;
 use App\Models\Payment;
 use App\Models\ReferralReward;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Models\Withdrawal;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
- * The only place wallet credit is added, spent or counted. Credit never
- * leaves the system as cash: a Teacher or Student earns it through
- * referrals and spends it on their own subscription.
+ * The only place wallet money is added, spent or counted. A Teacher or
+ * Student earns it through referrals, spends it on their own subscription,
+ * and can take out what is above the Admin's reserve as cash
+ * (WithdrawalService) — so it never expires. (Rows given an expiry date
+ * before that are still honoured when the balance is worked out.)
  *
  * A wallet is made of two things — the user's matured referral rewards
  * (ReferralReward) and the ledger of what they spent or had returned
@@ -102,37 +104,25 @@ class WalletService
             ->sum('left'), 2);
     }
 
-    /**
-     * When credit that becomes spendable at `$from` runs out: after
-     * however many months the Admin has set, or never when that is blank.
-     * Fixed on the row it is given to, so changing the setting later
-     * doesn't touch credit already given.
-     */
-    public function expiryFor(CarbonInterface $from): ?CarbonInterface
+    public function credit(User $user, float $amount, WalletTransactionType $type, ?Payment $payment = null, ?Withdrawal $withdrawal = null): WalletTransaction
     {
-        $months = BillingSetting::current()->credit_expiry_months;
-
-        return $months ? $from->copy()->addMonths($months) : null;
+        return $this->record($user, abs($amount), $type, $payment, $withdrawal);
     }
 
-    public function credit(User $user, float $amount, WalletTransactionType $type, ?Payment $payment = null): WalletTransaction
+    public function debit(User $user, float $amount, WalletTransactionType $type, ?Payment $payment = null, ?Withdrawal $withdrawal = null): WalletTransaction
     {
-        return $this->record($user, abs($amount), $type, $payment, $this->expiryFor(now()));
+        return $this->record($user, -abs($amount), $type, $payment, $withdrawal);
     }
 
-    public function debit(User $user, float $amount, WalletTransactionType $type, ?Payment $payment = null): WalletTransaction
-    {
-        return $this->record($user, -abs($amount), $type, $payment);
-    }
-
-    private function record(User $user, float $amount, WalletTransactionType $type, ?Payment $payment, ?CarbonInterface $expiresAt = null): WalletTransaction
+    private function record(User $user, float $amount, WalletTransactionType $type, ?Payment $payment, ?Withdrawal $withdrawal): WalletTransaction
     {
         $transaction = new WalletTransaction([
             'user_id' => $user->id,
             'type' => $type,
             'amount' => round($amount, 2),
             'payment_id' => $payment?->id,
-            'expires_at' => $expiresAt,
+            'withdrawal_id' => $withdrawal?->id,
+            'expires_at' => null,
         ]);
 
         // Stamped by the application rather than the database, so it is on

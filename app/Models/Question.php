@@ -199,34 +199,37 @@ class Question extends Model
     }
 
     /**
-     * Questions of one subject, in whichever class it is taught.
+     * Questions of one class's subject.
      */
-    public function scopeOfSubject(Builder $query, int|string $subjectId): Builder
+    public function scopeOfClassSubject(Builder $query, int|string $classSubjectId): Builder
     {
-        return $query->whereHas('chapter.classSubject', fn (Builder $query) => $query->where('subject_id', $subjectId));
+        return $query->whereHas('chapter', fn (Builder $query) => $query->where('class_subject_id', $classSubjectId));
     }
 
     /**
-     * Questions from the approved pool of a subject as select options —
-     * the plain text of each, keyed by id — matching what was typed into
-     * the select's search box.
+     * Questions from the approved pool of one class's subject as select
+     * options — the plain text of each, keyed by id — matching what was
+     * typed into the select's search box, and only of the given
+     * difficulties when the user's plan limits them.
      *
      * Never the whole pool: a subject has thousands of questions, and
      * sending them all to the browser as options is exactly what a picker
      * must not do. A select built on this searches on the server and gets
      * a short list back.
      *
+     * @param  array<int, Difficulty>|null  $difficulties
      * @return array<int, string>
      */
-    public static function approvedOptionsForSubject(int|string|null $subjectId, ?string $search = null): array
+    public static function approvedOptionsForClassSubject(int|string|null $classSubjectId, ?string $search = null, ?array $difficulties = null): array
     {
-        if (blank($subjectId)) {
+        if (blank($classSubjectId)) {
             return [];
         }
 
         return self::asSelectOptions(self::query()
             ->approvedPool()
-            ->ofSubject($subjectId)
+            ->ofClassSubject($classSubjectId)
+            ->when($difficulties !== null, fn (Builder $query) => $query->whereIn('difficulty', $difficulties))
             // What was typed is matched as plain text: its own % and _ are
             // escaped (with "!", which every database accepts as the
             // escape character) rather than acting as wildcards.

@@ -2,28 +2,31 @@
 
 namespace App\Filament\Support\Pages;
 
+use App\Enums\UserRole;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Models\AcademicClass;
 use App\Models\BillingSetting;
-use App\Models\ReferralReward;
+use App\Models\StudentReferral;
 use App\Models\User;
+use App\Services\DeviceSessionService;
 use App\Services\ReferralService;
-use App\Services\WalletService;
+use App\Services\StudentReferralService;
 use Closure;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Schema;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 
 /**
  * Shared by the Teacher, Student and Staff panels' "My Profile" page: the
  * phone number (the one way to actually reach a user who signs in with
- * Google and never reads email), the referral code they signed up with,
- * their own code to share, what referring has earned them, and — for the
- * roles that have one — their wallet. All the rules are ReferralService's
- * and WalletService's; this page only shows and collects, and what it
+ * Google and never reads email), a student's class and referrer, the
+ * devices signed in on, and their own code to share. What referring has
+ * earned them is on one page per panel (earningsUrl()), not here. All the
+ * rules are the services'; this page only shows and collects, and what it
  * shows follows from the signed-in user's role, not from the panel.
  */
 abstract class MyProfilePage extends Page
@@ -37,9 +40,15 @@ abstract class MyProfilePage extends Page
      */
     public ?array $data = [];
 
+    /**
+     * The student's referral, read once per request (false = not read yet)
+     * and again after a code is saved.
+     */
+    private StudentReferral|false|null $currentReferral = false;
+
     public function mount(): void
     {
-        $this->form->fill(['phone' => Auth::user()->phone]);
+        $this->form->fill(Auth::user()->only(['phone', 'academic_class_id']));
     }
 
     public function form(Schema $schema): Schema
@@ -57,9 +66,21 @@ abstract class MyProfilePage extends Page
                         }
                     }),
 
+                // A student's practice and purchases start from their class.
+                Select::make('academic_class_id')
+                    ->label(__('My class'))
+                    ->options(fn (): array => AcademicClass::options())
+                    ->visible(fn (): bool => Auth::user()->role === UserRole::Student)
+                    ->required(fn (): bool => Auth::user()->role === UserRole::Student),
+
                 TextInput::make('referral_code')
                     ->label(__('Referral code'))
-                    ->helperText(__('Got a code from a friend or your teacher? Enter it before your first purchase.'))
+                    ->helperText(fn (): string => Auth::user()->role === UserRole::Student
+                        ? __('Got a code from your teacher or a friend? Enter it here. You can change it for :days day(s); after that it stays for :lock days.', [
+                            'days' => BillingSetting::current()->referral_change_days,
+                            'lock' => BillingSetting::current()->referral_lock_days,
+                        ])
+                        : __('Got a code from a friend or your teacher? Enter it before your first purchase.'))
                     ->visible(fn (): bool => $this->canEnterReferralCode())
                     ->maxLength(12),
             ])
@@ -77,16 +98,27 @@ abstract class MyProfilePage extends Page
             $user->forceFill(['phone' => $phone, 'phone_verified_at' => null])->save();
         }
 
+        if ($user->role === UserRole::Student) {
+            $user->update(['academic_class_id' => $data['academic_class_id']]);
+        }
+
         if (filled($data['referral_code'] ?? null) && ! app(ReferralService::class)->attach($user, $data['referral_code'])) {
             $this->addError('data.referral_code', __('This referral code is not valid.'));
 
             return;
         }
 
-        $this->form->fill(['phone' => $user->phone]);
+        $this->form->fill($user->only(['phone', 'academic_class_id']));
+        $this->currentReferral = false;
 
         Notification::make()->title(__('Profile saved'))->success()->send();
     }
+
+    /**
+     * Where the panel shows what referring has earned this user — the
+     * Referrals & commission page, or a Staff member's earnings page.
+     */
+    abstract public function earningsUrl(): string;
 
     public function canEnterReferralCode(): bool
     {
@@ -103,9 +135,39 @@ abstract class MyProfilePage extends Page
         return $referrals->isEnabled() && $referrals->canRefer(Auth::user());
     }
 
-    public function hasWallet(): bool
+    /**
+     * The devices this user is signed in on (Teacher and Student only —
+     * the roles with a device limit).
+     *
+     * @return SupportCollection<int, array<string, mixed>>
+     */
+    public function devices(): SupportCollection
     {
-        return Auth::user()->role->holdsWallet();
+        $devices = app(DeviceSessionService::class);
+
+        return $devices->limitFor(Auth::user()) === null
+            ? collect()
+            : $devices->devicesOf(Auth::user(), session()->getId());
+    }
+
+    public function deviceLimit(): ?int
+    {
+        return app(DeviceSessionService::class)->limitFor(Auth::user());
+    }
+
+    /**
+     * Signs one of the user's other devices out — e.g. a phone they no
+     * longer have.
+     */
+    public function signOutDevice(string $sessionId): void
+    {
+        if ($sessionId === session()->getId()) {
+            return;
+        }
+
+        app(DeviceSessionService::class)->signOut(Auth::user(), $sessionId);
+
+        Notification::make()->title(__('Signed out of that device'))->success()->send();
     }
 
     public function settings(): BillingSetting
@@ -113,9 +175,29 @@ abstract class MyProfilePage extends Page
         return BillingSetting::current();
     }
 
+    /**
+     * Who referred this user: a student's current referrer (it changes over
+     * time), anyone else's for good.
+     */
     public function referrer(): ?User
     {
-        return Auth::user()->referrer;
+        return Auth::user()->role === UserRole::Student
+            ? $this->studentReferral()?->referrer
+            : Auth::user()->referrer;
+    }
+
+    /**
+     * The referral a student is under right now, if any.
+     */
+    public function studentReferral(): ?StudentReferral
+    {
+        if ($this->currentReferral === false) {
+            $this->currentReferral = Auth::user()->role === UserRole::Student
+                ? app(StudentReferralService::class)->current(Auth::user())
+                : null;
+        }
+
+        return $this->currentReferral;
     }
 
     public function referralCode(): string
@@ -133,58 +215,22 @@ abstract class MyProfilePage extends Page
         return app(ReferralService::class)->rewardPercentFor(Auth::user());
     }
 
+    /**
+     * Everyone this user brought in: the teachers who signed up with their
+     * code and the students who have been under their referral (each once).
+     */
     public function referredCount(): int
     {
-        return Auth::user()->referrals()->count();
-    }
+        $user = Auth::user();
 
-    /**
-     * @return array{maturing: float, matured: float, paid: float}
-     */
-    public function rewardSummary(): array
-    {
-        return once(fn (): array => app(ReferralService::class)->rewardSummaryFor(Auth::user()));
-    }
-
-    /**
-     * @return Collection<int, ReferralReward>
-     */
-    public function rewards(): Collection
-    {
-        return Auth::user()->referralRewards()->latest('id')->limit(20)->get();
-    }
-
-    public function walletBalance(): float
-    {
-        return app(WalletService::class)->balanceOf($this->allWalletEntries());
-    }
-
-    /**
-     * The balance and the list of movements are both read off the same
-     * entries, fetched once per render.
-     *
-     * @return SupportCollection<int, array<string, mixed>>
-     */
-    private function allWalletEntries(): SupportCollection
-    {
-        return once(fn (): SupportCollection => app(WalletService::class)->entriesFor(Auth::user()));
-    }
-
-    /**
-     * The wallet's latest movements, newest first.
-     *
-     * @return SupportCollection<int, array<string, mixed>>
-     */
-    public function walletEntries(): SupportCollection
-    {
-        return $this->allWalletEntries()->reverse()->take(20)->values();
+        return $user->referrals()->count() + $user->referredStudents()->distinct()->count('student_id');
     }
 
     private function phoneHelperText(): string
     {
         // The bonus is extra exams on a plan's monthly limit, so it only
         // means something to the roles that have a plan.
-        $bonus = $this->hasWallet() ? BillingSetting::current()->phone_bonus_exams : 0;
+        $bonus = Auth::user()->role->subscriptionTargetRole() !== null ? BillingSetting::current()->phone_bonus_exams : 0;
 
         return $bonus > 0
             ? __('We use it for offers and important notices. Add it and get :count extra free exam(s) every month.', ['count' => $bonus])

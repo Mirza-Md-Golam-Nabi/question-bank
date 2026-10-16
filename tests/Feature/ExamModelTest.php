@@ -2,6 +2,8 @@
 
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
+use App\Enums\PlanConditionType;
+use App\Enums\PlanFeature;
 use App\Models\Chapter;
 use App\Models\Exam;
 use App\Models\Question;
@@ -9,6 +11,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Services\SubscriptionLimitService;
+use Database\Factories\SubscriptionPlanFactory;
 use Database\Seeders\RoleSeeder;
 
 beforeEach(function () {
@@ -49,40 +52,21 @@ it('recalculates total marks from attached questions, respecting a marks overrid
     expect((float) $exam->refresh()->total_marks)->toBe(7.0);
 });
 
-it('blocks publishing once the monthly free limit is reached', function () {
+it('lets a teacher publish only while a plan of theirs includes online exams', function () {
     $teacher = User::factory()->teacher()->create();
-    $plan = SubscriptionPlan::factory()->create(['monthly_exam_limit' => 1]);
-    Subscription::factory()->create(['user_id' => $teacher->id, 'plan_id' => $plan->id]);
-
-    Exam::factory()->create(['created_by' => $teacher->id, 'exam_type' => ExamType::TeacherExam]);
-
-    expect($this->service->hasReachedMonthlyLimit($teacher, ExamType::TeacherExam))->toBeTrue();
-
-    $this->actingAs($teacher);
-    $newExam = Exam::factory()->make(['created_by' => $teacher->id, 'exam_type' => ExamType::TeacherExam]);
-    $newExam->created_by = $teacher->id;
-    $newExam->save();
-
-    expect($teacher->can('publish', $newExam))->toBeFalse();
-});
-
-it('allows publishing when under the monthly limit', function () {
-    $teacher = User::factory()->teacher()->create();
-    $plan = SubscriptionPlan::factory()->create(['monthly_exam_limit' => 5]);
-    Subscription::factory()->create(['user_id' => $teacher->id, 'plan_id' => $plan->id]);
-
     $exam = Exam::factory()->create(['created_by' => $teacher->id, 'exam_type' => ExamType::TeacherExam]);
 
-    expect($teacher->can('publish', $exam))->toBeTrue();
-});
+    // No plan at all.
+    expect($teacher->can('publish', $exam))->toBeFalse();
 
-it('counts auto and manual self-practice exams together toward the same monthly limit', function () {
-    $student = User::factory()->student()->create();
-    $plan = SubscriptionPlan::factory()->forStudents()->create(['monthly_exam_limit' => 2]);
-    Subscription::factory()->create(['user_id' => $student->id, 'plan_id' => $plan->id]);
+    $printOnly = SubscriptionPlan::factory()->withConditions([
+        SubscriptionPlanFactory::condition(PlanConditionType::Features, ['features' => [PlanFeature::Print->value]]),
+    ])->create();
+    Subscription::factory()->create(['user_id' => $teacher->id, 'plan_id' => $printOnly->id]);
 
-    Exam::factory()->selfPractice()->create(['created_by' => $student->id, 'generation_mode' => 'auto']);
-    Exam::factory()->selfPractice()->create(['created_by' => $student->id, 'generation_mode' => 'manual']);
+    expect($teacher->fresh()->can('publish', $exam))->toBeFalse();
 
-    expect($this->service->hasReachedMonthlyLimit($student, ExamType::SelfPractice))->toBeTrue();
+    subscribeToEverything($teacher);
+
+    expect($teacher->fresh()->can('publish', $exam))->toBeTrue();
 });

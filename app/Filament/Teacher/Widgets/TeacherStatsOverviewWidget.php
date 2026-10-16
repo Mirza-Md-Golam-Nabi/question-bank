@@ -40,7 +40,7 @@ class TeacherStatsOverviewWidget extends StatsOverviewWidget
             fn ($query) => $query->where('created_by', $teacher->id)
         )->count();
 
-        $monthlyLimit = app(SubscriptionLimitService::class)->monthlyExamLimitFor($teacher);
+        $monthlyLimit = app(SubscriptionLimitService::class)->monthlyAllowanceFor($teacher);
         $usedThisMonth = Exam::createdThisMonthBy($teacher, ExamType::TeacherExam)->count();
 
         return [
@@ -59,6 +59,7 @@ class TeacherStatsOverviewWidget extends StatsOverviewWidget
                 'heroicon-o-calendar-days',
                 match (true) {
                     $monthlyLimit === null => 'success',
+                    // Also a teacher with no plan at all (an allowance of 0).
                     $usedThisMonth >= $monthlyLimit => 'danger',
                     $usedThisMonth >= $monthlyLimit * 0.7 => 'warning',
                     default => 'success',

@@ -10,6 +10,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,7 +19,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'phone', 'password', 'google_id', 'avatar', 'role', 'status'])]
+#[Fillable(['name', 'email', 'phone', 'password', 'google_id', 'avatar', 'role', 'status', 'academic_class_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -100,7 +101,9 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * The Teacher/Student whose referral code this user signed up with.
+     * The Teacher/Student whose referral code this user signed up with —
+     * for a Teacher, who refers them for good. A student's referrer is
+     * instead the StudentReferral in force (StudentReferralService).
      */
     public function referrer(): BelongsTo
     {
@@ -113,6 +116,49 @@ class User extends Authenticatable implements FilamentUser
     public function referrals(): HasMany
     {
         return $this->hasMany(self::class, 'referred_by_id');
+    }
+
+    /**
+     * The stretches of time this user (a student) was under a referrer.
+     */
+    public function studentReferrals(): HasMany
+    {
+        return $this->hasMany(StudentReferral::class, 'student_id');
+    }
+
+    /**
+     * The students who are, or were, under this user's referral.
+     */
+    public function referredStudents(): HasMany
+    {
+        return $this->hasMany(StudentReferral::class, 'referrer_id');
+    }
+
+    /**
+     * The latest rewards referring has earned this user, each with who paid
+     * — what the earnings pages list.
+     *
+     * @return Collection<int, ReferralReward>
+     */
+    public function recentReferralRewards(int $limit = 20): Collection
+    {
+        return $this->referralRewards()->with('payment.user:id,name')->latest('id')->limit($limit)->get();
+    }
+
+    /**
+     * The payments made while this user was the buyer's referrer.
+     */
+    public function referredPayments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'referrer_id');
+    }
+
+    /**
+     * A Teacher's or Student's requests to take referral earnings out as cash.
+     */
+    public function withdrawals(): HasMany
+    {
+        return $this->hasMany(Withdrawal::class);
     }
 
     /**
@@ -156,5 +202,46 @@ class User extends Authenticatable implements FilamentUser
         // The plan is what every caller goes on to read (its name, its
         // monthly limit), so it comes along in the same go.
         return $this->subscriptions()->active()->with('plan')->latest('starts_at')->first();
+    }
+
+    /**
+     * Every subscription in force for this user right now — a user may hold
+     * several (one subject here, another there), and their access is all
+     * of them together. Includes a group plan someone else bought and
+     * shares with this user's email, when it is meant for their role.
+     *
+     * @return Collection<int, Subscription>
+     */
+    public function activeSubscriptions(): Collection
+    {
+        return Subscription::query()
+            ->active()
+            ->where(fn ($query) => $query
+                ->where('user_id', $this->id)
+                ->orWhere(fn ($shared) => $shared
+                    ->whereHas('members', fn ($members) => $members->current()->where('email', $this->email))
+                    ->whereHas('plan', fn ($plan) => $plan->where('target_role', $this->role->subscriptionTargetRole()))))
+            ->with(['plan', 'user:id,name'])
+            ->latest('starts_at')
+            ->get();
+    }
+
+    /**
+     * The email with most of its name hidden ("ab***@gmail.com") — what a
+     * referrer sees of the students under them.
+     */
+    public function maskedEmail(): string
+    {
+        [$name, $domain] = array_pad(explode('@', (string) $this->email, 2), 2, '');
+
+        return mb_substr($name, 0, 2).'***'.($domain !== '' ? '@'.$domain : '');
+    }
+
+    /**
+     * A student's class — what their purchases and practice default to.
+     */
+    public function academicClass(): BelongsTo
+    {
+        return $this->belongsTo(AcademicClass::class);
     }
 }

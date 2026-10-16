@@ -43,6 +43,10 @@ class BillingSettings extends Page
 
     public function form(Schema $schema): Schema
     {
+        // Teacher and Student commission work the same way; only the
+        // percentage differs.
+        $commissionHelp = __('Share of the cash a referred buyer pays. Only earned while the referrer has a paid subscription; goes to their wallet and can be taken out as cash above the reserve.');
+
         return $schema
             ->components([
                 Section::make(__('Receiving payments'))
@@ -64,22 +68,73 @@ class BillingSettings extends Page
                         Toggle::make('referral_enabled')
                             ->label(__('Referral programme is on'))
                             ->columnSpanFull(),
-                        TextInput::make('referrer_reward_percent')
-                            ->label(__('Teacher / Student referrer reward (%)'))
-                            ->helperText(__("Share of the cash paid on the new customer's first purchase."))
+                        TextInput::make('teacher_reward_percent')
+                            ->label(__('Teacher commission (%)'))
+                            ->helperText($commissionHelp)
+                            ->numeric()->minValue(0)->maxValue(100)->required(),
+                        TextInput::make('student_reward_percent')
+                            ->label(__('Student commission (%)'))
+                            ->helperText($commissionHelp)
                             ->numeric()->minValue(0)->maxValue(100)->required(),
                         TextInput::make('staff_reward_percent')
                             ->label(__('Staff referrer reward (%)'))
-                            ->helperText(__('Paid to the Staff member in cash with their payout, so it is set apart from the wallet-credit reward.'))
+                            ->helperText(__('Paid to the Staff member in cash with their payout.'))
                             ->numeric()->minValue(0)->maxValue(100)->required(),
+                        Toggle::make('commission_first_purchase_only')
+                            ->label(__('Reward only the first purchase under a referral'))
+                            ->helperText(__('Off: every purchase a student makes while under a referral earns the referrer a reward. A referred teacher only ever earns their referrer one, on their first purchase.'))
+                            ->columnSpanFull(),
                         TextInput::make('referee_discount_percent')
-                            ->label(__('New customer discount (%)'))
-                            ->helperText(__("Taken off the new customer's first purchase."))
+                            ->label(__('Discount for a referred buyer (%)'))
+                            ->helperText(__("Taken off every purchase of a student under a referral, and off a referred teacher's first purchase. 0 = no discount."))
                             ->numeric()->minValue(0)->maxValue(100)->required(),
-                        TextInput::make('credit_expiry_months')
-                            ->label(__('Wallet credit expires after (months)'))
-                            ->helperText(__('Blank = never expires.'))
-                            ->integer()->minValue(1),
+                        TextInput::make('referral_lock_days')
+                            ->label(__('A student stays under a referrer for (days)'))
+                            ->helperText(__('Counted from the day it was set. After that it ends by itself, and the next code or exam link sets a new one.'))
+                            ->integer()->minValue(1)->required(),
+                        TextInput::make('referral_change_days')
+                            ->label(__('A typed code can be changed for (days)'))
+                            ->helperText(__("0 = it can't be changed. A referral set by opening a teacher's exam link is fixed at once."))
+                            ->integer()->minValue(0)->required(),
+                    ]),
+
+                Section::make(__('Taking commission out'))
+                    ->description(__("What stays in the wallet can only be spent on the user's own next subscription, never taken out as cash. Wallet money never expires."))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('teacher_reserve_amount')
+                            ->label(__("Always kept in a teacher's wallet (৳)"))
+                            ->numeric()->minValue(0)->required(),
+                        TextInput::make('teacher_min_withdrawal')
+                            ->label(__('Smallest withdrawal for a teacher (৳)'))
+                            ->numeric()->minValue(0)->required(),
+                        TextInput::make('student_reserve_amount')
+                            ->label(__("Always kept in a student's wallet (৳)"))
+                            ->numeric()->minValue(0)->required(),
+                        TextInput::make('student_min_withdrawal')
+                            ->label(__('Smallest withdrawal for a student (৳)'))
+                            ->numeric()->minValue(0)->required(),
+                    ]),
+
+                Section::make(__('Group plans'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('group_member_change_days')
+                            ->label(__('Someone can be taken off a group plan once every (days)'))
+                            ->helperText(__("So a few seats can't be passed round a whole class."))
+                            ->integer()->minValue(0)->required(),
+                    ]),
+
+                Section::make(__('Devices'))
+                    ->description(__('How many devices one account can be signed in on at once. Signing in on one more signs out the one used longest ago. 0 = no limit.'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('teacher_device_limit')
+                            ->label(__('Devices per teacher'))
+                            ->integer()->minValue(0)->required(),
+                        TextInput::make('student_device_limit')
+                            ->label(__('Devices per student'))
+                            ->integer()->minValue(0)->required(),
                     ]),
 
                 Section::make(__('Refunds'))
@@ -133,6 +188,15 @@ class BillingSettings extends Page
                             ->label(__('Medium: up to this % answer correctly'))
                             ->helperText(__('Above this the question is Easy.'))
                             ->numeric()->minValue(0)->maxValue(100)->required(),
+                    ]),
+
+                Section::make(__('Negative marking'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('default_negative_marks')
+                            ->label(__('Marks taken off per wrong answer, to start with'))
+                            ->helperText(__("What a teacher's negative-marking box starts on when saving an online exam. The teacher can change it per exam."))
+                            ->numeric()->minValue(0.01)->maxValue(100)->required(),
                     ]),
 
                 Section::make(__('Practising mistakes'))

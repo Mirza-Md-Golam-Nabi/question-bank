@@ -4,24 +4,73 @@
 
 টাকার লজিক কখনো পেজ বা controller-এ থাকে না; সবই নিচের service ও model-এ।
 
-## Plan ও মাসিক লিমিট
+## Plan ও তার শর্ত
 
-- `subscription_plans`: প্রতিটা plan একটা role-এর জন্য (`teacher` বা `student`), দাম, billing cycle (`free`/`monthly`/`yearly`), আর `monthly_exam_limit` (ফাঁকা = সীমাহীন)।
-- প্রতি role-এর একটা **ডিফল্ট ফ্রি plan** থাকতে পারে (`is_default_free`)।
+দামের তালিকা পুরোপুরি Admin-এর হাতে (`SubscriptionPlanResource`)। কোডে কোনো plan বা দাম লেখা নেই।
 
-**কার কোন plan খাটে** (`SubscriptionLimitService::planSummaryFor()`):
-1. সক্রিয় subscription থাকলে তার plan।
-2. নইলে role-এর ডিফল্ট ফ্রি plan।
-3. সেটাও না থাকলে কোনো plan নেই, আর তখন লিমিটও নেই।
+**একটা plan** = নাম, কার জন্য (`teacher`/`student`), দাম, মেয়াদ, আর Admin-এর যোগ করা **শর্ত**।
 
-**মাসিক লিমিট** = plan-এর `monthly_exam_limit` + (user ফোন নম্বর দিয়ে থাকলে) Admin-এর ঠিক করা বোনাস। সীমাহীন plan-এ বোনাস প্রযোজ্য না।
+- **মেয়াদ** (`duration_unit` + `duration_length`/`ends_on`): X দিন, X মাস, X বছর, একটা নির্দিষ্ট তারিখ পর্যন্ত ("পরীক্ষা পর্যন্ত" plan — সবার subscription ওই তারিখেই শেষ, আর তারিখ পার হলে plan আর বিক্রি হয় না), বা মেয়াদহীন (ফ্রি plan)।
+- **শর্ত** (`conditions`): ফর্মে "শর্ত যোগ করুন" বাটন দিয়ে যোগ ও মুছে ফেলা যায়, প্রতিটা ধরন একবার। **যে বিষয়ে শর্ত নেই সেখানে কোনো সীমা নেই।**
 
-**গণনা:** আলাদা কোনো counter নেই। ওই মাসে ওই user কতগুলো পরীক্ষা বানিয়েছে তা সরাসরি query করে গোনা হয়, তাই মাস বদলালে নিজে থেকেই শূন্য থেকে শুরু। Teacher-এর পরীক্ষা আর student-এর self-practice আলাদা গোনা হয়; self-practice-এর তিন মোড একসাথে।
+| শর্ত | মানে |
+|---|---|
+| শ্রেণি | কোন শ্রেণিগুলো (ফাঁকা = সব); "ক্রেতা কয়টা বাছবে" দিলে ক্রেতা কেনার সময় তালিকা থেকে ততগুলো বাছে |
+| বিষয় | কোন বিষয়গুলো (ফাঁকা = সব); একইভাবে ক্রেতা বাছতে পারে। বাছাই করা বিষয় plan-এর (বা ক্রেতার বাছাই করা) **সব** শ্রেণিতে পড়ানো হতে হবে — তাই "Class 6–10, ১টা বিষয়"-এ শুধু কমন বিষয় আসে, ৯–১০-এর বিভাগের বিষয় না। কমন কি না সিস্টেম `class_subjects` থেকে নিজেই বোঝে; তালিকা ও সার্ভারের যাচাই দুটোই `PlanConditions::pickableSubjectIds()` থেকে। শ্রেণি বাছতে হলে আগে শ্রেণি, তারপর বিষয়ের তালিকা |
+| কঠিনতা | কোন difficulty-র প্রশ্ন ব্যবহার করা যাবে (যেমন ফ্রি = শুধু সহজ) |
+| সুবিধা | অনলাইন পরীক্ষা (শেয়ার-লিংক) ও/বা প্রিন্ট/PDF — টিক না থাকলে নেই |
+| দিনে পরীক্ষা / মাসে পরীক্ষা | কতগুলো পরীক্ষা বানানো যাবে (group plan-এ প্রত্যেকের আলাদা) |
+| প্রতি অনলাইন পরীক্ষায় অংশগ্রহণকারী | Teacher-এর একটা পরীক্ষা সর্বোচ্চ কতজন শুরু করতে পারে; সেভের সময় পরীক্ষায় কপি হয় (`exams.max_participants`) |
+| আসন (plan ভাগ করা মানুষ) | ক্রেতাসহ কতজন — নিচে "Group plan" |
+
+- **ফ্রি plan** (`is_default_free`): role-এর সবার জন্য, কেনা লাগে না।
+- **ট্রায়াল** (`is_trial`): দাম শূন্য, একাউন্টপ্রতি একবারই; নিলে সাথে সাথে চালু (Teacher-এর ৭ দিনের ট্রায়াল)।
+- **বিক্রি চলছে** (`is_active`): বন্ধ করলে আর কেনা যায় না, কেনা subscription চলতে থাকে।
+- Admin-এর plan তালিকায় All / Student / Teacher ট্যাব। সব plan এক পাতায় থাকে (pagination নেই), ট্যাব শুধু ব্রাউজারে সারি লুকায় — সার্ভারে অনুরোধ বা নতুন query হয় না; ট্যাব বদলালে টিক দেওয়া সারি খালি হয়, যাতে লুকানো plan bulk delete-এ না পড়ে।
+
+শর্তের ডেটা কীভাবে পড়া হয় তা শুধু `App\Services\PlanConditions`-এ।
+
+### Group plan (কয়েকজন student, coaching-এর Teacher-রা)
+
+`App\Services\SubscriptionMemberService` — একমাত্র জায়গা।
+
+- "আসন" শর্তওয়ালা plan যে কেনে, সে "My Subscription" পেজে বাকিদের **Google email** দিয়ে যোগ করে, আসন পর্যন্ত (নিজেরটা ধরে)। প্রত্যেকে নিজের একাউন্টে ঢোকে — বিল ভাগ, একাউন্ট ভাগ না। একাউন্ট খোলার আগেও email যোগ করা যায়; ওই email-এ সঠিক role-এর একাউন্ট ঢুকলেই plan পায়।
+- শুধু plan যে role-এর জন্য সেই role (Student-এর plan-এ Teacher না)।
+- সদস্যের কাছে plan "শেয়ার করা" হিসেবে দেখায়, ক্রেতার নামসহ। শর্ত ও ক্রেতার বাছাই (শ্রেণি/বিষয়) সবার জন্য এক; দৈনিক/মাসিক গণনা প্রত্যেকের আলাদা, ফলাফল-পরিসংখ্যানও আলাদা।
+- ক্রেতার subscription শেষ হলে সবার access শেষ (`User::activeSubscriptions()` শুধু চালু subscription খোঁজে)।
+- কাউকে সরানো যায় Admin-এর দিনে একবার (`group_member_change_days`, ডিফল্ট ৩০), যাতে কয়েকটা আসন পুরো ক্লাসে পালা না হয়। খালি আসন যেকোনো সময় ভরা যায়।
+- যোগ/সরানো log হয়।
+
+### কে কী পারে (`SubscriptionLimitService`)
+
+একজন user-এর অধিকার = তার **সব সক্রিয় subscription + role-এর ফ্রি plan** মিলিয়ে (প্রতিটা একটা `PlanGrant`)। কিছুই না থাকলে plan লাগে এমন কিছুই করা যায় না।
+
+- **কেনা জিনিস বদলায় না:** subscription কেনার মুহূর্তে plan-এর শর্তের একটা কপি (`subscriptions.conditions`) আর ক্রেতার বাছাই (`subscriptions.selections`) রেখে দেয়। পরে Admin plan বদলালে আগের ক্রেতাদের কিছু বদলায় না।
+- **যাচাই** (`authorize()`): এই শ্রেণি+বিষয়, এই সুবিধা, এই difficulty-গুলো — কোনো grant-এ আছে কি না, আর তার সীমা বাকি আছে কি না। না থাকলে কোনটা নেই সেটা বলে আটকায়।
+- **প্রতিটা পরীক্ষা যে grant দিয়ে হলো তার ঘরেই গোনা হয়** (`exams.subscription_id`; ফাঁকা = ফ্রি plan)। তাই পেইড plan-এর পরীক্ষা ফ্রি plan-এর দিনের সীমা খায় না। আগে সীমাহীন grant, তারপর পেইড, শেষে ফ্রি — এই ক্রমে বাছা হয়।
+- **গণনা:** আলাদা counter নেই; সরাসরি query (আজ ক'টা, এই মাসে ক'টা)। দিন বা মাস বদলালে নিজে থেকেই শূন্য।
+- **ফোন বোনাস:** ফোন নম্বর দিলে মাসিক সীমাওয়ালা grant-এ Admin-এর বোনাস যোগ হয়; সীমাহীন সীমাহীনই থাকে।
 
 **কোথায় দেখা হয়:**
-- Teacher পরীক্ষা সেভ করার সময় (`TeacherExamBuilder::build()`); publish-এর সময় দেখা হয় এই পরীক্ষাটা অনুমোদিতগুলোর মধ্যে ছিল কি না।
-- Student self-practice শুরু করার আগে।
-- Guest-এর পরীক্ষা দেওয়ায় কোনো চেক নেই; সেটা Teacher-এর লিমিটেই ধরা।
+
+| কাজ | কী লাগে |
+|---|---|
+| Teacher পরীক্ষা সেভ (`TeacherExamBuilder::build()`) | শ্রেণি+বিষয়, পরীক্ষার ধরন অনুযায়ী সুবিধা (অনলাইন/প্রিন্ট), প্রতিটা প্রশ্নের difficulty, আর সীমা — এখানেই একবার গোনা হয় |
+| পরীক্ষা এডিট (`update()`) | একই, কিন্তু আবার গোনা হয় না |
+| Publish / প্রিন্ট (`ExamPolicy`) | শুধু শ্রেণি+বিষয় আর অনলাইন/প্রিন্ট সুবিধা — আবার গোনা হয় না |
+| "প্রশ্ন বাছাই" পেজ | শ্রেণি/বিষয়ের তালিকায় শুধু plan-এর ভেতরেরগুলো, প্রশ্নের তালিকায় শুধু অনুমোদিত difficulty; plan না থাকলে "plan লাগবে" বার্তা |
+| Student self-practice (তিন মোড, `SelfPracticeExamService`) | নিজের শ্রেণির বিষয়, difficulty, সীমা — তিন মোড একই সীমায় |
+
+- Guest বা Student যখন Teacher-এর শেয়ার-লিংকে পরীক্ষা দেয়, তার নিজের কোনো plan লাগে না — যেকোনো difficulty চলে।
+- **Student-এর শ্রেণি** (`users.academic_class_id`) প্রোফাইলে থাকে। Self-practice সবসময় নিজের শ্রেণি থেকে; শ্রেণি না দিলে পেজ প্রোফাইলে পাঠায়। শ্রেণি বাছতে হয় এমন plan কিনলে শ্রেণির ঘরে প্রোফাইলের শ্রেণি আগে থেকে বসানো থাকে, বদলালে প্রোফাইলও বদলায়।
+
+লোকালে শুরু করার দামের তালিকা: `SubscriptionPlanSeeder` (শুধু `APP_ENV=local`)। Group plan (coaching, কয়েকজন student) Admin "আসন" শর্ত দিয়ে বানান।
+
+## ডিভাইস সীমা
+
+`App\Services\DeviceSessionService` — একাউন্ট শেয়ার ঠেকাতে। Teacher ও Student একসাথে Admin-এর ঠিক করা কয়টা ডিভাইসে লগইন থাকতে পারে (`teacher_device_limit` ডিফল্ট ৩, `student_device_limit` ডিফল্ট ২; ০ = সীমা নেই)। Google দিয়ে লগইনের সময় এর বেশি হলে সবচেয়ে আগে ব্যবহৃত ডিভাইস থেকে লগআউট হয় (`sessions` টেবিল, তাই শুধু `SESSION_DRIVER=database`-এ)। প্রোফাইল পেজে নিজের ডিভাইসের তালিকা ("এই ডিভাইস" চিহ্নসহ) আর অন্যটা থেকে লগআউটের বাটন।
+
+পরীক্ষা চলাকালীন এক ডিভাইসে আটকানো হয়নি — চলমান পরীক্ষায় অন্য ডিভাইস থেকে ফেরা এখনকার নিয়ম ([06-exams.md](06-exams.md))।
 
 ## Subscription কেনা
 
@@ -57,21 +106,39 @@ Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `Subscripti
 
 ## Referral
 
-নিয়মগুলো `App\Services\ReferralService`-এ।
+নিয়মগুলো `App\Services\ReferralService`-এ (কে refer করতে পারে, ছাড়, reward); একজন student কতদিন কার অধীনে থাকে তা `App\Services\StudentReferralService`-এ।
 
 - **কে refer করতে পারে:** যেকোনো Teacher বা Student; আর সক্রিয় Staff।
-- **কাকে refer করা যায়:** যারা subscription কেনে — Teacher ও Student।
 - **কোড:** প্রত্যেকের নিজের ৮ অক্ষরের কোড (গুলিয়ে ফেলার মতো অক্ষর ছাড়া), প্রথমবার চাওয়ার সময় তৈরি। শেয়ার করার লিংক `/r/{code}`।
-- **কোড কখন যুক্ত হয়:** লিংক দিয়ে এলে একাউন্ট তৈরির মুহূর্তে; অথবা প্রোফাইল পেজে হাতে লিখে, **প্রথম কেনার আগ পর্যন্ত**।
 - **এক স্তর:** A যদি B-কে আনে আর B আনে C-কে, A শুধু B-র জন্য reward পায়।
 
-**নতুন গ্রাহকের সুবিধা:** প্রথম কেনায় discount (শতাংশ)।
+### Student — একবারে একজন referrer, নির্দিষ্ট দিনের জন্য
 
-**Referrer-এর reward** (`rewardFor()`), পেমেন্ট approve হওয়ার সময়:
-- শুধু ক্রেতার **প্রথম সফল** পেমেন্টে।
-- শুধু **নগদে দেওয়া** অংশের ওপর; wallet credit দিয়ে দেওয়া অংশে না (credit থেকে যেন আরও credit না জন্মায়)।
-- শতাংশ সেই মুহূর্তের সেটিং থেকে স্থির হয়ে যায়; পরে সেটিং বদলালে পুরনো reward বদলায় না।
-- Teacher/Student referrer-এর আর Staff referrer-এর শতাংশ আলাদা।
+একজন student একসাথে একজনেরই referral-এ থাকে (`student_referrals`), Admin-এর ঠিক করা দিন পর্যন্ত (`referral_lock_days`, ডিফল্ট ৯০), যেদিন সেট হয়েছে সেদিন থেকে। এরপর নিজে থেকেই শেষ হয় — কোনো scheduled job নেই, কিছু মোছা হয় না; পরের কোড বা পরীক্ষার লিংক নতুন একটা শুরু করে।
+
+| কীভাবে সেট হয় | নিয়ম |
+|---|---|
+| **পরীক্ষার লিংক** | লগইন করা student Teacher-এর শেয়ার-লিংকের পরীক্ষা খুললে (`ExamAttempt::startFor()` → `attributeFromExam()`) ওই Teacher-এর অধীনে আসে, **সাথে সাথে লক**। Guest বা self-practice-এ কিছু হয় না। |
+| **নিজে লেখা কোড** (প্রোফাইল) | Admin-এর দিন পর্যন্ত (`referral_change_days`, ডিফল্ট ১) বদলানো যায়, প্রথম লেখার সময় থেকে গোনা; বদলালেও শেষের তারিখ সরে না। তারপর লক। |
+| **Referral লিংক দিয়ে signup** | নিজে লেখা কোডের মতোই (বদলানোর সময় আছে)। |
+
+- লক থাকা referral-এর ওপর অন্য কোনো পরীক্ষার লিংক বা কোড বসে না। বদলানোর সময়ের মধ্যে Teacher-এর পরীক্ষার লিংক খুললে সেটাই বসে আর তখন থেকে লক।
+- প্রোফাইলে থাকে শুধু নিজের কোড শেয়ার করা আর "আমার আয় দেখুন" লিংক; আয়ের হিসাব এক জায়গাতেই — Teacher/Student-এর "রেফারেল ও কমিশন" পেজ (কমিশন, wallet-এর হিসাব, উত্তোলন), Staff-এর "My Earnings"।
+- Student প্রোফাইলে দেখে কার অধীনে আছে, কীভাবে, কত দিন বাকি, আর কতক্ষণ বদলানো যাবে। Teacher "রেফারেল ও কমিশন" পেজে তার ছাত্রদের দেখে (নাম ও ঢাকা email — `ab***@gmail.com`, পুরো email/ফোন কখনো না) ও কত দিন বাকি।
+
+### Teacher — একবারই, signup-এর কোড দিয়ে
+
+একজন Teacher-কে যে refer করে (`users.referred_by_id`), সেটা স্থায়ী; কোড দেওয়া যায় প্রথম কেনার আগ পর্যন্ত, আর ছাড় ও reward শুধু তার **প্রথম** কেনায়।
+
+### ছাড় ও reward
+
+- **কে referrer, কেনার মুহূর্তে ঠিক হয়** আর payment-এ লেখা থাকে (`payments.referrer_id`, `student_referral_id`) — পরে student-এর referrer বদলালেও কোন কেনা কার, তা বদলায় না।
+- **ছাড়** (`referee_discount_percent`, ০ = বন্ধ): referral চলাকালীন student-এর **প্রতিটা** কেনায়; Teacher-এর প্রথম কেনায়।
+- **Reward** (`rewardFor()`), পেমেন্ট approve হওয়ার সময়:
+  - Student-এর কেনায়: referral চলাকালীন প্রতিটা কেনায় — অথবা Admin "শুধু প্রথম কেনায়" চালু রাখলে ওই referral-এর প্রথম কেনায় (`commission_first_purchase_only`)। Teacher-এর কেনায়: শুধু প্রথমটায়।
+  - শুধু **নগদে দেওয়া** অংশের ওপর; wallet credit দিয়ে দেওয়া অংশে না (credit থেকে যেন আরও credit না জন্মায়)।
+  - শতাংশ referrer-এর ধরন অনুযায়ী আলাদা: Teacher-এর কমিশন, Student-এর, Staff-এর। সেই মুহূর্তের শতাংশ reward-এ লেখা থাকে (`referral_rewards.percent`); পরে সেটিং বদলালে পুরনো reward বদলায় না।
+  - **Teacher ও Student কমিশন পায় শুধু নিজের পেইড subscription চালু থাকলে** — ফ্রি ট্রায়ালে বা ফ্রি plan-এ না (`earnsCommission()`; Staff-এর এই শর্ত নেই)। না থাকলে কোনো reward তৈরি হয় না (log হয়), আর তার পেজে "কমিশন বন্ধ আছে" দেখায়।
 
 **Reward-এর অবস্থা** (`referral_rewards`; তারিখ থেকে পড়া, সংরক্ষিত না):
 
@@ -85,21 +152,30 @@ Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `Subscripti
 Refund শুধু সময়সীমার ভেতরে হয় বলে, পাকা হয়ে যাওয়া reward কখনো ফেরত নিতে হয় না।
 
 **Reward কোথায় যায়:**
-- Teacher/Student → wallet credit।
+- Teacher ও Student → wallet-এ নগদ কমিশন, **মেয়াদ নেই**; নিচের নিয়মে তোলা যায়।
 - Staff → নগদ, পরের payout-এ earning-এর সাথে।
 
-**জালিয়াতির সংকেত:** পেমেন্ট যে নম্বর থেকে এসেছে সেটা referrer-ও ব্যবহার করলে Admin-এর পেমেন্ট তালিকায় চিহ্নিত হয়।
+**জালিয়াতির সংকেত:** পেমেন্ট যে নম্বর থেকে এসেছে সেটা ওই পেমেন্টের referrer-ও ব্যবহার করলে Admin-এর পেমেন্ট তালিকায় চিহ্নিত হয়।
 
-Admin-এর রিপোর্ট: `ReferralReport` পেজ — প্রতি referrer কতজনকে এনেছে, কতজন কিনেছে, কত নগদ এসেছে, reward-এ কত খরচ।
+Admin-এর রিপোর্ট: `ReferralReport` পেজ — প্রতি referrer কতজনকে এনেছে (refer করা Teacher + তার অধীনে আসা student, প্রত্যেকে একবার), কতজন কিনেছে, কত নগদ এসেছে (যে পেমেন্টের referrer সে), reward-এ কত খরচ।
+
+## কমিশন তোলা (Teacher ও Student)
+
+`App\Services\WithdrawalService` — একমাত্র জায়গা। পেজ দুই প্যানেলেই "রেফারেল ও কমিশন" (`Support\Pages\ReferralsAndCommissionPage`); Admin `WithdrawalResource` (Payroll → Withdrawals, Teacher/Student ফিল্টারসহ)। Staff তোলে না — তার reward payout-এর সাথে নগদে।
+
+- wallet-এ role অনুযায়ী Admin-এর ঠিক করা একটা অঙ্ক **সবসময় থাকে** (`teacher_reserve_amount` / `student_reserve_amount`) — সেটা শুধু নিজের পরের subscription কিনতে খরচ হয়, কখনো তোলা যায় না। এর বেশি যা আছে, তা থেকে request করে তোলা যায়, সর্বনিম্ন `teacher_min_withdrawal` / `student_min_withdrawal`।
+- **request**: অঙ্ক, bKash/Nagad/Rocket, নম্বর। টাকা সাথে সাথে wallet থেকে কাটা হয় (`wallet_transactions` → `withdrawal`), যাতে একই টাকা খরচ বা দুবার request না হয়। একসাথে একটাই অপেক্ষমাণ request।
+- **জালিয়াতির সংকেত:** যে নম্বরে টাকা চাওয়া হচ্ছে, সেই নম্বর থেকে তার রেফার করা কোনো ক্রেতা পেমেন্ট করে থাকলে request-এ চিহ্ন থাকে (`number_used_by_referred_buyer`, request-এর মুহূর্তে) — Admin-এর তালিকায় লাল চিহ্ন। আটকায় না, শুধু দেখায়।
+- **markPaid** (Admin): টাকা পাঠিয়ে transaction id দিয়ে চিহ্নিত। **reject**: কারণসহ; টাকা wallet-এ ফেরত (`withdrawal_return`)।
+- প্রতিটা ধাপ এক transaction-এ, row lock করে আবার অবস্থা দেখে — দুবার ক্লিকে দ্বিতীয়বার কিছু হয় না। সব log হয়, নম্বর ছাড়া। নম্বর `encrypted` cast-এ সংরক্ষিত।
 
 ## Wallet
 
-`App\Services\WalletService` — credit যোগ, খরচ ও গণনার একমাত্র জায়গা।
+`App\Services\WalletService` — যোগ, খরচ ও গণনার একমাত্র জায়গা।
 
-- Wallet শুধু Teacher ও Student-এর। Credit কখনো নগদ হয়ে সিস্টেম থেকে বের হয় না; শুধু নিজের subscription কিনতে খরচ হয়।
-- **Balance সংরক্ষিত না।** প্রতিবার হিসাব হয়: পাকা হওয়া (ও মেয়াদ না-ফুরানো) reward − খরচ + ফেরত। ফলে কোনো সংখ্যা তাল হারায় না, আর reward পাকানো বা মেয়াদ শেষ করার জন্য কোনো scheduled job লাগে না।
-- `wallet_transactions`-এ শুধু সারি যোগ হয় (`purchase`, `purchase_return`); ভুল সংশোধনও নতুন সারি দিয়ে।
-- Credit-এর মেয়াদ Admin-এর সেটিং (মাসে); ফাঁকা রাখলে মেয়াদ নেই।
+- Wallet শুধু Teacher ও Student-এর। এতে তার রেফারেল কমিশন জমে — subscription কিনতে খরচ করা যায়, আর reserve-এর বেশিটুকু নগদে তোলা যায়। **কোনো মেয়াদ নেই** (আগে মেয়াদসহ দেওয়া সারির মেয়াদ এখনো মানা হয়)।
+- **Balance সংরক্ষিত না।** প্রতিবার হিসাব হয়: পাকা হওয়া reward − খরচ − তোলা + ফেরত। ফলে কোনো সংখ্যা তাল হারায় না, আর reward পাকানোর জন্য কোনো scheduled job লাগে না।
+- `wallet_transactions`-এ শুধু সারি যোগ হয় (`purchase`, `purchase_return`, `withdrawal`, `withdrawal_return`); ভুল সংশোধনও নতুন সারি দিয়ে।
 
 Admin-এর পেজ: `WalletTransactionResource`।
 
@@ -138,12 +214,13 @@ Admin-এর পেজ: `StaffPayoutResource`, `QuestionRateResource`। Staff �
 
 | কী | কোথায় |
 |---|---|
-| লিমিট | `app/Services/SubscriptionLimitService.php` |
+| Plan, শর্ত, লিমিট | `app/Services/SubscriptionLimitService.php`, `PlanConditions.php`, `PlanGrant.php`, `app/Filament/Resources/SubscriptionPlans/SubscriptionPlanResource.php`, `<x-plan-usage>` |
 | কেনা | `app/Services/SubscriptionPurchaseService.php`, `app/Models/Payment.php`, `Subscription.php`, `SubscriptionPlan.php` |
-| Referral | `app/Services/ReferralService.php`, `app/Models/ReferralReward.php`, `app/Http/Controllers/ReferralLinkController.php` |
+| Referral | `app/Services/ReferralService.php`, `StudentReferralService.php`, `app/Models/ReferralReward.php`, `StudentReferral.php`, `app/Http/Controllers/ReferralLinkController.php` |
+| কমিশন তোলা | `app/Services/WithdrawalService.php`, `app/Models/Withdrawal.php`, `app/Filament/Support/Pages/ReferralsAndCommissionPage.php`, `app/Filament/Resources/Withdrawals/` |
 | Wallet | `app/Services/WalletService.php`, `app/Models/WalletTransaction.php` |
 | OTP | `app/Services/OtpService.php`, `app/Services/Sms/` |
 | Staff | `app/Models/StaffEarning.php`, `StaffPayout.php`, `StaffProfile.php`, `QuestionRate.php` |
-| পেজ | `app/Filament/Support/Pages/MySubscriptionPage.php`, `MyProfilePage.php` |
+| পেজ | `app/Filament/Support/Pages/MySubscriptionPage.php`, `MyProfilePage.php`, `ReferralsAndCommissionPage.php` |
 
-টেস্ট: `SubscriptionLimitServiceTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StaffReferralTest`, `ReferralReportTest`, `WalletServiceTest`, `OtpServiceTest`, `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest`।
+টেস্ট: `SubscriptionLimitServiceTest`, `SubscriptionPlanConditionsTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StudentReferralTest`, `TeacherCommissionTest`, `StaffReferralTest`, `ReferralReportTest`, `WalletServiceTest`, `OtpServiceTest`, `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest`।

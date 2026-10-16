@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Filament\Support\Pages\SelfPracticeExamPage;
+use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
 use App\Models\Question;
 use App\Models\User;
@@ -31,7 +32,10 @@ class BuildPracticeExam extends SelfPracticeExamPage
                     ->label(__('Questions'))
                     // Searched on the server, a short list at a time — the
                     // subject's whole pool is never sent to the browser.
-                    ->getSearchResultsUsing(fn (string $search, Get $get): array => Question::approvedOptionsForSubject($get('subject_id'), $search))
+                    // Only questions of a difficulty the student's plan allows.
+                    ->getSearchResultsUsing(fn (string $search, Get $get): array => $this->classSubject($get('class_subject_id'))
+                        ? Question::approvedOptionsForClassSubject($get('class_subject_id'), $search, $this->allowedDifficulties($get('class_subject_id')))
+                        : [])
                     ->getOptionLabelsUsing(fn (array $values): array => Question::approvedOptionLabels($values))
                     ->helperText(__('Type a few words of a question to find it.'))
                     ->multiple()
@@ -46,8 +50,8 @@ class BuildPracticeExam extends SelfPracticeExamPage
         return __('Build exam');
     }
 
-    protected function createAttempt(User $student, array $data): ExamAttempt
+    protected function createAttempt(User $student, ClassSubject $classSubject, array $data): ExamAttempt
     {
-        return app(SelfPracticeExamService::class)->generateManual($student, $data['subject_id'], $data['question_ids']);
+        return app(SelfPracticeExamService::class)->generateManual($student, $classSubject, $data['question_ids']);
     }
 }

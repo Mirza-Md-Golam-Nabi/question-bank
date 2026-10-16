@@ -6,6 +6,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Models\Payment;
 use App\Models\ReferralReward;
+use App\Models\StudentReferral;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -36,28 +37,44 @@ class ReferralReport
      * `buyers_count`, `cash_received`, `rewards_maturing`,
      * `rewards_matured` and `rewards_cancelled` added.
      *
+     * People brought in are the teachers who signed up with the code plus
+     * the students who came under the referrer (each student once, however
+     * many times). Buyers and cash come from the payments made while the
+     * referrer was the buyer's referrer (`payments.referrer_id`).
+     *
      * @return LengthAwarePaginator<int, User>
      */
     public function rows(int $perPage = 25): LengthAwarePaginator
     {
         return User::query()
-            ->whereHas('referrals')
+            ->where(fn (Builder $query) => $query
+                ->whereHas('referrals')
+                ->orWhereHas('referredStudents')
+                ->orWhereHas('referredPayments'))
             ->when($this->referrerRole, fn (Builder $query) => $query->where('role', $this->referrerRole))
-            ->withCount([
-                'referrals as referred_count' => fn (Builder $query) => $this->inPeriod($query, 'created_at'),
-                'referrals as buyers_count' => fn (Builder $query) => $query
-                    ->whereHas('payments', fn (Builder $payments) => $this->successful($payments)),
+            ->withCount(['referrals as referred_teachers_count' => fn (Builder $query) => $this->inPeriod($query, 'created_at')])
+            ->addSelect([
+                'referred_students_count' => $this->inPeriod(StudentReferral::query(), 'starts_at')
+                    ->selectRaw('count(distinct student_id)')
+                    ->whereColumn('student_referrals.referrer_id', 'users.id'),
+                'buyers_count' => $this->successful(Payment::query())
+                    ->selectRaw('count(distinct payments.user_id)')
+                    ->whereColumn('payments.referrer_id', 'users.id'),
+                'cash_received' => $this->successful(Payment::query())
+                    ->selectRaw('coalesce(sum(payments.amount), 0)')
+                    ->whereColumn('payments.referrer_id', 'users.id'),
             ])
-            ->addSelect(['cash_received' => $this->successful(Payment::query())
-                ->selectRaw('coalesce(sum(payments.amount), 0)')
-                ->join('users as referred', 'referred.id', '=', 'payments.user_id')
-                ->whereColumn('referred.referred_by_id', 'users.id')])
             ->withSum(['referralRewards as rewards_maturing' => fn (Builder $query) => $this->inPeriod($query->maturing(), 'created_at')], 'amount')
             ->withSum(['referralRewards as rewards_matured' => fn (Builder $query) => $this->inPeriod($query->matured(), 'created_at')], 'amount')
             ->withSum(['referralRewards as rewards_cancelled' => fn (Builder $query) => $this->inPeriod($query->cancelled(), 'created_at')], 'amount')
             ->orderByDesc('cash_received')
             ->orderBy('id')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->through(function (User $referrer): User {
+                $referrer->referred_count = (int) $referrer->referred_teachers_count + (int) $referrer->referred_students_count;
+
+                return $referrer;
+            });
     }
 
     /**
@@ -74,16 +91,15 @@ class ReferralReport
      */
     public function totals(): array
     {
-        $referred = fn (): Builder => User::query()->whereHas('referrer', fn (Builder $query) => $this->ofReferrerRole($query));
-        $rewards = ReferralReward::totalsByState($this->inPeriod(
-            ReferralReward::query()->whereHas('referrer', fn (Builder $query) => $this->ofReferrerRole($query)),
-            'created_at',
-        ));
+        $ofReferrers = fn (Builder $query): Builder => $query->whereHas('referrer', fn (Builder $referrer) => $this->ofReferrerRole($referrer));
+        $referredPayments = fn (): Builder => $ofReferrers($this->successful(Payment::query()));
+        $rewards = ReferralReward::totalsByState($this->inPeriod($ofReferrers(ReferralReward::query()), 'created_at'));
 
         return [
-            'referred' => $this->inPeriod($referred(), 'created_at')->count(),
-            'buyers' => $referred()->whereHas('payments', fn (Builder $payments) => $this->successful($payments))->count(),
-            'cash_received' => round((float) $this->successful(Payment::query())->whereIn('user_id', $referred()->select('id'))->sum('amount'), 2),
+            'referred' => $this->inPeriod($ofReferrers(User::query()), 'created_at')->count()
+                + (int) $this->inPeriod($ofReferrers(StudentReferral::query()), 'starts_at')->toBase()->selectRaw('count(distinct student_id) as aggregate')->value('aggregate'),
+            'buyers' => (int) $referredPayments()->toBase()->selectRaw('count(distinct user_id) as aggregate')->value('aggregate'),
+            'cash_received' => round((float) $referredPayments()->sum('amount'), 2),
             'rewards_maturing' => $rewards['maturing'],
             'rewards_matured' => $rewards['matured'],
             'rewards_cancelled' => $rewards['cancelled'],

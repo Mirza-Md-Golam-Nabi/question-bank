@@ -62,9 +62,13 @@ Admin প্যানেলের resource `app/Filament/Resources/`-এ সর�
 |---|---|
 | `TeacherExamBuilder` | Teacher-এর বাছাই থেকে পরীক্ষা তৈরি ও এডিট; প্রতিটা প্রশ্ন সার্ভারে আবার যাচাই |
 | `SelfPracticeExamService` | Student-এর self-practice পরীক্ষা (Auto, Manual, Mistakes) |
-| `SubscriptionLimitService` | কার কোন plan, মাসিক লিমিট কত, লিমিট শেষ কি না |
+| `SubscriptionLimitService` | user-এর সব plan মিলিয়ে কী পারে: শ্রেণি/বিষয়, difficulty, সুবিধা, দিনের ও মাসের সীমা; পরীক্ষা কোন plan-এ গোনা হবে (`PlanConditions`, `PlanGrant` সহ) |
 | `SubscriptionPurchaseService` | পেমেন্টের পুরো জীবন: request → approve / reject / refund |
-| `ReferralService` | কে কাকে refer করতে পারে, discount, reward |
+| `ReferralService` | কে কাকে refer করতে পারে, discount, reward (Teacher-এর কমিশনের শর্তসহ) |
+| `StudentReferralService` | একজন student কখন, কার, কত দিনের referral-এ — শুরু, বদল, লক |
+| `SubscriptionMemberService` | group plan-এর সদস্য যোগ/সরানো (আসন, role, কত দিনে একবার) |
+| `DeviceSessionService` | একসাথে কয়টা ডিভাইসে লগইন; প্রোফাইলের ডিভাইস-তালিকা |
+| `WithdrawalService` | Teacher/Student-এর কমিশন নগদে তোলা: reserve, request, paid/reject |
 | `WalletService` | wallet credit যোগ, খরচ ও balance |
 | `OtpService` | wallet credit খরচে ফোনের OTP (Admin চালু করলে) |
 | `ExamResultSheet` | Teacher-এর ফলাফল-তালিকা ও পজিশন |
@@ -93,7 +97,7 @@ Admin প্যানেলের resource `app/Filament/Resources/`-এ সর�
 ### Policy
 
 - `QuestionPolicy` — কে প্রশ্ন দেখে, যোগ করে, ইমপোর্ট করে, এডিট/ডিলিট করে, approve করে।
-- `ExamPolicy` — পরীক্ষার মালিকানা ও publish-এর শর্ত (লিমিটসহ)।
+- `ExamPolicy` — পরীক্ষার মালিকানা, আর publish/প্রিন্টে plan-এর অনলাইন/প্রিন্ট সুবিধা।
 - `BoardQuestionPaperPolicy` — বোর্ড প্রশ্নপত্র।
 
 ### Visibility-র হার্ডকোড ফিল্টার

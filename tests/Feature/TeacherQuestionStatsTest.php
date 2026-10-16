@@ -19,6 +19,7 @@ use function Pest\Livewire\livewire;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->teacher = User::factory()->teacher()->create();
+    subscribeToEverything($this->teacher);
     $this->otherTeacher = User::factory()->teacher()->create();
     $this->actingAs($this->teacher);
     Filament::setCurrentPanel(Filament::getPanel('teacher'));

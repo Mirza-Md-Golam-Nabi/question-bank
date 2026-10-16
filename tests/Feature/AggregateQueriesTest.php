@@ -113,7 +113,7 @@ it('counts only the exams made inside the month, to the first and last second of
     expect(Exam::createdThisMonthBy($teacher, ExamType::TeacherExam)->count())->toBe(2);
 });
 
-it('offers only matching approved questions of the subject as select options, a limited number at a time', function () {
+it('offers only matching approved questions of the class\'s subject as select options, a limited number at a time', function () {
     $classSubject = ClassSubject::factory()->create();
     $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
     $match = Question::factory()->approved()->for($chapter)->create(['question_text' => '<p>What is <b>photosynthesis</b>?</p>']);
@@ -121,7 +121,7 @@ it('offers only matching approved questions of the subject as select options, a 
     Question::factory()->for($chapter)->create(['question_text' => '<p>Pending photosynthesis question</p>']);
     Question::factory()->approved()->for(Chapter::factory())->create(['question_text' => '<p>photosynthesis in another subject</p>']);
 
-    expect(Question::approvedOptionsForSubject($classSubject->subject_id, 'photosynthesis'))
+    expect(Question::approvedOptionsForClassSubject($classSubject->id, 'photosynthesis'))
         ->toBe([$match->id => 'What is photosynthesis?']);
 });
 
@@ -134,7 +134,7 @@ it('never offers more than the select limit, however large the pool', function (
         Question::factory()->approved()->for($chapter)->create();
     }
 
-    expect(Question::approvedOptionsForSubject($classSubject->subject_id))->toHaveCount(Question::SELECT_OPTIONS_LIMIT);
+    expect(Question::approvedOptionsForClassSubject($classSubject->id))->toHaveCount(Question::SELECT_OPTIONS_LIMIT);
 });
 
 it('treats % typed into the question search as plain text', function () {
@@ -143,7 +143,7 @@ it('treats % typed into the question search as plain text', function () {
     Question::factory()->approved()->for($chapter)->create(['question_text' => '<p>plain question</p>']);
     $withPercent = Question::factory()->approved()->for($chapter)->create(['question_text' => '<p>What is 50% of 10?</p>']);
 
-    expect(array_keys(Question::approvedOptionsForSubject($classSubject->subject_id, '%')))->toBe([$withPercent->id]);
+    expect(array_keys(Question::approvedOptionsForClassSubject($classSubject->id, '%')))->toBe([$withPercent->id]);
 });
 
 it('labels only chosen questions that are in the approved pool', function () {

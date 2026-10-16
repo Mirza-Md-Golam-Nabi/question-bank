@@ -6,6 +6,7 @@ use App\Enums\MobileBankingProvider;
 use App\Enums\PaymentGateway;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
+use App\Enums\UserRole;
 use App\Enums\WalletTransactionType;
 use App\Models\BillingSetting;
 use App\Models\Payment;
@@ -25,7 +26,8 @@ use Illuminate\Validation\ValidationException;
  *              credit taken off, sends the rest by bKash/Nagad and submits
  *              the transaction id (pending)
  *   approve  → the Admin has matched the money: the subscription starts
- *              and the referrer is rewarded (success)
+ *              and the referrer is rewarded (success) — the referrer being
+ *              who it was when the purchase was placed
  *   reject   → the money never arrived: wallet credit goes back (rejected)
  *   refund   → the money was given back: subscription ends, wallet credit
  *              goes back, the referrer's reward is cancelled (refunded) —
@@ -91,17 +93,19 @@ class SubscriptionPurchaseService
      * When credit covers the whole price there is nothing to check and the
      * subscription starts immediately.
      *
-     * @param  array{use_wallet?: bool, otp_code?: ?string, payer_provider?: MobileBankingProvider|string|null, payer_number?: ?string, transaction_id?: ?string}  $details
+     * @param  array{use_wallet?: bool, otp_code?: ?string, payer_provider?: MobileBankingProvider|string|null, payer_number?: ?string, transaction_id?: ?string, class_ids?: mixed, subject_ids?: mixed}  $details
      *
      * @throws ValidationException
      */
     public function request(User $user, SubscriptionPlan $plan, array $details): Payment
     {
-        if ($plan->target_role !== $user->role->subscriptionTargetRole() || (float) $plan->price <= 0) {
+        if (! $this->isAvailableTo($user, $plan)) {
             throw ValidationException::withMessages(['plan' => __('This plan is not available to you.')]);
         }
 
-        $payment = DB::transaction(function () use ($user, $plan, $details): Payment {
+        $selections = $plan->planConditions()->resolveSelections($details);
+
+        $payment = DB::transaction(function () use ($user, $plan, $details, $selections): Payment {
             // Serialises this user's purchases: the pending check and the
             // wallet balance below are read under the lock.
             User::whereKey($user->id)->lockForUpdate()->first();
@@ -129,9 +133,16 @@ class SubscriptionPurchaseService
                 ]);
             }
 
+            // Who referred the buyer at this moment stays with the payment:
+            // a student's referrer can change before it is approved.
+            $referral = $this->referrals->referralFor($user);
+
             $payment = Payment::create([
                 'user_id' => $user->id,
                 'plan_id' => $plan->id,
+                'referrer_id' => $referral['referrer']->id ?? null,
+                'student_referral_id' => $referral['student_referral']->id ?? null,
+                'selections' => $selections,
                 'list_price' => $quote['list_price'],
                 'discount_amount' => $quote['discount'],
                 'wallet_amount' => $quote['wallet'],
@@ -145,6 +156,12 @@ class SubscriptionPurchaseService
 
             if ($quote['wallet'] > 0) {
                 $this->wallet->debit($user, $quote['wallet'], WalletTransactionType::Purchase, $payment);
+            }
+
+            // A student's class follows the one they buy for, so their
+            // practice and their next purchase start from it.
+            if ($user->role === UserRole::Student && count($selections['class_ids']) === 1) {
+                $user->update(['academic_class_id' => $selections['class_ids'][0]]);
             }
 
             Log::info('Subscription purchase requested.', [
@@ -181,7 +198,7 @@ class SubscriptionPurchaseService
                 return false;
             }
 
-            $subscription = $this->startSubscription($payment->user, $payment->plan);
+            $subscription = $this->startSubscription($payment->user, $payment->plan, $payment->selections ?? []);
 
             $payment->update([
                 'status' => PaymentStatus::Success,
@@ -272,16 +289,41 @@ class SubscriptionPurchaseService
     }
 
     /**
-     * A renewal of the plan the user is already on is added to the end of
-     * their current period instead of overlapping it, so buying early
-     * never costs them days they already paid for.
+     * Whether the user may buy this plan now: one on sale for their role,
+     * and — for the free trial — only if they have never had it.
      */
-    private function startSubscription(User $user, SubscriptionPlan $plan): Subscription
+    public function isAvailableTo(User $user, SubscriptionPlan $plan): bool
+    {
+        $role = $user->role->subscriptionTargetRole();
+
+        if (! $role || ! SubscriptionPlan::purchasableFor($role)->whereKey($plan->id)->exists()) {
+            return false;
+        }
+
+        return ! $plan->is_trial || ! $this->hasHadTrial($user);
+    }
+
+    public function hasHadTrial(User $user): bool
+    {
+        return $user->subscriptions()->whereHas('plan', fn ($query) => $query->where('is_trial', true))->exists();
+    }
+
+    /**
+     * A renewal of the same plan with the same picks is added to the end
+     * of the current period instead of overlapping it, so buying early
+     * never costs days already paid for. The plan's conditions are copied
+     * onto the subscription as they are now.
+     *
+     * @param  array{class_ids?: array<int, int>, subject_ids?: array<int, int>}  $selections
+     */
+    private function startSubscription(User $user, SubscriptionPlan $plan, array $selections): Subscription
     {
         $currentPeriodEnd = $user->subscriptions()
             ->active()
             ->where('plan_id', $plan->id)
             ->whereNotNull('ends_at')
+            ->get(['ends_at', 'selections'])
+            ->filter(fn (Subscription $subscription): bool => ($subscription->selections ?? []) == $selections)
             ->max('ends_at');
 
         $periodStart = $currentPeriodEnd ? Carbon::parse($currentPeriodEnd) : now();
@@ -289,9 +331,11 @@ class SubscriptionPurchaseService
         return Subscription::create([
             'user_id' => $user->id,
             'plan_id' => $plan->id,
+            'conditions' => $plan->conditions ?? [],
+            'selections' => $selections,
             'status' => SubscriptionStatus::Active,
             'starts_at' => now(),
-            'ends_at' => $plan->billing_cycle->periodEndFrom($periodStart),
+            'ends_at' => $plan->periodEndFrom($periodStart),
         ]);
     }
 

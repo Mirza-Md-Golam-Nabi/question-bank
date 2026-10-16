@@ -14,6 +14,22 @@ class AcademicClass extends Model
 {
     use HasFactory, HasOrderIndex;
 
+    /**
+     * Classes as select options (name keyed by id), in display order — every
+     * class, or only the given ones. The one place a class picker gets its
+     * list from.
+     *
+     * @param  array<int, int>|null  $onlyIds
+     * @return array<int, string>
+     */
+    public static function options(?array $onlyIds = null): array
+    {
+        return self::ordered()
+            ->when($onlyIds !== null, fn ($query) => $query->whereKey($onlyIds))
+            ->pluck('name', 'id')
+            ->all();
+    }
+
     public function classSubjects(): HasMany
     {
         return $this->hasMany(ClassSubject::class);

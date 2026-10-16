@@ -32,9 +32,13 @@ class BoardQuestionPaperFormSchema
     {
         return [
             Grid::make(3)->schema([
+                // Grouped by kind: boards, admission tests, job exams…
                 Select::make('board_id')
-                    ->label(__('Board'))
-                    ->options(fn () => Board::ordered()->pluck('name', 'id'))
+                    ->label(__('Source'))
+                    ->options(fn () => Board::ordered()->get()
+                        ->groupBy(fn (Board $board): string => $board->type->getLabel())
+                        ->map(fn ($boards) => $boards->pluck('name', 'id')->all())
+                        ->all())
                     ->searchable()
                     ->preload()
                     ->required(),

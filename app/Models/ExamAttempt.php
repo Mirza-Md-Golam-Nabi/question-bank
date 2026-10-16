@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ExamAttemptStatus;
 use App\Enums\QuestionType;
 use App\Services\QuestionDifficultyTracker;
+use App\Services\ReferralService;
 use App\Services\StudentMistakeTracker;
 use App\Services\TeacherQuestionStats;
 use Carbon\CarbonInterface;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
@@ -126,6 +128,10 @@ class ExamAttempt extends Model
      */
     public static function startFor(Exam $exam, User $student): self
     {
+        // Opening a teacher's exam puts the student under that teacher's
+        // referral (ReferralService decides whether it may).
+        app(ReferralService::class)->attributeFromExam($student, $exam);
+
         return self::enter(
             $exam,
             fn (): Collection => self::query()
@@ -189,6 +195,14 @@ class ExamAttempt extends Model
                 ?? $attempts->first();
 
             if (! $attempt) {
+                // Counted under the lock above, so two people can't both
+                // take the last place.
+                if ($exam->isFull()) {
+                    throw ValidationException::withMessages([
+                        'exam' => __('This exam is full: as many people as it allows have already started it.'),
+                    ]);
+                }
+
                 return self::create(['exam_id' => $exam->id, 'started_at' => now(), ...$identity])
                     ->setRelation('exam', $exam);
             }
@@ -337,15 +351,18 @@ class ExamAttempt extends Model
     /**
      * Auto-grades every MCQ answer against whichever of the question's
      * `options` carries `is_correct` and sums the result into total_score.
-     * CQ answers are left for a teacher to grade manually (obtained_marks
-     * stays whatever it already was — 0 by default) — only the MCQ portion
-     * of total_score is ever computed here.
+     * With negative marking (Exam::marksLostPerWrongAnswer()) a wrong answer
+     * scores minus that much; a blank one scores 0; the total never goes
+     * below 0. CQ answers are left for a teacher to grade manually
+     * (obtained_marks stays whatever it already was — 0 by default) — only
+     * the MCQ portion of total_score is ever computed here.
      */
     public function submitAndAutoGrade(): void
     {
         // The exam's questions are already in memory, so no answer has to
         // load its own question.
         $examQuestionsById = $this->exam->questions->keyBy('id');
+        $penalty = $this->exam->marksLostPerWrongAnswer();
 
         /** @var array<string, array{is_correct: bool, obtained_marks: float, ids: array<int, int>}> $outcomes */
         $outcomes = [];
@@ -362,7 +379,11 @@ class ExamAttempt extends Model
                 ->first(fn (array $option) => (bool) ($option['is_correct'] ?? false));
 
             $isCorrect = $correctOption && $answer->student_answer === $correctOption['option'];
-            $marks = $isCorrect ? (float) ($question->pivot?->marks_override ?? $question->marks) : 0.0;
+            $marks = match (true) {
+                (bool) $isCorrect => (float) ($question->pivot?->marks_override ?? $question->marks),
+                blank($answer->student_answer) => 0.0,
+                default => -$penalty,
+            };
 
             $outcomes["{$isCorrect}|{$marks}"] ??= ['is_correct' => (bool) $isCorrect, 'obtained_marks' => $marks, 'ids' => []];
             $outcomes["{$isCorrect}|{$marks}"]['ids'][] = $answer->id;
@@ -387,7 +408,7 @@ class ExamAttempt extends Model
         $this->forceFill([
             'status' => ExamAttemptStatus::Submitted,
             'submitted_at' => now(),
-            'total_score' => $this->answers()->sum('obtained_marks'),
+            'total_score' => max(0, (float) $this->answers()->sum('obtained_marks')),
         ])->save();
 
         // How the paper went feeds each question's difficulty.

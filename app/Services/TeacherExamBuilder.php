@@ -82,23 +82,25 @@ class TeacherExamBuilder
         string $title,
         int $durationMinutes,
         ?CarbonInterface $endsAt = null,
+        ?float $negativeMarks = null,
     ): Exam {
         $questions = $this->validatedQuestions($teacher, $classSubject, $deliveryMode, $questionIds);
+        $grant = $this->authorizedGrant($teacher, $classSubject, $deliveryMode, $questions, countsAgainstLimits: true);
 
-        if ($this->subscriptionLimits->hasReachedMonthlyLimit($teacher, ExamType::TeacherExam)) {
-            $this->fail(__('You have reached the monthly exam limit. Upgrade your subscription to create more exams.'));
-        }
-
-        return DB::transaction(function () use ($teacher, $classSubject, $deliveryMode, $questions, $title, $durationMinutes, $endsAt) {
+        return DB::transaction(function () use ($teacher, $grant, $classSubject, $deliveryMode, $questions, $title, $durationMinutes, $endsAt, $negativeMarks) {
             $exam = Exam::create([
                 'title' => $title,
                 'created_by' => $teacher->id,
+                'subscription_id' => $grant->subscriptionId,
                 'exam_type' => ExamType::TeacherExam,
                 'generation_mode' => GenerationMode::Manual,
                 'delivery_mode' => $deliveryMode,
                 'subject_id' => $classSubject->subject_id,
                 'class_subject_id' => $classSubject->id,
                 'duration_minutes' => $durationMinutes,
+                'negative_marks' => $this->negativeMarksFor($deliveryMode, $negativeMarks),
+                // As many as the plan that allowed the exam lets sit it.
+                'max_participants' => $grant->maxParticipants,
                 // Only an exam taken online has a link to close.
                 'link_expires_at' => $deliveryMode->includesOnline() ? $endsAt : null,
                 'status' => ExamStatus::Draft,
@@ -129,20 +131,24 @@ class TeacherExamBuilder
         array $questionIds,
         string $title,
         int $durationMinutes,
+        ?float $negativeMarks = null,
     ): Exam {
         if (! $this->canBeEdited($exam)) {
             $this->fail(__('Students have already taken this exam, so its questions can no longer be changed.'));
         }
 
         $questions = $this->validatedQuestions($exam->creator, $classSubject, $deliveryMode, $questionIds);
+        $grant = $this->authorizedGrant($exam->creator, $classSubject, $deliveryMode, $questions, countsAgainstLimits: false);
 
-        return DB::transaction(function () use ($exam, $classSubject, $deliveryMode, $questions, $title, $durationMinutes) {
+        return DB::transaction(function () use ($exam, $grant, $classSubject, $deliveryMode, $questions, $title, $durationMinutes, $negativeMarks) {
             $exam->update([
                 'title' => $title,
                 'delivery_mode' => $deliveryMode,
                 'subject_id' => $classSubject->subject_id,
                 'class_subject_id' => $classSubject->id,
                 'duration_minutes' => $durationMinutes,
+                'negative_marks' => $this->negativeMarksFor($deliveryMode, $negativeMarks),
+                'max_participants' => $grant->maxParticipants,
                 // A print-only exam has no link to close; otherwise the end
                 // time stays as set from the exams list.
                 'link_expires_at' => $deliveryMode->includesOnline() ? $exam->link_expires_at : null,
@@ -194,6 +200,43 @@ class TeacherExamBuilder
         }
 
         return $questions;
+    }
+
+    /**
+     * What the teacher's plans have to allow for this exam: its class and
+     * subject, the way it is taken (online needs the share-link feature,
+     * offline the print one), and the difficulty of every question on it.
+     * A new exam is also counted against the grant that allows it.
+     *
+     * @param  Collection<int, Question>  $questions
+     *
+     * @throws ValidationException
+     */
+    private function authorizedGrant(User $teacher, ClassSubject $classSubject, ExamDeliveryMode $deliveryMode, Collection $questions, bool $countsAgainstLimits): PlanGrant
+    {
+        try {
+            return $this->subscriptionLimits->authorize(
+                $teacher,
+                $classSubject,
+                $deliveryMode->requiredFeatures(),
+                $questions->pluck('difficulty')->unique()->values()->all(),
+                $countsAgainstLimits,
+            );
+        } catch (ValidationException $exception) {
+            $this->fail($exception->getMessage());
+        }
+    }
+
+    /**
+     * What a wrong answer costs: only on an exam taken online (a printed
+     * paper is marked by hand), and only a positive amount — anything else
+     * means no negative marking.
+     */
+    private function negativeMarksFor(ExamDeliveryMode $deliveryMode, ?float $negativeMarks): ?float
+    {
+        return $deliveryMode->includesOnline() && $negativeMarks !== null && $negativeMarks > 0
+            ? round($negativeMarks, 2)
+            : null;
     }
 
     /**

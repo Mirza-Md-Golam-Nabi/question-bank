@@ -35,7 +35,8 @@ boards ── board_question_papers ─┬─ board_mcq_questions
 | `status` | `UserStatus`; ডিফল্ট `active` |
 | `phone`, `phone_verified_at` | প্রোফাইলে দেওয়া ফোন নম্বর |
 | `referral_code` (unique, nullable) | নিজের কোড; প্রথমবার চাওয়ার সময় তৈরি হয় |
-| `referred_by_id` → `users` | যে refer করেছে |
+| `referred_by_id` → `users` | Teacher-কে যে refer করেছে (স্থায়ী); student-এর referrer `student_referrals`-এ |
+| `academic_class_id` → `academic_classes` (nullable) | Student-এর শ্রেণি; self-practice ও কেনার শুরু এখান থেকে |
 
 Role-এর নাম `spatie/laravel-permission`-এর টেবিলেও (`roles`, `model_has_roles` ইত্যাদি) থাকে; `RoleSeeder` সেগুলো তৈরি করে।
 
@@ -52,6 +53,8 @@ Suspended Teacher/Staff-এর একাউন্ট ফেরত চাওয�
 | `class_subjects` | `academic_class_id`, `subject_id`, `order_index`; unique(class, subject) |
 | `chapters` | `class_subject_id`, `name`, `order_index` |
 | `topics` | `chapter_id`, `name`, `order_index` |
+
+লোকালে শুরু করার শ্রেণি ও বিষয়: `AcademicClassSeeder`, তারপর `SubjectSeeder` — দুটোই শুধু `APP_ENV=local`-এ চলে, লাইভে কিছু করে না। `SubjectSeeder` প্রতিটা বিষয়ের পাশে লেখা শ্রেণিগুলোতে তাকে assign করে (`class_subjects`, তালিকার ক্রমে); আবার চালালে আগের assign (Admin-এর করা হলেও) যেমন আছে তেমন থাকে। লাইভে শ্রেণিতে বিষয় যোগ করেন Admin।
 
 Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত, `subjects`-এর সাথে না: একই subject ভিন্ন class-এ ভিন্ন chapter রাখে।
 
@@ -89,7 +92,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 
 | টেবিল | কলাম |
 |---|---|
-| `boards` | `name`, `short_name`, `order_index` |
+| `boards` | `name`, `short_name`, `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন), `order_index` |
 | `board_question_papers` | `board_id`, `class_subject_id`, `year`, `status`, `created_by`, `approved_by`, `rejection_reason`; unique(board, class_subject, year) |
 | `board_mcq_questions` | `board_question_paper_id`, `question_text`, `question_image`, `options`, `marks`, `order_index` |
 | `board_cq_questions` | `board_question_paper_id`, `question_text`, `question_image`, `marks`, `order_index` |
@@ -104,10 +107,13 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | কলাম | টীকা |
 |---|---|
 | `title`, `created_by` | Teacher-এর পরীক্ষায় Teacher, self-practice-এ student |
+| `subscription_id` → `subscriptions` (nullable) | কোন subscription-এর সীমায় গোনা হয়েছে; ফাঁকা = ফ্রি plan |
+| `negative_marks` (nullable) | প্রতি ভুল MCQ উত্তরে কাটা নম্বর; ফাঁকা = নেগেটিভ মার্কিং নেই (শুধু অনলাইনে নেওয়া পরীক্ষায়) |
+| `max_participants` (nullable) | সর্বোচ্চ কতজন পরীক্ষাটা শুরু করতে পারে — সেভের সময় Teacher-এর plan থেকে; ফাঁকা = সীমা নেই |
 | `exam_type` | `teacher_exam` / `self_practice` |
 | `generation_mode` | `manual` / `auto` / `mistakes` |
 | `delivery_mode` | `online` / `offline` / `both` |
-| `subject_id`, `class_subject_id` (nullable) | পুরনো পরীক্ষায় `class_subject_id` ফাঁকা থাকতে পারে |
+| `subject_id`, `class_subject_id` (nullable) | পুরনো পরীক্ষায় `class_subject_id` ফাঁকা থাকতে পারে; নতুন self-practice-এও এখন থাকে |
 | `duration_minutes`, `start_time`, `end_time` | |
 | `total_marks` | অনলাইনে নেওয়া পরীক্ষায় শুধু অনলাইনের প্রশ্নগুলোর; `recalculateTotalMarks()` বসায় |
 | `status` | `draft` / `published` / … |
@@ -149,17 +155,22 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 
 | টেবিল | কলাম |
 |---|---|
-| `subscription_plans` | `name`, `target_role` (`teacher`/`student`), `price`, `billing_cycle`, `monthly_exam_limit` (null = সীমাহীন), `is_default_free` |
-| `subscriptions` | `user_id`, `plan_id`, `status`, `starts_at`, `ends_at`, `auto_renew` |
+| `subscription_plans` | `name`, `target_role` (`teacher`/`student`), `price`, `duration_unit` (`days`/`months`/`years`/`until_date`/`unlimited`), `duration_length`, `ends_on`, `conditions` (JSON, শর্তের তালিকা — [08-billing.md](08-billing.md)), `is_default_free`, `is_trial`, `is_active` |
+| `subscriptions` | `user_id`, `plan_id`, `conditions` (কেনার সময়ের শর্তের কপি), `selections` (ক্রেতার বাছাই করা `class_ids`/`subject_ids`), `status`, `starts_at`, `ends_at`, `auto_renew` |
 | `payments` | নিচে |
-| `wallet_transactions` | `user_id`, `type`, `amount`, `payment_id`, `expires_at` — শুধু যোগ হয়, কখনো বদলায় না |
-| `referral_rewards` | `referrer_id`, `payment_id` (unique), `amount`, `matures_at`, `expires_at`, `cancelled_at`, `payout_id` |
+| `wallet_transactions` | `user_id`, `type`, `amount`, `payment_id`, `withdrawal_id`, `expires_at` — শুধু যোগ হয়, কখনো বদলায় না |
+| `referral_rewards` | `referrer_id`, `payment_id` (unique), `amount`, `percent` (দেওয়ার মুহূর্তের শতাংশ), `matures_at`, `expires_at` (আর বসানো হয় না), `cancelled_at`, `payout_id` |
+| `student_referrals` | `student_id`, `referrer_id`, `source` (`code`/`link`/`exam`), `exam_id`, `starts_at`, `changeable_until` (নিজে লেখা কোড এই পর্যন্ত বদলানো যায়), `ends_at` — একজন student একবারে একটা চালু; শেষ হলে মোছা হয় না |
+| `subscription_members` | `subscription_id`, `email` (সদস্যের Google email; একাউন্ট খোলার আগেও যোগ করা যায়), `removed_at` — group plan-এর অন্য সদস্যরা; মোছা হয় না, শুধু চিহ্নিত |
+| `withdrawals` | `user_id` (Teacher বা Student), `amount`, `provider`, `account_number` (`encrypted`), `number_used_by_referred_buyer` (জালিয়াতির সংকেত), `status` (`requested`/`paid`/`rejected`), `processed_by`, `processed_at`, `transaction_id`, `note` |
 
 ### `payments`
 
 | কলাম | টীকা |
 |---|---|
 | `user_id`, `plan_id`, `subscription_id` | |
+| `referrer_id`, `student_referral_id` | কেনার মুহূর্তে ক্রেতার referrer (ও student হলে কোন referral-এর অধীনে) — reward ও রিপোর্ট এখান থেকে |
+| `selections` | কেনার সময় ক্রেতা যে শ্রেণি/বিষয় বেছেছে; approve হলে subscription-এ যায় |
 | `list_price`, `discount_amount`, `wallet_amount`, `amount` | তালিকার দাম থেকে discount ও wallet বাদ দিয়ে `amount` = নগদে দেওয়া টাকা |
 | `gateway`, `gateway_transaction_id` (unique) | এখন `manual`; transaction id দুইবার ব্যবহার করা যায় না |
 | `payer_provider`, `payer_number` | কোন মাধ্যম ও নম্বর থেকে পাঠানো |

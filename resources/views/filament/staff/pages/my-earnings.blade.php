@@ -79,30 +79,20 @@
             </span>
         </x-slot>
 
-        <table class="fi-ta-table w-full text-start [&_*]:text-xs! lg:[&_*]:text-sm!">
-            <thead>
-                <tr>
-                    <th class="p-2 text-start">{{ __('Class') }}</th>
-                    <th class="p-2 text-start">{{ __('Subject') }}</th>
-                    <th class="p-2 text-center">{{ __('Approved questions') }}</th>
-                    <th class="p-2 text-center">{{ __('Earned') }}</th>
-                </tr>
-            </thead>
-            <tbody>
+        <x-data-table compact :columns="[__('Class') => 'start', __('Subject') => 'start', __('Approved questions') => 'center', __('Earned') => 'center']">
                 @forelse ($this->subjectBreakdown() as $row)
                     <tr>
-                        <td class="p-2">{{ $row['class'] }}</td>
-                        <td class="p-2">{{ $row['subject'] }}</td>
-                        <td class="p-2 text-center">{{ $row['count'] }}</td>
-                        <td class="p-2 text-center">৳{{ number_format($row['total'], 2) }}</td>
+                        <td>{{ $row['class'] }}</td>
+                        <td>{{ $row['subject'] }}</td>
+                        <td class="text-center">{{ $row['count'] }}</td>
+                        <td class="text-center">৳{{ number_format($row['total'], 2) }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td class="p-2" colspan="4">{{ __('No earnings yet.') }}</td>
+                        <td colspan="4">{{ __('No earnings yet.') }}</td>
                     </tr>
                 @endforelse
-            </tbody>
-        </table>
+        </x-data-table>
     </x-filament::section>
 
     @php $referralRewards = $this->referralRewardSummary(); @endphp
@@ -113,10 +103,9 @@
 
             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 {{ __('Paid together with your question earnings once the refund period has passed.') }}
-                <x-filament::link :href="\App\Filament\Staff\Pages\MyProfile::getUrl(panel: 'staff')" wire:navigate>
-                    {{ __('See the details') }}
-                </x-filament::link>
             </p>
+
+            <x-referral-rewards-table :rewards="$this->referralRewards()" class="mt-3" />
         </x-filament::section>
     @endif
 

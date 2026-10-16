@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\WalletTransactionType;
-use App\Models\BillingSetting;
 use App\Models\ReferralReward;
 use App\Models\User;
 use App\Models\WalletTransaction;
@@ -89,14 +88,12 @@ it('spends the credit that came first', function () {
     expect($this->wallet->balanceFor($student))->toBe(100.0);
 });
 
-it('gives returned credit the expiry the admin has set', function () {
-    $this->travelTo('2026-01-15 10:00:00');
-    BillingSetting::create(['credit_expiry_months' => 6]);
-    $student = User::factory()->student()->create();
+it('never gives wallet money an expiry date, since it can be taken out as cash', function () {
+    $teacher = User::factory()->teacher()->create();
 
-    $transaction = $this->wallet->credit($student, 50, WalletTransactionType::PurchaseReturn);
+    $transaction = $this->wallet->credit($teacher, 50, WalletTransactionType::PurchaseReturn);
 
-    expect($transaction->expires_at->toDateString())->toBe('2026-07-15');
+    expect($transaction->expires_at)->toBeNull();
 });
 
 it('gives credit that never expires when the admin set no expiry', function () {

@@ -4,17 +4,13 @@ namespace App\Filament\Teacher\Resources\Exams;
 
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
-use App\Filament\Teacher\Resources\Exams\Pages\CreateExam;
-use App\Filament\Teacher\Resources\Exams\Pages\EditExam;
 use App\Filament\Teacher\Resources\Exams\Pages\ExamQuestionAnalysis;
 use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
 use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
-use App\Filament\Teacher\Resources\Exams\Schemas\ExamForm;
 use App\Filament\Teacher\Resources\Exams\Tables\ExamsTable;
 use App\Models\Exam;
 use BackedEnum;
 use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,14 +25,14 @@ class ExamResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Exams;
 
+    /**
+     * An exam is created and edited only on the question picker
+     * (SelectQuestions → TeacherExamBuilder), where its questions and the
+     * teacher's plan are checked — so this resource has no form pages.
+     */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->where('created_by', auth()->id());
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return ExamForm::configure($schema);
     }
 
     public static function table(Table $table): Table
@@ -48,8 +44,6 @@ class ExamResource extends Resource
     {
         return [
             'index' => ListExams::route('/'),
-            'create' => CreateExam::route('/create'),
-            'edit' => EditExam::route('/{record}/edit'),
             'results' => ExamResults::route('/{record}/results'),
             'question-analysis' => ExamQuestionAnalysis::route('/{record}/question-analysis'),
         ];

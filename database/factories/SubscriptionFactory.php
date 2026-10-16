@@ -20,6 +20,9 @@ class SubscriptionFactory extends Factory
         return [
             'user_id' => User::factory()->teacher(),
             'plan_id' => SubscriptionPlan::factory(),
+            // As a purchase does: the plan's conditions as they are now.
+            'conditions' => fn (array $attributes) => SubscriptionPlan::find($attributes['plan_id'])?->conditions ?? [],
+            'selections' => [],
             'status' => SubscriptionStatus::Active,
             'starts_at' => now()->subDay(),
             'ends_at' => null,

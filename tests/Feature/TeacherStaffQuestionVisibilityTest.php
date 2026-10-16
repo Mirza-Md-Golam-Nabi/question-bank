@@ -40,6 +40,7 @@ it('lists only a teacher\'s own questions under "My questions", whatever their s
 
 it('still offers a teacher other people\'s approved questions on the Select questions page', function () {
     $teacherA = User::factory()->teacher()->create();
+    subscribeToEverything($teacherA);
     $teacherB = User::factory()->teacher()->create();
 
     $this->actingAs($teacherB);

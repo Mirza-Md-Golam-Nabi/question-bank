@@ -19,13 +19,41 @@
 
 | সেটিং | কলাম | ডিফল্ট | কাজ |
 |---|---|---|---|
-| Referral চালু | `referral_enabled` | বন্ধ | বন্ধ থাকলে কোড দেওয়া, discount ও reward কিছুই হয় না |
-| Teacher/Student referrer-এর reward (%) | `referrer_reward_percent` | ০ | নতুন গ্রাহকের প্রথম কেনার নগদ অংশের এত শতাংশ, wallet credit হিসেবে |
-| Staff referrer-এর reward (%) | `staff_reward_percent` | ০ | একই, কিন্তু নগদে, payout-এর সাথে |
-| নতুন গ্রাহকের discount (%) | `referee_discount_percent` | ০ | refer হয়ে আসা গ্রাহকের প্রথম কেনায় |
-| Wallet credit-এর মেয়াদ (মাস) | `credit_expiry_months` | ফাঁকা | ফাঁকা = মেয়াদ নেই |
+| Referral চালু | `referral_enabled` | বন্ধ | বন্ধ থাকলে কোড দেওয়া, পরীক্ষার লিংকে referral, discount ও reward কিছুই হয় না |
+| Teacher-এর কমিশন (%) | `teacher_reward_percent` | ০ | রেফার করা ক্রেতার নগদ অংশের এত শতাংশ; শুধু রেফারারের পেইড subscription চালু থাকলে; wallet-এ, তোলা যায় |
+| Student-এর কমিশন (%) | `student_reward_percent` | ০ | একই, Student রেফারারের জন্য |
+| Staff referrer-এর reward (%) | `staff_reward_percent` | ০ | একই, নগদে, payout-এর সাথে (subscription-এর শর্ত নেই) |
+| শুধু প্রথম কেনায় reward | `commission_first_purchase_only` | বন্ধ | বন্ধ: referral চলাকালীন student-এর প্রতিটা কেনায়; চালু: ওই referral-এর প্রথম কেনায় শুধু। রেফার করা Teacher-এর ক্ষেত্রে সবসময় শুধু প্রথম কেনায়। |
+| রেফার করা ক্রেতার discount (%) | `referee_discount_percent` | ০ | referral চলাকালীন student-এর প্রতিটা কেনায়, আর রেফার করা Teacher-এর প্রথম কেনায়। ০ = বন্ধ। |
+| Student একজন referrer-এর অধীনে থাকে (দিন) | `referral_lock_days` | ৯০ | সেট হওয়ার দিন থেকে; এরপর নিজে থেকেই শেষ |
+| লেখা কোড বদলানো যায় (দিন) | `referral_change_days` | ১ | ০ = বদলানো যায় না; পরীক্ষার লিংকে সেট হলে সাথে সাথে লক |
 
-Reward-এর পরিমাণ পেমেন্ট approve হওয়ার মুহূর্তের শতাংশে স্থির হয়; পরে বদলালে পুরনো reward বদলায় না।
+Reward-এর পরিমাণ পেমেন্ট approve হওয়ার মুহূর্তের শতাংশে স্থির হয় (শতাংশটাও reward-এ লেখা থাকে); পরে বদলালে পুরনো reward বদলায় না। Wallet-এর টাকার কোনো মেয়াদ নেই।
+
+## কমিশন তোলা
+
+| সেটিং | কলাম | ডিফল্ট | কাজ |
+|---|---|---|---|
+| Teacher-এর wallet-এ সবসময় থাকবে (৳) | `teacher_reserve_amount` | ০ | এটুকু শুধু নিজের পরের subscription-এ খরচ হয়, তোলা যায় না |
+| Teacher-এর সর্বনিম্ন উত্তোলন (৳) | `teacher_min_withdrawal` | ০ | এর কম request করা যায় না |
+| Student-এর wallet-এ সবসময় থাকবে (৳) | `student_reserve_amount` | ০ | একই, Student-এর জন্য |
+| Student-এর সর্বনিম্ন উত্তোলন (৳) | `student_min_withdrawal` | ০ | একই, Student-এর জন্য |
+
+Request দেখা ও পরিশোধ: `WithdrawalResource` (Admin → Payroll → Withdrawals)।
+
+## Group plan ও ডিভাইস
+
+| সেটিং | কলাম | ডিফল্ট | কাজ |
+|---|---|---|---|
+| Group plan থেকে কাউকে সরানো যায় প্রতি (দিনে একবার) | `group_member_change_days` | ৩০ | ক্রেতা এত দিনে একবার সদস্য সরাতে পারেন |
+| Teacher-প্রতি ডিভাইস | `teacher_device_limit` | ৩ | একসাথে কয়টা ডিভাইসে লগইন; ০ = সীমা নেই |
+| Student-প্রতি ডিভাইস | `student_device_limit` | ২ | একই |
+
+## নেগেটিভ মার্কিং
+
+| সেটিং | কলাম | ডিফল্ট | কাজ |
+|---|---|---|---|
+| প্রতি ভুল উত্তরে কাটা নম্বর (শুরুর মান) | `default_negative_marks` | ০.২৫ | অনলাইন পরীক্ষা সেভের সময় Teacher-এর ঘরে আগে থেকে বসানো; Teacher বদলাতে পারেন |
 
 ## Refund
 
@@ -69,7 +97,8 @@ Reward-এর পরিমাণ পেমেন্ট approve হওয়া�
 
 | কী | কোথায় |
 |---|---|
-| Plan, দাম, মাসিক লিমিট, ডিফল্ট ফ্রি plan | `SubscriptionPlanResource` |
+| Plan, দাম, মেয়াদ, শর্ত (শ্রেণি, বিষয়, difficulty, সুবিধা, দিনের/মাসের সীমা, প্রতি পরীক্ষায় অংশগ্রহণকারী, আসন), ফ্রি plan, ট্রায়াল — [08-billing.md](08-billing.md) | `SubscriptionPlanResource` |
+| প্রশ্নপত্রের উৎস ও ধরন (বোর্ড, মেডিকেল, বিশ্ববিদ্যালয়, চাকরি, স্কুল-টেস্ট) | `BoardResource` ("Paper Sources") |
 | বিষয়ভিত্তিক ও ডিফল্ট প্রশ্নের rate | `QuestionRateResource` |
 | Class, subject, chapter, topic | প্রশ্নের কার্ড পেজ, `SubjectResource` |
 | Board | `BoardResource` |

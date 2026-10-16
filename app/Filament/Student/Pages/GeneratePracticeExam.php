@@ -5,6 +5,7 @@ namespace App\Filament\Student\Pages;
 use App\Enums\Difficulty;
 use App\Filament\Support\Pages\SelfPracticeExamPage;
 use App\Models\Chapter;
+use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
 use App\Models\User;
 use App\Services\SelfPracticeExamService;
@@ -28,18 +29,21 @@ class GeneratePracticeExam extends SelfPracticeExamPage
     {
         return $schema
             ->components([
-                $this->subjectSelect(),
+                $this->subjectSelect(fn ($set) => $set('chapter_ids', [])),
                 Select::make('chapter_ids')
                     ->label(__('Chapters (optional — leave blank for all)'))
                     ->multiple()
-                    ->options(fn (Get $get) => $get('subject_id')
+                    ->options(fn (Get $get) => $this->classSubject($get('class_subject_id'))
                         ? Chapter::query()
-                            ->whereHas('classSubject', fn ($q) => $q->where('subject_id', $get('subject_id')))
+                            ->where('class_subject_id', $get('class_subject_id'))
                             ->ordered()
                             ->pluck('name', 'id')
                         : []),
+                // Only what the student's plan allows in the chosen subject.
                 Select::make('difficulty')
-                    ->options(Difficulty::class),
+                    ->options(fn (Get $get): array => collect($this->allowedDifficulties($get('class_subject_id')))
+                        ->mapWithKeys(fn (Difficulty $difficulty): array => [$difficulty->value => $difficulty->getLabel()])
+                        ->all()),
                 TextInput::make('question_count')
                     ->numeric()
                     ->minValue(1)
@@ -55,14 +59,14 @@ class GeneratePracticeExam extends SelfPracticeExamPage
         return __('Generate exam');
     }
 
-    protected function createAttempt(User $student, array $data): ExamAttempt
+    protected function createAttempt(User $student, ClassSubject $classSubject, array $data): ExamAttempt
     {
         return app(SelfPracticeExamService::class)->generateAuto(
             $student,
-            $data['subject_id'],
+            $classSubject,
             $this->difficultyFrom($data['difficulty'] ?? null),
-            $data['question_count'],
-            $data['chapter_ids'] ?: null,
+            (int) $data['question_count'],
+            ($data['chapter_ids'] ?? []) ?: null,
         );
     }
 

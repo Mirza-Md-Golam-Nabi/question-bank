@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
 use App\Filament\Pages\BillingSettings;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Teacher\Pages\MySubscription as TeacherMySubscription;
@@ -117,11 +118,13 @@ it('lets an admin change the billing settings', function () {
     livewire(BillingSettings::class)
         ->fillForm([
             'referral_enabled' => true,
-            'referrer_reward_percent' => 25,
+            'student_reward_percent' => 25,
             'staff_reward_percent' => 12,
             'referee_discount_percent' => 15,
             'refund_window_days' => 7,
-            'credit_expiry_months' => 12,
+            'teacher_reward_percent' => 30,
+            'student_reserve_amount' => 79,
+            'student_min_withdrawal' => 50,
             'phone_bonus_exams' => 2,
             'bkash_number' => '01700000000',
             'question_import_max' => 50,
@@ -132,11 +135,13 @@ it('lets an admin change the billing settings', function () {
 
     $settings = BillingSetting::current();
     expect($settings->referral_enabled)->toBeTrue()
-        ->and($settings->referrer_reward_percent)->toBe(25.0)
+        ->and($settings->student_reward_percent)->toBe(25.0)
         ->and($settings->staff_reward_percent)->toBe(12.0)
         ->and($settings->refund_window_days)->toBe(7)
         ->and($settings->referee_discount_percent)->toBe(15.0)
-        ->and($settings->credit_expiry_months)->toBe(12)
+        ->and($settings->teacher_reward_percent)->toBe(30.0)
+        ->and($settings->reserveFor(UserRole::Student))->toBe(79.0)
+        ->and($settings->minimumWithdrawalFor(UserRole::Student))->toBe(50.0)
         ->and($settings->phone_bonus_exams)->toBe(2)
         ->and($settings->question_import_max)->toBe(50)
         ->and($settings->receivingNumbers())->toBe(['bkash' => '01700000000']);
@@ -147,9 +152,9 @@ it('refuses a reward percentage above one hundred', function () {
     $this->actingAs(User::factory()->admin()->create());
 
     livewire(BillingSettings::class)
-        ->fillForm(['referrer_reward_percent' => 150])
+        ->fillForm(['student_reward_percent' => 150])
         ->call('save')
-        ->assertHasFormErrors(['referrer_reward_percent']);
+        ->assertHasFormErrors(['student_reward_percent']);
 });
 
 it('keeps the billing settings page away from teachers', function () {

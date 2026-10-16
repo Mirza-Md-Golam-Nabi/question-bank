@@ -10,6 +10,7 @@ use Database\Seeders\RoleSeeder;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->teacher = User::factory()->teacher()->create();
+    $this->subscription = subscribeToEverything($this->teacher);
     $this->actingAs($this->teacher);
 
     $this->examWith = function (ExamDeliveryMode $mode): Exam {

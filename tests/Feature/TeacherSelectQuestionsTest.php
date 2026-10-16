@@ -26,6 +26,7 @@ use function Pest\Livewire\livewire;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->teacher = User::factory()->teacher()->create();
+    $this->subscription = subscribeToEverything($this->teacher);
     $this->actingAs($this->teacher);
     Filament::setCurrentPanel(Filament::getPanel('teacher'));
 
@@ -238,9 +239,10 @@ it('refuses to save cq questions into an online exam', function () {
 });
 
 it('blocks saving once the monthly exam limit is reached', function () {
-    $plan = SubscriptionPlan::factory()->create(['monthly_exam_limit' => 1]);
-    Subscription::factory()->create(['user_id' => $this->teacher->id, 'plan_id' => $plan->id]);
-    Exam::factory()->create(['created_by' => $this->teacher->id]);
+    $this->subscription->delete();
+    $plan = SubscriptionPlan::factory()->monthlyLimit(1)->create();
+    $subscription = Subscription::factory()->create(['user_id' => $this->teacher->id, 'plan_id' => $plan->id]);
+    Exam::factory()->create(['created_by' => $this->teacher->id, 'subscription_id' => $subscription->id]);
 
     $question = ($this->question)();
 
@@ -252,8 +254,9 @@ it('blocks saving once the monthly exam limit is reached', function () {
     expect(Exam::count())->toBe(1);
 });
 
-it('lets the exam that used the last free slot still be published, but not one beyond the limit', function () {
-    $plan = SubscriptionPlan::factory()->create(['monthly_exam_limit' => 1]);
+it('lets the exam that used the last slot of the month still be published', function () {
+    $this->subscription->delete();
+    $plan = SubscriptionPlan::factory()->monthlyLimit(1)->create();
     Subscription::factory()->create(['user_id' => $this->teacher->id, 'plan_id' => $plan->id]);
 
     $question = ($this->question)(['question_type' => QuestionType::Mcq]);
@@ -263,11 +266,8 @@ it('lets the exam that used the last free slot still be published, but not one b
         ->callAction('saveExam', data: ['title' => 'Quiz', 'duration_minutes' => 30], arguments: ['ids' => [$question->id]])
         ->assertHasNoActionErrors();
 
-    $withinLimit = Exam::sole();
-    $beyondLimit = Exam::factory()->create(['created_by' => $this->teacher->id]);
-
-    expect($this->teacher->can('publish', $withinLimit))->toBeTrue();
-    expect($this->teacher->can('publish', $beyondLimit))->toBeFalse();
+    // Counted when it was saved, so publishing it doesn't need another slot.
+    expect($this->teacher->can('publish', Exam::sole()))->toBeTrue();
 });
 
 it('offers publish only for exams taken online and print only for exams taken offline', function () {
@@ -394,8 +394,10 @@ describe('editing an exam in the picker', function () {
     });
 
     it('does not count an edit against the monthly limit again', function () {
-        $plan = SubscriptionPlan::factory()->create(['monthly_exam_limit' => 1]);
-        Subscription::factory()->create(['user_id' => $this->teacher->id, 'plan_id' => $plan->id]);
+        $this->subscription->delete();
+        $plan = SubscriptionPlan::factory()->monthlyLimit(1)->create();
+        $subscription = Subscription::factory()->create(['user_id' => $this->teacher->id, 'plan_id' => $plan->id]);
+        $this->exam->update(['subscription_id' => $subscription->id]);
 
         ($this->editPage)()
             ->callAction('saveExam', data: ['title' => 'Still allowed', 'duration_minutes' => 30], arguments: ['ids' => [$this->kept->id]])

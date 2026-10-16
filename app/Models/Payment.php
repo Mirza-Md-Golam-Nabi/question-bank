@@ -21,7 +21,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * SubscriptionPurchaseService (approve / reject / refund).
  */
 #[Fillable([
-    'user_id', 'subscription_id', 'plan_id', 'list_price', 'discount_amount', 'wallet_amount',
+    'user_id', 'subscription_id', 'plan_id', 'referrer_id', 'student_referral_id', 'selections', 'list_price', 'discount_amount', 'wallet_amount',
     'amount', 'gateway', 'gateway_transaction_id', 'payer_provider', 'payer_number', 'status',
     'paid_at', 'reviewed_by', 'reviewed_at', 'refundable_until', 'refunded_at', 'review_note',
 ])]
@@ -35,6 +35,7 @@ class Payment extends Model
             'gateway' => PaymentGateway::class,
             'payer_provider' => MobileBankingProvider::class,
             'status' => PaymentStatus::class,
+            'selections' => 'array',
             'list_price' => 'float',
             'discount_amount' => 'float',
             'wallet_amount' => 'float',
@@ -59,6 +60,23 @@ class Payment extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(SubscriptionPlan::class, 'plan_id');
+    }
+
+    /**
+     * Who the buyer was referred by when the payment was placed — kept on
+     * the payment, since a student's referrer can change later.
+     */
+    public function referrer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referrer_id');
+    }
+
+    /**
+     * The student's referral the payment was made under, if any.
+     */
+    public function studentReferral(): BelongsTo
+    {
+        return $this->belongsTo(StudentReferral::class);
     }
 
     public function reviewedBy(): BelongsTo
@@ -96,9 +114,8 @@ class Payment extends Model
         return $query
             ->whereNotNull($payerNumber)
             ->whereExists(fn (QueryBuilder $referrer) => $referrer
-                ->from('users as buyer')
-                ->join('users as referrer', 'referrer.id', '=', 'buyer.referred_by_id')
-                ->whereColumn('buyer.id', $query->qualifyColumn('user_id'))
+                ->from('users as referrer')
+                ->whereColumn('referrer.id', $query->qualifyColumn('referrer_id'))
                 ->where(fn (QueryBuilder $sameNumber) => $sameNumber
                     ->whereColumn('referrer.phone', $payerNumber)
                     ->orWhereExists(fn (QueryBuilder $theirPayment) => $theirPayment

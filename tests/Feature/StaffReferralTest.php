@@ -26,7 +26,7 @@ it('lets an active staff member refer a new student', function () {
     $student = User::factory()->student()->create();
 
     expect($this->referrals->attach($student, $this->referrals->codeFor($staff)))->toBeTrue();
-    expect($student->refresh()->referred_by_id)->toBe($staff->id);
+    expect($student->studentReferrals()->sole()->referrer_id)->toBe($staff->id);
 });
 
 it('does not accept the code of a staff member who is not active', function (string $state) {
@@ -46,7 +46,7 @@ it('never lets a staff member be the one who is referred', function () {
 });
 
 it('shows an active staff member their code and percentage, without a wallet', function () {
-    BillingSetting::create(['referral_enabled' => true, 'referrer_reward_percent' => 20, 'staff_reward_percent' => 12]);
+    BillingSetting::create(['referral_enabled' => true, 'student_reward_percent' => 20, 'staff_reward_percent' => 12]);
     $staff = User::factory()->staff()->create();
     $this->actingAs($staff);
     Filament::setCurrentPanel(Filament::getPanel('staff'));

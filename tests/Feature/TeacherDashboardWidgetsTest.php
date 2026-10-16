@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
 use App\Filament\Teacher\Widgets\TeacherQuickActionsWidget;
@@ -39,7 +39,7 @@ it('shows an enabled add-question link for an active teacher', function () {
     $html = livewire(TeacherQuickActionsWidget::class)->html();
 
     expect($html)->toContain(QuestionResource::getUrl('index', panel: 'teacher'));
-    expect($html)->toContain(ExamResource::getUrl('create', panel: 'teacher'));
+    expect($html)->toContain(SelectQuestions::getUrl(panel: 'teacher'));
 });
 
 it('hides the add-question link behind a disabled button for a suspended teacher', function () {
@@ -159,16 +159,17 @@ it('shows no active subscription message when the teacher has none', function ()
     $this->actingAs($teacher);
 
     livewire(TeacherSubscriptionWidget::class)
-        ->assertSee('No active subscription');
+        ->assertSee("You don't have an active subscription yet.");
 });
 
 it('shows the active plan and monthly usage for a subscribed teacher', function () {
     $teacher = User::factory()->teacher()->create();
-    $plan = SubscriptionPlan::factory()->create(['name' => 'Pro Plan', 'monthly_exam_limit' => 5]);
-    Subscription::factory()->create(['user_id' => $teacher->id, 'plan_id' => $plan->id]);
+    $plan = SubscriptionPlan::factory()->monthlyLimit(5)->create(['name' => 'Pro Plan']);
+    $subscription = Subscription::factory()->create(['user_id' => $teacher->id, 'plan_id' => $plan->id]);
 
     $this->actingAs($teacher);
-    Exam::factory()->create(['created_by' => $teacher->id]);
+    // Counted against the subscription that allowed it.
+    Exam::factory()->create(['created_by' => $teacher->id, 'subscription_id' => $subscription->id]);
 
     livewire(TeacherSubscriptionWidget::class)
         ->assertSee('Pro Plan')

@@ -22,8 +22,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 #[Fillable([
-    'title', 'created_by', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id',
-    'duration_minutes', 'start_time', 'end_time', 'total_marks', 'status',
+    'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id',
+    'duration_minutes', 'start_time', 'end_time', 'total_marks', 'negative_marks', 'max_participants', 'status',
     'share_token', 'link_expires_at', 'is_link_active', 'answers_released_at', 'answers_release_at',
 ])]
 class Exam extends Model
@@ -55,12 +55,23 @@ class Exam extends Model
             'is_link_active' => 'boolean',
             'answers_released_at' => 'datetime',
             'answers_release_at' => 'datetime',
+            'negative_marks' => 'float',
+            'max_participants' => 'integer',
         ];
     }
 
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The subscription this exam was counted against; none when the free
+     * plan allowed it.
+     */
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(Subscription::class);
     }
 
     public function subject(): BelongsTo
@@ -158,6 +169,16 @@ class Exam extends Model
      * Whether the share link can still be used to start an attempt: not
      * switched off by the teacher and not past its expiry.
      */
+    /**
+     * Whether as many people have started the exam as the teacher's plan
+     * lets sit it — no one new may start then; those already in still can
+     * come back to it.
+     */
+    public function isFull(): bool
+    {
+        return $this->max_participants !== null && $this->attempts()->count() >= $this->max_participants;
+    }
+
     public function isAcceptingAttempts(): bool
     {
         return $this->status === ExamStatus::Published
@@ -175,6 +196,15 @@ class Exam extends Model
      * A self-practice exam belongs to the one student who generated it, so
      * there is nobody to leak the answers to.
      */
+    /**
+     * The marks taken off for each wrong MCQ answer; 0 when the exam has no
+     * negative marking. A blank answer never loses marks.
+     */
+    public function marksLostPerWrongAnswer(): float
+    {
+        return $this->negative_marks !== null && $this->negative_marks > 0 ? $this->negative_marks : 0.0;
+    }
+
     public function showsAnswersToStudents(): bool
     {
         return $this->exam_type === ExamType::SelfPractice

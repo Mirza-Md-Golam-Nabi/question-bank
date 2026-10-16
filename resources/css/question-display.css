@@ -566,3 +566,49 @@
 .qb-answer-bar-part--unanswered {
     background-color: #9ca3af;
 }
+
+/*
+ * The Admin's subscription plans table: rows of the role not chosen in the
+ * All / Student / Teacher tabs (filament/resources/subscription-plans/role-tabs).
+ */
+[data-qb-plan-role='student'] .qb-plan-role-teacher,
+[data-qb-plan-role='teacher'] .qb-plan-role-student {
+    display: none;
+}
+
+/*
+ * <x-data-table>: the plain read-only tables on pages and widgets that
+ * aren't Filament tables (payments, rewards, wallet, payouts, rates…).
+ */
+.qb-data-table {
+    width: 100%;
+    text-align: start;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.qb-data-table th,
+.qb-data-table td {
+    padding: 0.5rem;
+}
+
+.qb-data-table th {
+    text-align: start;
+}
+
+.qb-data-table th.text-center,
+.qb-data-table td.text-center {
+    text-align: center;
+}
+
+.qb-data-table--compact {
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+@media (min-width: 1024px) {
+    .qb-data-table--compact {
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+    }
+}

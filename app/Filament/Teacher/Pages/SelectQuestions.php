@@ -10,11 +10,13 @@ use App\Filament\Support\ContentHierarchySchema;
 use App\Filament\Support\FutureDateTimePicker;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Models\BillingSetting;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\Question;
 use App\Models\Topic;
+use App\Services\SubscriptionLimitService;
 use App\Services\TeacherExamBuilder;
 use App\Services\TeacherQuestionStats;
 use Filament\Actions\Action;
@@ -233,14 +235,15 @@ class SelectQuestions extends Page
                     }),
 
                 Grid::make(['default' => 1, 'sm' => 2, 'lg' => 4])->schema([
-                    ContentHierarchySchema::classSelect()
+                    // Only the classes and subjects the teacher's plans reach.
+                    ContentHierarchySchema::classSelect(fn (): array => $this->accessibleClassSubjectIds)
                         ->afterStateUpdated(function (Set $set): void {
                             $set('class_subject_id', null);
                             $set('chapter_id', null);
                             $set('topic_id', null);
                         }),
 
-                    ContentHierarchySchema::subjectSelect()
+                    ContentHierarchySchema::subjectSelect(fn (): array => $this->accessibleClassSubjectIds)
                         ->afterStateUpdated(function (Set $set): void {
                             $set('chapter_id', null);
                             $set('topic_id', null);
@@ -344,6 +347,34 @@ class SelectQuestions extends Page
         return (bool) ($this->data['most_missed_only'] ?? false);
     }
 
+    /**
+     * The class + subject pairs the teacher's plans reach.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function accessibleClassSubjectIds(): array
+    {
+        return app(SubscriptionLimitService::class)
+            ->constrainToAccessible(ClassSubject::query(), Auth::user())
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Whether any of the teacher's plans lets them build an exam at all —
+     * without one the page sends them to buy a plan.
+     */
+    public function hasAnyPlan(): bool
+    {
+        return $this->accessibleClassSubjectIds !== [];
+    }
+
+    public function subscriptionUrl(): string
+    {
+        return MySubscription::getUrl();
+    }
+
     #[Computed]
     public function classSubject(): ?ClassSubject
     {
@@ -390,10 +421,13 @@ class SelectQuestions extends Page
         $topicId = $type === self::TYPE_CQ ? null : ($this->data['topic_id'] ?? null);
 
         $stats = app(TeacherQuestionStats::class);
+        $difficulties = app(SubscriptionLimitService::class)->allowedDifficultiesFor(auth()->user(), $this->classSubject);
 
         return $stats->addTo(Question::query(), auth()->user())
             ->usableInExamBy(auth()->user())
             ->where('chapter_id', $this->chapter->id)
+            // Only questions of a difficulty the teacher's plan allows.
+            ->when($difficulties !== null, fn (Builder $query) => $query->whereIn('difficulty', $difficulties))
             // Only what this teacher's students have got wrong, worst first.
             ->when($this->showsMostMissedOnly(), fn (Builder $query) => $stats->mostMissedFirst($query))
             ->when($type !== self::TYPE_BOTH, fn (Builder $query) => $query->where('question_type', $type))
@@ -492,9 +526,14 @@ class SelectQuestions extends Page
             // Editing doesn't count again; the exam was counted when first saved.
             ->modalDescription(fn (): ?string => $this->editingExam
                 ? null
-                : __('Saving counts as one exam towards your monthly limit, whether you publish it online or only print it.'))
+                : __("Saving counts as one exam towards your plan's limit, whether you publish it online or only print it."))
             ->modalSubmitActionLabel(fn (): string => $this->editingExam ? __('Save changes') : __('Save exam'))
-            ->fillForm(fn (): array => $this->editingExam?->only(['title', 'duration_minutes']) ?? [])
+            ->fillForm(fn (): array => [
+                'negative_marking' => ($this->editingExam?->marksLostPerWrongAnswer() ?? 0) > 0,
+                // Starts on the Admin's amount; the teacher can change it.
+                'negative_marks' => $this->editingExam?->negative_marks ?: BillingSetting::current()->default_negative_marks,
+                ...$this->editingExam?->only(['title', 'duration_minutes']) ?? [],
+            ])
             ->schema([
                 TextInput::make('title')
                     ->label(__('Exam title'))
@@ -507,6 +546,21 @@ class SelectQuestions extends Page
                     ->minValue(1)
                     ->maxValue(600)
                     ->required(),
+                // Only an exam taken online is marked by the system; a
+                // printed paper is marked by hand.
+                Toggle::make('negative_marking')
+                    ->label(__('Negative marking'))
+                    ->helperText(__('Marks are taken off for each wrong answer online. A blank answer loses nothing, and the total never goes below 0.'))
+                    ->visible(fn (): bool => $this->deliveryMode()->includesOnline())
+                    ->live(),
+                TextInput::make('negative_marks')
+                    ->label(__('Marks taken off per wrong answer'))
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->maxValue(100)
+                    ->step(0.01)
+                    ->visible(fn (Get $get): bool => $this->deliveryMode()->includesOnline() && (bool) $get('negative_marking'))
+                    ->required(fn (Get $get): bool => (bool) $get('negative_marking')),
                 // Optional, and it can be set or changed later from the
                 // exams list — there is no link to close on a print-only exam.
                 // When editing, the end time keeps being managed from the list.
@@ -530,6 +584,7 @@ class SelectQuestions extends Page
                             $arguments['ids'] ?? [],
                             $data['title'],
                             (int) $data['duration_minutes'],
+                            $this->negativeMarksFrom($data),
                         )
                         : $builder->build(
                             Auth::user(),
@@ -539,6 +594,7 @@ class SelectQuestions extends Page
                             $data['title'],
                             (int) $data['duration_minutes'],
                             FutureDateTimePicker::parse($data['link_expires_at'] ?? null),
+                            $this->negativeMarksFrom($data),
                         );
                 } catch (ValidationException $exception) {
                     Notification::make()
@@ -566,6 +622,14 @@ class SelectQuestions extends Page
     public function examsUrl(): string
     {
         return ExamResource::getUrl('index');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function negativeMarksFrom(array $data): ?float
+    {
+        return ($data['negative_marking'] ?? false) ? (float) ($data['negative_marks'] ?? 0) : null;
     }
 
     private function deliveryModeFrom(mixed $state): ExamDeliveryMode

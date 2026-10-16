@@ -39,13 +39,15 @@ CQ কখনো অনলাইনে নেওয়া হয় না, ক�
 
 ## এডিট ও বাতিল
 
-- **এডিট:** একই পেজ (`?exam=`), একই যাচাই। মাসিক লিমিটে আবার গোনা হয় না।
+- **এডিট:** একই পেজ (`?exam=`), একই যাচাই (plan-এর শ্রেণি/বিষয়/সুবিধা/difficulty সহ)। সীমায় আবার গোনা হয় না।
+- **নেগেটিভ মার্কিং:** সেভের modal-এ (শিরোনাম ও সময়ের সাথে) টগল; চালু করলে প্রতি ভুল উত্তরে কাটা নম্বর, শুরুতে Admin-এর মান (`BillingSetting.default_negative_marks`, ডিফল্ট ০.২৫), Teacher বদলাতে পারেন। শুধু অনলাইনে নেওয়া পরীক্ষায় (প্রিন্টের খাতা হাতে দেখা হয়)। খাতার শিরোনামে student-কে জানানো হয় (`<x-exam-heading>`)। কেউ শুরু করার পর বদলানো যায় না (এডিটের নিয়মেই)।
+- পরীক্ষা তৈরি ও এডিটের **একমাত্র** পথ এই পেজ: Teacher-এর `ExamResource`-এ কোনো create/edit ফর্ম-পেজ নেই (ড্যাশবোর্ডের "পরীক্ষা তৈরি করুন" আর "সাম্প্রতিক পরীক্ষা"-র সারিও এখানে আনে)।
 - **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`TeacherExamBuilder::canBeEdited()`), নইলে তার নম্বর আর প্রশ্নপত্র মিলবে না।
 - **পরীক্ষা বাতিল** (`Exam::cancel()`): তখন একমাত্র পথ। সব attempt ও উত্তর স্থায়ীভাবে মুছে পরীক্ষাকে draft-এ ফেরায়; লিংক বন্ধ থাকে; পরে একই লিংকে আবার publish করা যায়। ফেরানো যায় না, তাই confirmation চায় ও log রাখে। ওই খাতাগুলো difficulty-র গণনা থেকেও বাদ যায়।
 
 ## Subscription লিমিট
 
-পরীক্ষা **সেভ করার মুহূর্তে একবার** লিমিটে গোনা হয়, অনলাইনে প্রকাশ হোক বা শুধু প্রিন্ট। পরে publish করার সময় দেখা হয় এই পরীক্ষাটা ওই মাসের অনুমোদিতগুলোর মধ্যে ছিল কি না (`ExamPolicy::publish()` → `SubscriptionLimitService::isWithinMonthlyAllowance()`)। বিস্তারিত: [08-billing.md](08-billing.md)।
+পরীক্ষা **সেভ করার মুহূর্তে একবার** plan-এর সীমায় গোনা হয় (যে subscription অনুমতি দিল তার ঘরে — `exams.subscription_id`), অনলাইনে প্রকাশ হোক বা শুধু প্রিন্ট। সেভের সময় plan-এ পরীক্ষার শ্রেণি+বিষয়, ধরন অনুযায়ী সুবিধা (অনলাইন → শেয়ার-লিংক, অফলাইন → প্রিন্ট) আর প্রতিটা প্রশ্নের difficulty থাকতে হয়। পরে publish বা প্রিন্টের সময় শুধু দেখা হয় plan-এ এখনো সেই শ্রেণি+বিষয় ও সুবিধা আছে কি না (`ExamPolicy::publish()`/`print()` → `SubscriptionLimitService::allows()`), আবার গোনা হয় না। "প্রশ্ন বাছাই" পেজের শ্রেণি/বিষয়/প্রশ্নের তালিকাও plan অনুযায়ী ছাঁকা। বিস্তারিত: [08-billing.md](08-billing.md)।
 
 ## পরীক্ষার তালিকায় Teacher-এর কাজ
 
@@ -81,7 +83,7 @@ CQ কখনো অনলাইনে নেওয়া হয় না, ক�
 
 - আগেই জমা দিয়ে থাকলে → সেই attempt, ফলাফল দেখানোর জন্য।
 - চলমান attempt থাকলে → সেটাই, একই ঘড়ি ও সেভ করা উত্তরসহ; সময় শেষ হয়ে গিয়ে থাকলে যা সেভ ছিল তা-ই দিয়ে জমা হয়ে যায়।
-- নইলে → নতুন attempt।
+- নইলে → নতুন attempt — তবে পরীক্ষাটা **পূর্ণ** হলে না (`Exam::isFull()`: `max_participants` জন আগেই শুরু করেছে)। তখন Guest শেয়ার-পেজে, লগইন করা student লিংক বা "পরীক্ষায় যোগ দিন" পেজে বার্তা দেখে। আগে যারা শুরু করেছে তারা ফিরতে পারে। সংখ্যাটা Teacher-এর plan-এর শর্ত থেকে ([08-billing.md](08-billing.md)); "পরীক্ষা বাতিল" attempt মুছে জায়গা খালি করে।
 
 অর্থাৎ একজন একটা পরীক্ষা একবারই দেয়, একটাই ঘড়িতে; অন্য ডিভাইস থেকে ঢুকলেও নতুন করে শুরু হয় না। দুটো "শুরু" একসাথে এলে পরীক্ষার সারি lock করে পালা করানো হয়।
 
@@ -95,8 +97,8 @@ Guest ও লগইন করা student হুবহু একই খাতা 
 
 `ExamAttempt::submitAndAutoGrade()`:
 
-1. প্রতিটা MCQ উত্তর সঠিক অপশনের সাথে মিলিয়ে `is_correct` ও `obtained_marks` বসে।
-2. `total_score` = প্রাপ্ত নম্বরের যোগফল; status `submitted`।
+1. প্রতিটা MCQ উত্তর সঠিক অপশনের সাথে মিলিয়ে `is_correct` ও `obtained_marks` বসে। **নেগেটিভ মার্কিং** থাকলে (`exams.negative_marks`) ভুল উত্তরে ততটা কাটা যায় (`obtained_marks` ঋণাত্মক); ফাঁকা উত্তরে কিছু কাটে না।
+2. `total_score` = প্রাপ্ত নম্বরের যোগফল, কখনো ০-এর নিচে না; status `submitted`।
 3. `QuestionDifficultyTracker` — প্রশ্নের difficulty-র গণনা (শুধু Teacher-এর পরীক্ষা)।
 4. `recordStatistics()` — student-এর ভুলের তালিকা আর Teacher-এর পরিসংখ্যান।
 
@@ -136,9 +138,8 @@ Self-practice-এ উত্তর সাথে সাথে দেখায়�
 | ফলাফল | `app/Services/ExamResultSheet.php` |
 | প্রিন্ট | `app/Http/Controllers/TeacherExamPrintController.php`, `TeacherExamResultsPrintController.php` |
 
-টেস্ট: `TeacherSelectQuestionsTest`, `TeacherExamResourceTest`, `TeacherOwnPendingQuestionsOnExamTest`, `TeacherQuestionStatsTest`, `ExamModelTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `GuestExamFlowTest`, `StudentExamFlowTest`, `TeacherExamResultsTest`, `TeacherExamPrintTest`, `QueryCountTest`।
+টেস্ট: `TeacherSelectQuestionsTest`, `TeacherExamResourceTest`, `TeacherOwnPendingQuestionsOnExamTest`, `TeacherQuestionStatsTest`, `ExamModelTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `GuestExamFlowTest`, `StudentExamFlowTest`, `TeacherExamResultsTest`, `TeacherExamPrintTest`, `QueryCountTest`, `SubscriptionPlanConditionsTest`।
 
 ## জানা ফাঁক
 
 - CLAUDE.md নিয়ম ২.৪ বলে পরীক্ষায় প্রশ্ন যুক্ত করার সময় model-level Observer-এও যাচাই থাকবে। কোডে সেই Observer নেই; যাচাই আছে `TeacherExamBuilder`, `SelfPracticeExamService` আর ফর্মের relationship-এ। সরাসরি Eloquent দিয়ে `$exam->questions()->attach()` করলে কিছু আটকায় না।
-- Teacher প্যানেলে পুরনো `CreateExam`/`EditExam` ফর্ম-পেজ এখনো আছে (`ExamFormSchema`), "প্রশ্ন বাছাই" পেজের পাশাপাশি।

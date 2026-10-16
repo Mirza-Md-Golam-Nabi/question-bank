@@ -7,7 +7,7 @@ use App\Models\BillingSetting;
 use App\Models\Payment;
 use App\Models\ReferralReward;
 use App\Models\StaffPayout;
-use App\Models\Subscription;
+use App\Models\StudentReferral;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Models\WalletTransaction;
@@ -31,7 +31,7 @@ function billingSettings(array $overrides = []): BillingSetting
 {
     return BillingSetting::create([
         'referral_enabled' => true,
-        'referrer_reward_percent' => 20,
+        'student_reward_percent' => 20,
         'staff_reward_percent' => 10,
         'referee_discount_percent' => 10,
         'refund_window_days' => 7,
@@ -41,12 +41,18 @@ function billingSettings(array $overrides = []): BillingSetting
 }
 
 /**
- * A new student who signed up with this referrer's code.
+ * A student under this referrer's referral (from now, for 90 days). A
+ * Teacher or Student referrer is given a paid plan, without which they earn
+ * nothing.
  */
 function referredBy(User $referrer): User
 {
+    if ($referrer->role->holdsWallet() && $referrer->activeSubscriptions()->isEmpty()) {
+        subscribeToEverything($referrer);
+    }
+
     $student = User::factory()->student()->create();
-    $student->forceFill(['referred_by_id' => $referrer->id])->save();
+    StudentReferral::factory()->create(['student_id' => $student->id, 'referrer_id' => $referrer->id]);
 
     return $student;
 }
@@ -75,9 +81,7 @@ it('charges the full price to someone who was not referred', function () {
 
 it('takes the referral discount and then wallet credit off the price', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
-    $student = User::factory()->student()->create();
-    $student->forceFill(['referred_by_id' => $referrer->id])->save();
+    $student = referredBy(User::factory()->student()->create());
     WalletTransaction::factory()->create(['user_id' => $student->id, 'amount' => 50]);
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
 
@@ -87,9 +91,7 @@ it('takes the referral discount and then wallet credit off the price', function 
 
 it('gives no discount while the referral programme is off', function () {
     billingSettings(['referral_enabled' => false]);
-    $referrer = User::factory()->teacher()->create();
-    $student = User::factory()->student()->create();
-    $student->forceFill(['referred_by_id' => $referrer->id])->save();
+    $student = referredBy(User::factory()->student()->create());
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
 
     expect($this->purchases->quote($student, $plan, useWallet: false)['discount'])->toBe(0.0);
@@ -180,7 +182,7 @@ it('starts the subscription and the refund period when the first payment is appr
 
 it('gives the referrer their reward only once the refund period has passed', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
 
     $this->purchases->approve($this->purchases->request(referredBy($referrer), $plan, bkashPayment()), $this->admin);
@@ -195,7 +197,7 @@ it('gives the referrer their reward only once the refund period has passed', fun
 
 it('makes the reward available at once when the admin allows no refunds', function () {
     billingSettings(['refund_window_days' => 0]);
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
 
     $this->purchases->approve($this->purchases->request(referredBy($referrer), $plan, bkashPayment()), $this->admin);
@@ -234,7 +236,7 @@ it('gives no reward to a staff referrer who is not active when the payment is ap
 
 it('does nothing when the same payment is approved a second time', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
     $payment = $this->purchases->request(referredBy($referrer), $plan, bkashPayment());
     $this->purchases->approve($payment, $this->admin);
@@ -242,13 +244,13 @@ it('does nothing when the same payment is approved a second time', function () {
     $approvedAgain = $this->purchases->approve($payment, $this->admin);
 
     expect($approvedAgain)->toBeFalse();
-    expect(Subscription::count())->toBe(1);
+    expect($payment->user->subscriptions()->count())->toBe(1);
     expect(ReferralReward::count())->toBe(1);
 });
 
-it('rewards the referrer for the first purchase only', function () {
+it('gives the discount and rewards the referrer on every purchase under the referral', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $student = referredBy($referrer);
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
     $this->purchases->approve($this->purchases->request($student, $plan, bkashPayment('TRX-1')), $this->admin);
@@ -256,13 +258,42 @@ it('rewards the referrer for the first purchase only', function () {
     $second = $this->purchases->request($student, $plan, bkashPayment('TRX-2'));
     $this->purchases->approve($second, $this->admin);
 
-    expect($second->refresh()->discount_amount)->toBe(0.0);
+    expect($second->refresh()->discount_amount)->toBe(20.0);
+    expect(ReferralReward::sum('amount'))->toEqual(72);
+});
+
+it('rewards only the first purchase under the referral when the admin says so, still giving the discount', function () {
+    billingSettings(['commission_first_purchase_only' => true]);
+    $referrer = User::factory()->student()->create();
+    $student = referredBy($referrer);
+    $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
+    $this->purchases->approve($this->purchases->request($student, $plan, bkashPayment('TRX-1')), $this->admin);
+
+    $second = $this->purchases->request($student, $plan, bkashPayment('TRX-2'));
+    $this->purchases->approve($second, $this->admin);
+
+    expect($second->refresh()->discount_amount)->toBe(20.0);
     expect(ReferralReward::sum('amount'))->toEqual(36);
+});
+
+it('gives no discount and no reward once the referral has ended', function () {
+    billingSettings();
+    $referrer = User::factory()->student()->create();
+    $student = referredBy($referrer);
+    $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
+
+    $this->travel(91)->days();
+    $payment = $this->purchases->request($student, $plan, bkashPayment());
+    $this->purchases->approve($payment, $this->admin);
+
+    expect($payment->refresh()->discount_amount)->toBe(0.0)
+        ->and($payment->referrer_id)->toBeNull();
+    expect(ReferralReward::count())->toBe(0);
 });
 
 it('gives no reward while the referral programme is off', function () {
     billingSettings(['referral_enabled' => false]);
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
 
     $this->purchases->approve($this->purchases->request(referredBy($referrer), $plan, bkashPayment()), $this->admin);
@@ -273,12 +304,12 @@ it('gives no reward while the referral programme is off', function () {
 it('keeps a reward at the amount and date it was given when the settings change later', function () {
     $this->travelTo('2026-03-10 09:00:00');
     $settings = billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
     $payment = $this->purchases->request(referredBy($referrer), $plan, bkashPayment());
     $this->purchases->approve($payment, $this->admin);
 
-    $settings->update(['referrer_reward_percent' => 50, 'refund_window_days' => 30]);
+    $settings->update(['student_reward_percent' => 50, 'refund_window_days' => 30]);
 
     expect($payment->referralReward->amount)->toBe(36.0)
         ->and($payment->referralReward->matures_at->toDateString())->toBe('2026-03-17');
@@ -287,7 +318,7 @@ it('keeps a reward at the amount and date it was given when the settings change 
 
 it('activates at once and rewards nobody when wallet credit covers the whole price', function () {
     billingSettings(['referee_discount_percent' => 0]);
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $student = referredBy($referrer);
     WalletTransaction::factory()->create(['user_id' => $student->id, 'amount' => 250]);
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
@@ -343,7 +374,7 @@ it('cannot reject a payment that was already approved', function () {
 
 it('ends the subscription, returns wallet credit and cancels the reward on a refund', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $student = referredBy($referrer);
     WalletTransaction::factory()->create(['user_id' => $student->id, 'amount' => 30]);
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
@@ -367,7 +398,7 @@ it('ends the subscription, returns wallet credit and cancels the reward on a ref
 
 it('refuses a refund once the refund period has passed', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
     $payment = $this->purchases->request(referredBy($referrer), $plan, bkashPayment());
     $this->purchases->approve($payment, $this->admin);
@@ -391,7 +422,7 @@ it('refuses every refund when the admin allows none', function () {
 
 it('rewards the referrer again when the purchase after a refunded one is approved', function () {
     billingSettings();
-    $referrer = User::factory()->teacher()->create();
+    $referrer = User::factory()->student()->create();
     $student = referredBy($referrer);
     $plan = SubscriptionPlan::factory()->pro()->forStudents()->create(['price' => 200]);
     $first = $this->purchases->request($student, $plan, bkashPayment('TRX-1'));

@@ -2,7 +2,7 @@
 
 namespace App\Policies;
 
-use App\Enums\ExamType;
+use App\Enums\PlanFeature;
 use App\Models\Exam;
 use App\Models\User;
 use App\Services\SubscriptionLimitService;
@@ -22,25 +22,26 @@ class ExamPolicy
     }
 
     /**
-     * Backs CLAUDE.md rule 7: publishing (Teacher) or generating (Student
-     * self-practice) is blocked once the active plan's monthly free-limit is
-     * reached — a fresh count every time, never a cached/stored counter.
-     * An exam counts against the limit from the moment it is saved, so the
-     * question here is whether this exam was one of the month's allowed ones.
+     * Backs CLAUDE.md rule 7: sharing the exam online needs a plan that
+     * covers its class + subject and includes online exams. It was already
+     * counted against the plan's limits when it was saved, so publishing
+     * it doesn't count it again.
      */
     public function publish(User $user, Exam $exam): bool
     {
         return $exam->created_by === $user->id
-            && $this->subscriptionLimits->isWithinMonthlyAllowance($user, $exam);
+            && $this->subscriptionLimits->allows($user, $exam->classSubject, [PlanFeature::OnlineExam]);
     }
 
     /**
      * The printable question paper (with or without answers) is only ever
-     * for the teacher who built the exam.
+     * for the teacher who built the exam, and only while their plan
+     * includes printing for its class + subject.
      */
     public function print(User $user, Exam $exam): bool
     {
-        return $exam->created_by === $user->id;
+        return $exam->created_by === $user->id
+            && $this->subscriptionLimits->allows($user, $exam->classSubject, [PlanFeature::Print]);
     }
 
     /**
@@ -50,10 +51,5 @@ class ExamPolicy
     public function viewResults(User $user, Exam $exam): bool
     {
         return $exam->created_by === $user->id;
-    }
-
-    public function createSelfPractice(User $user): bool
-    {
-        return ! $this->subscriptionLimits->hasReachedMonthlyLimit($user, ExamType::SelfPractice);
     }
 }

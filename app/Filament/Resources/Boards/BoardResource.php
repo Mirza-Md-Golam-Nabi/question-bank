@@ -2,17 +2,20 @@
 
 namespace App\Filament\Resources\Boards;
 
+use App\Enums\PaperSourceType;
 use App\Filament\Resources\Boards\Pages\ManageBoards;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\TableActions;
 use App\Models\Board;
 use BackedEnum;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class BoardResource extends Resource
@@ -25,6 +28,8 @@ class BoardResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::QuestionBank;
 
+    protected static ?string $modelLabel = 'paper source';
+
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -36,6 +41,11 @@ class BoardResource extends Resource
                     ->label(__('Short name'))
                     ->required()
                     ->maxLength(10),
+                Select::make('type')
+                    ->label(__('Kind'))
+                    ->options(PaperSourceType::class)
+                    ->default(PaperSourceType::Board)
+                    ->required(),
                 TextInput::make('order_index')
                     ->label(__('Display order'))
                     ->numeric()
@@ -51,7 +61,11 @@ class BoardResource extends Resource
             ->columns([
                 TextColumn::make('short_name')->label(__('Short'))->badge(),
                 TextColumn::make('name')->searchable()->sortable(),
+                TextColumn::make('type')->label(__('Kind'))->badge(),
                 TextColumn::make('question_papers_count')->label(__('Papers'))->counts('questionPapers'),
+            ])
+            ->filters([
+                SelectFilter::make('type')->label(__('Kind'))->options(PaperSourceType::class),
             ])
             ->recordActions(TableActions::editAndDelete())
             ->toolbarActions(TableActions::bulkDelete());

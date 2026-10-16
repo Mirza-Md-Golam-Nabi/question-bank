@@ -2,7 +2,7 @@
 
 namespace App\Filament\Teacher\Widgets;
 
-use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
 use App\Models\Question;
 use Filament\Widgets\Widget;
@@ -28,6 +28,6 @@ class TeacherQuickActionsWidget extends Widget
 
     public function createExamUrl(): string
     {
-        return ExamResource::getUrl('create', panel: 'teacher');
+        return SelectQuestions::getUrl(panel: 'teacher');
     }
 }

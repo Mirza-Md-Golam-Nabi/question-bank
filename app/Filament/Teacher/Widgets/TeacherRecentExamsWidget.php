@@ -3,7 +3,8 @@
 namespace App\Filament\Teacher\Widgets;
 
 use App\Filament\Support\SubjectColumn;
-use App\Filament\Teacher\Resources\Exams\Pages\EditExam;
+use App\Filament\Teacher\Pages\SelectQuestions;
+use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
 use App\Filament\Teacher\Resources\Exams\Tables\ExamsTable;
 use App\Models\Exam;
 use Filament\Tables\Columns\TextColumn;
@@ -29,7 +30,12 @@ class TeacherRecentExamsWidget extends TableWidget
             )
             ->heading(__('Recent exams'))
             ->paginated(false)
-            ->recordUrl(fn (Exam $record) => EditExam::getUrl(['record' => $record], panel: 'teacher'))
+            // An exam nobody has started opens in the question picker to be
+            // edited, as from the exams list; one that has been sat, at its
+            // results.
+            ->recordUrl(fn (Exam $record): string => $record->attempts_count === 0
+                ? SelectQuestions::getUrl(['exam' => $record->id], panel: 'teacher')
+                : ExamResults::getUrl(['record' => $record], panel: 'teacher'))
             ->columns([
                 // The date goes under the title rather than in a column of
                 // its own, so the share link and the results button still

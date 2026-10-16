@@ -40,7 +40,7 @@ class PaymentResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['user.referrer', 'plan'])
+            ->with(['user', 'referrer', 'plan'])
             // The "same number as referrer" flag for every row, in this
             // one query rather than a lookup per row.
             ->withExists(['itself as same_number_as_referrer' => fn (Builder $query) => $query->sharingPayerNumberWithReferrer()]);
@@ -75,7 +75,7 @@ class PaymentResource extends Resource
                 TextColumn::make('payer_provider')->label(__('Sent with'))->badge()->placeholder('—'),
                 TextColumn::make('payer_number')->label(__('Sent from'))->searchable()->placeholder('—'),
                 TextColumn::make('gateway_transaction_id')->label(__('Txn ID'))->searchable()->copyable()->placeholder('—'),
-                TextColumn::make('user.referrer.name')->label(__('Referred by'))->placeholder('—'),
+                TextColumn::make('referrer.name')->label(__('Referred by'))->placeholder('—'),
                 IconColumn::make('same_number_as_referrer')
                     ->label(__('Same number as referrer'))
                     ->icon(fn (mixed $state): ?Heroicon => $state ? Heroicon::OutlinedExclamationTriangle : null)

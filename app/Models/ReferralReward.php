@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * anyone's to spend. So no reward ever has to be taken back after the
  * fact. Its state is read off its dates, never stored.
  */
-#[Fillable(['referrer_id', 'payment_id', 'amount', 'matures_at', 'expires_at', 'cancelled_at', 'payout_id'])]
+#[Fillable(['referrer_id', 'payment_id', 'amount', 'percent', 'matures_at', 'expires_at', 'cancelled_at', 'payout_id'])]
 class ReferralReward extends Model
 {
     use HasFactory;

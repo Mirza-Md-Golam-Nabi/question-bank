@@ -428,6 +428,7 @@ livewire(ListUsers::class)
 2. `unique(board_id, class_subject_id, year)` — একই বোর্ড+সাল+সাবজেক্টের পেপার দুইবার তৈরি করা যাবে না।
 3. `board_cq_questions.marks` একইভাবে তার `board_cq_question_parts`-এর যোগফল থেকে auto-sync।
 4. Self-practice/Teacher exam-এর question picker-এ board question papers কখনো approved pool-এর সাথে mix করা যাবে না — এটা আলাদা browsing/UI flow।
+5. `boards` = প্রশ্নপত্রের **উৎস**, ধরন (`type`, `PaperSourceType`): শিক্ষা বোর্ড, মেডিকেল ভর্তি, বিশ্ববিদ্যালয় ভর্তি, চাকরির পরীক্ষা, স্কুল/কলেজের টেস্ট। সব ধরনেই ওপরের নিয়মগুলো একই।
 
 ### ৬. Staff Payment
 > **Staff-এর প্রশ্ন `approved` হওয়ার মুহূর্তেই তার পারিশ্রমিক `staff_earnings` ledger-এ যোগ হবে — rejected প্রশ্নের জন্য কোনো টাকা যোগ হবে না।**
@@ -436,10 +437,18 @@ livewire(ListUsers::class)
 - Payout একটা batch action (`staff_payouts`), individual earning row-কে সরাসরি "paid" না বানিয়ে payout batch-এর মাধ্যমে।
 
 ### ৭. Subscription / Freemium
-> **Teacher exam তৈরি/publish করার আগে, ও Student self-practice exam জেনারেট করার আগে (Auto-Generate বা Manual Selection — দুই মোডেই) — সক্রিয় subscription বা মাসিক ফ্রি-লিমিটের মধ্যে আছে কিনা চেক করতে হবে।**
-- লিমিট চেক করার সময় আলাদা counter টেবিল না রেখে সরাসরি query দিয়ে গণনা (`whereMonth`/`whereYear`) — সরল ও accurate। Auto ও Manual দুই মোডের exam-ই `exam_type='self_practice'` হওয়ায় একই কাউন্টে ধরা হবে (মোড আলাদা করে গণনা করার দরকার নেই)।
+> **Teacher exam তৈরি/publish/print করার আগে, ও Student self-practice exam জেনারেট করার আগে (সব মোডে) — user-এর plan-এ সেই কাজটা আছে কিনা সার্ভারে চেক করতে হবে। Plan না থাকলে কিছুই না।**
+- **দামের তালিকা পুরোপুরি ডায়নামিক** — কোডে কোনো plan/দাম নেই। Admin প্রতিটা plan-এ মেয়াদ (দিন/মাস/বছর/নির্দিষ্ট তারিখ পর্যন্ত) আর **শর্ত** যোগ-বিয়োগ করেন: শ্রেণি, বিষয় (দুটোই ক্রেতা কেনার সময় বাছতে পারে; বাছাই করা বিষয় plan-এর সব শ্রেণিতে পড়ানো হতে হয় — `PlanConditions::pickableSubjectIds()`), difficulty, সুবিধা (অনলাইন পরীক্ষা / প্রিন্ট), দিনে ও মাসে পরীক্ষা। যে বিষয়ে শর্ত নেই সেখানে সীমা নেই। শর্তের অর্থ শুধু `PlanConditions`-এ।
+- একজন user-এর অধিকার = তার সব সক্রিয় subscription + role-এর ফ্রি plan মিলিয়ে; যাচাই ও "কোন plan-এ গোনা হবে" শুধু `SubscriptionLimitService`-এ (`authorize()`, `allows()`)। প্রতিটা exam যে subscription-এ অনুমতি পেল তার সীমাতেই গোনা হয় (`exams.subscription_id`; ফাঁকা = ফ্রি plan)।
+- Subscription কেনার মুহূর্তে plan-এর শর্তের কপি ও ক্রেতার বাছাই রেখে দেয় — পরে plan বদলালে কেনা জিনিস বদলায় না।
+- Teacher-এর ট্রায়াল একাউন্টপ্রতি একবারই। Student-এর প্রোফাইলে শ্রেণি থাকে; self-practice সবসময় নিজের শ্রেণি থেকে।
+- **Group plan:** "আসন" শর্তওয়ালা plan-এর ক্রেতা অন্যদের Google email দিয়ে যোগ করেন (প্রত্যেকে নিজের একাউন্টে, শুধু plan-এর role); ক্রেতার subscription শেষ হলে সবার শেষ; কাউকে সরানো Admin-এর দিনে একবার। নিয়ম শুধু `SubscriptionMemberService`-এ; শেয়ার করা plan `User::activeSubscriptions()`-এ আসে। দৈনিক/মাসিক গণনা প্রত্যেকের আলাদা।
+- **ডিভাইস সীমা:** Teacher/Student একসাথে Admin-এর সংখ্যার বেশি ডিভাইসে লগইন থাকতে পারে না — নতুন লগইনে সবচেয়ে পুরনোটা লগআউট (`DeviceSessionService`)।
+- লিমিট চেক করার সময় আলাদা counter টেবিল না রেখে সরাসরি query দিয়ে গণনা (দিন/মাসের তারিখ-সীমা) — সরল ও accurate। Self-practice-এর সব মোড `exam_type='self_practice'` হওয়ায় একই কাউন্টে ধরা হবে।
 - **Guest-রা exam attempt দেওয়ার সময় কোনো subscription চেক লাগবে না** — এটা Teacher-এর subscription-এর আওতায় আগেই কভার হয়ে গেছে (exam publish করার সময়েই চেক হয়েছে)।
 - Payment gateway callback-এ **idempotency** মাথায় রাখতে হবে — দুইবার callback এলে যেন ডাবল subscription active না হয়।
+- **Referral ও কমিশন:** একজন student একবারে **একজনেরই** referral-এ থাকে, Admin-এর দিন পর্যন্ত (ডিফল্ট ৯০, সেট হওয়ার দিন থেকে), তারপর নিজে থেকে শেষ। Teacher-এর পরীক্ষার লিংক খুললে সাথে সাথে লক; নিজে লেখা কোড Admin-এর সময় পর্যন্ত (ডিফল্ট ১ দিন) বদলানো যায়, সেই সময়ের মধ্যে পরীক্ষার লিংক সেটা বদলে লক করে। নিয়ম শুধু `StudentReferralService`-এ; ছাড়/reward `ReferralService`-এ। কেনার মুহূর্তের referrer payment-এ লেখা থাকে (`payments.referrer_id`) — reward ও রিপোর্ট সেখান থেকে, user-এর এখনকার referrer থেকে না।
+- **Teacher ও Student কমিশন পায় শুধু নিজের পেইড subscription চালু থাকলে** (ট্রায়াল/ফ্রি plan-এ না), শুধু নগদে দেওয়া অংশের ওপর, refund-এর সময় পার হলে পাকা; শতাংশ দুটোই Admin-এর সেটিং, কোডে কোনো হার নেই। কমিশন wallet-এ মেয়াদ ছাড়া জমে; role অনুযায়ী Admin-এর reserve সবসময় থাকে — শুধু নিজের subscription-এ খরচ হয়, তোলা যায় না; বাকিটা request করে তোলা যায় (`WithdrawalService` একমাত্র জায়গা, নম্বর `encrypted`, প্রতিটা ধাপ log)। Staff-এর reward payout-এর সাথে নগদে।
 
 ### ৮. Exam Sharing (Guest + Login)
 > **শেয়ার-লিংকে Student সবসময় দুটো অপশন পাবে: Login করে ঢোকা অথবা Guest হিসেবে (শুধু নাম দিয়ে) ঢোকা — এটা টগল করার কোনো সেটিং নেই, সবসময় দুটোই থাকবে।**
@@ -454,7 +463,7 @@ livewire(ListUsers::class)
 - `exams.generation_mode` ফিল্ড (`manual`/`auto`) দিয়ে আলাদা করা হবে, দুটোই `exam_type='self_practice'`।
 - Auto মোডের random selection query সবসময় `status='approved' AND is_latest=true` ফিল্টার সহ (approval rule এখানেও প্রযোজ্য)।
 - Manual মোডের UI Teacher-এর exam builder-এর মতোই (searchable multi-select), শুধু Student Panel-এর নিজস্ব সংস্করণ।
-- দুই মোডের exam-ই monthly free-limit-এর একই কাউন্টে ধরা হবে, আলাদা limit না।
+- দুই মোডের exam-ই plan-এর একই সীমায় (দিনে/মাসে) গোনা হবে, আলাদা limit না; plan যে difficulty দেয় শুধু সেগুলো।
 
 ### ১০. Teacher প্রশ্ন বাছাই (Select Questions) → Exam
 > **Teacher exam বানায় "প্রশ্ন বাছাই" পেজ থেকে: Class → Subject → Chapter → Topic ফিল্টার করে approved প্রশ্ন টিক দিয়ে বাছে, তারপর ফাইনাল ভিউ থেকে exam হিসেবে সেভ করে। হাজার হাজার Teacher একসাথে এই কাজ করবে — তাই টিক দেওয়ার সময় সার্ভারে কোনো অনুরোধ যাবে না।**
@@ -465,8 +474,9 @@ livewire(ListUsers::class)
 4. **কতগুলো প্রশ্ন লাগবে তা Teacher নিজে ঠিক করে** (MCQ ও CQ-র আলাদা লক্ষ্য সংখ্যা); লক্ষ্য পূরণ হলে আর বাছা যায় না। সিস্টেমে কোনো নির্দিষ্ট ব্যবসায়িক সীমা নেই (কিছু পরীক্ষায় ১২০টা প্রশ্ন লাগে) — শুধু `TeacherExamBuilder::MAX_QUESTIONS` নামে একটা কারিগরি সুরক্ষা-সীমা আছে।
 5. **বাছাই শুধু ব্রাউজারের `localStorage`-এ থাকে, আর সেখানে শুধু প্রশ্নের ID** (লেখা না)। টিক, গণনা, chapter-ভিত্তিক সারাংশ — সব client-side (Alpine); সার্ভারে যায় শুধু ফিল্টার/পেজ বদলালে আর শেষে সেভ করার সময়। প্রশ্নের তালিকা সবসময় paginated — কখনো পুরো subject/chapter একবারে লোড করা যাবে না।
 6. **ব্রাউজারের ডেটা বিশ্বাস করা যাবে না।** সেভের সময় `TeacherExamBuilder` সার্ভারে আবার যাচাই করে: প্রতিটা ID Teacher-এর ব্যবহারযোগ্য (`Question::usableInExamBy()` — approved pool অথবা নিজের pending), একই `class_subject`-এর, আর `online` হলে সব MCQ। এই যাচাই ও exam তৈরির লজিক শুধু ওই service-এ থাকবে।
-7. **Subscription লিমিট সেভ করার মুহূর্তে একবারই গোনা হয়** — অনলাইনে প্রকাশ হোক বা শুধু PDF। আগে থেকে গোনা exam পরে publish করতে গেলে আবার লিমিটে আটকাবে না (`SubscriptionLimitService::isWithinMonthlyAllowance()`)।
+7. **Subscription লিমিট সেভ করার মুহূর্তে একবারই গোনা হয়** — অনলাইনে প্রকাশ হোক বা শুধু PDF; তখন plan-এ শ্রেণি+বিষয়, পরীক্ষার ধরনের সুবিধা ও প্রশ্নের difficulty থাকতে হয়। আগে থেকে গোনা exam পরে publish/print করতে গেলে শুধু plan-এ সেই সুবিধা আছে কিনা দেখা হয়, আবার গোনা হয় না (`SubscriptionLimitService::allows()`)। Exam তৈরি/এডিটের একমাত্র পথ "প্রশ্ন বাছাই" — Teacher-এর `ExamResource`-এ কোনো create/edit ফর্ম-পেজ রাখা যাবে না।
 9. **Exam এডিটও এই পেজ দিয়েই হয়** (`?exam=`; `TeacherExamBuilder::update()`), তৈরি করার মতো একই যাচাইসহ, আর লিমিটে আবার গোনা হয় না। **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`canBeEdited()`) — নইলে তার নম্বর/পজিশন আর প্রশ্নপত্রের সাথে মিলবে না। তখন একমাত্র পথ **"পরীক্ষা বাতিল"** (`Exam::cancel()`): ওই exam-এর সব attempt ও উত্তর স্থায়ীভাবে মুছে exam-কে draft-এ ফেরায় (লিংক বন্ধ থাকে, যাতে এডিটের মাঝে কেউ শুরু না করে); পরে একই লিংকে আবার publish করা যায়। এটা ফেরানো যায় না, তাই confirmation ও log বাধ্যতামূলক।
+10. **নেগেটিভ মার্কিং ও আসন-সীমা:** অনলাইন পরীক্ষায় Teacher সেভের সময় নেগেটিভ মার্কিং চালু করতে পারেন (`exams.negative_marks`, শুরুর মান Admin-এর); ভুলে কাটে, ফাঁকায় না, মোট ০-এর নিচে না — গ্রেডিং শুধু `ExamAttempt::submitAndAutoGrade()`-এ। Plan-এ "প্রতি পরীক্ষায় অংশগ্রহণকারী" থাকলে সেভের সময় `exams.max_participants`-এ কপি হয়; পূর্ণ হলে নতুন কেউ ঢোকে না (`ExamAttempt::enter()`), আগে শুরু করা কেউ ফিরতে পারে।
 8. **PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে** (প্রিন্ট-উপযোগী পেজ, "শুধু প্রশ্ন" ও "উত্তরসহ" দুই রূপে) — সার্ভারে PDF বানানো হয় না, কারণ বাংলা যুক্তাক্ষর/গণিতের সূত্র ভাঙে আর সার্ভারে চাপ পড়ে।
 
 ## Roles & Permissions (সংক্ষেপে)
@@ -616,7 +626,11 @@ CLAUDE.md
 | চার প্যানেলের অভিন্ন কনফিগ (theme, middleware, navigation) | `App\Filament\Support\PanelDefaults::apply()` |
 | প্রতিটা প্যানেলের `QuestionResource`-এর অভিন্ন অংশ (model, form, table) | `Support\Resources\QuestionResourceBase` — `getEloquentQuery()` কিন্তু প্রতিটা প্যানেলে নিজেই লিখতে হবে (নিয়ম ২) |
 | প্রশ্ন তৈরি/এডিট পেজ (সব প্যানেল) | `Support\Pages\Questions\CreateQuestionPage`, `EditQuestionPage` |
-| Class → Subject → Chapter → Topic select | `Support\ContentHierarchySchema` (`classSelect()` … `topicSelect()`) |
+| Class → Subject → Chapter → Topic select | `Support\ContentHierarchySchema` (`classSelect()` … `topicSelect()`; শ্রেণি/বিষয় সীমিত করতে ids-এর closure দেওয়া যায়) |
+| শ্রেণি বা একটা শ্রেণির বিষয়ের তালিকা (যেকোনো select-এ) | `AcademicClass::options()`, `ClassSubject::subjectOptionsFor()` |
+| সাধারণ (Filament-টেবিল নয় এমন) টেবিল | `<x-data-table :columns>` — স্টাইল `qb-data-table` (question-display.css) |
+| রেফারেল পুরস্কারের তালিকা | `<x-referral-rewards-table>`, `User::recentReferralRewards()` |
+| Service কিছু আটকালে লাল notification (try/catch লিখবেন না) | `Support\Concerns\NotifiesValidationFailures::rescueWithNotification()` |
 | MCQ অপশনের ফিল্ড + "একটাই সঠিক উত্তর" নিয়ম | `Support\McqOptionsSchema` |
 | প্রশ্নের ফর্ম / টেবিল / View | `Support\QuestionFormSchema`, `QuestionsTable`, `QuestionInfolist` |
 | JSON পেস্ট করে একসাথে অনেক প্রশ্ন যোগ (Teacher/Admin; Staff না) — যাচাই, গণিত (`$...$` → KaTeX embed) ও তৈরি | `App\Services\QuestionJsonImporter`, `QuestionImportText`; বাটন `Support\QuestionJsonImportAction`; অনুমতি `QuestionPolicy::import()`; একবারের সীমা `BillingSetting.question_import_max` |
@@ -630,11 +644,20 @@ CLAUDE.md
 | Browse পেজ (class/subject/chapter) ও কার্ড | `Support\Pages\Questions\Browse*Page`, `<x-browse.grid>`, `<x-browse.card>`, `<x-browse.meta>`, `<x-browse.edit-delete-menu>` |
 | কার্ডের রঙের palette | `Support\CardPalette` |
 | Dashboard-এর stat কার্ড, "Recent questions" | `Support\Widgets\DashboardStat`, `RecentQuestionsWidget` |
-| Self-practice পেজ (লিমিট চেক + শুরু) | `Support\Pages\SelfPracticeExamPage` |
+| Self-practice পেজ (নিজের শ্রেণির বিষয় + শুরু) | `Support\Pages\SelfPracticeExamPage` |
+| Plan-এর শর্ত পড়া, কে কী পারে, কোন plan-এ গোনা হবে | `App\Services\PlanConditions`, `PlanGrant`, `SubscriptionLimitService` (`authorize()`, `allows()`, `allowedDifficultiesFor()`, `constrainToAccessible()`) |
+| "আমার plan" (প্রতিটা plan, তার শর্ত ও আজ/এই মাসের ব্যবহার) | `<x-plan-usage>`, `Support\Concerns\ShowsPlanSummary` |
+| টেস্টে কাউকে শর্তহীন plan দেওয়া | `subscribeToEverything()` (`tests/Pest.php`) |
+| Student কার referral-এ, কত দিন (শুরু/বদল/লক) | `App\Services\StudentReferralService`, `Models\StudentReferral` |
+| Teacher/Student-এর কমিশন তোলা (reserve, request, paid/reject) | `App\Services\WithdrawalService`; পেজ `Support\Pages\ReferralsAndCommissionPage` (দুই প্যানেলে), Admin `WithdrawalResource` |
+| Referrer-কে student-এর ঢাকা email দেখানো | `User::maskedEmail()` |
+| Group plan-এর সদস্য | `App\Services\SubscriptionMemberService`, `Models\SubscriptionMember` |
+| ডিভাইস সীমা ও প্রোফাইলের ডিভাইস-তালিকা | `App\Services\DeviceSessionService` |
+| পরীক্ষা পূর্ণ কি না | `Exam::isFull()`; ভুল উত্তরে কত কাটা যায় `Exam::marksLostPerWrongAnswer()` |
 | Staff-এর প্রশ্ন breakdown পেজ | `Support\Pages\QuestionStatusBreakdownPage` |
 | approve/reject-এর status বদল | `Models\Concerns\HasApprovalStatus` |
 | শেয়ার-লিংকের exam খোঁজা, লিংক সচল কি না | `Exam::findPublishedByShareToken()`, `isAcceptingAttempts()` |
-| একটা subject-এর approved প্রশ্ন | `Question::scopeOfSubject()`, `approvedOptionsForSubject()` |
+| একটা শ্রেণির subject-এর approved প্রশ্ন | `Question::scopeOfClassSubject()`, `approvedOptionsForClassSubject()` |
 | পড়ার জন্য প্রশ্ন দেখানো (অপশন/CQ অংশ) | `filament.support.questions.question-body`, `Support\QuestionDisplay` |
 | পরীক্ষার খাতা (শিরোনাম + নাম + ঘড়ি + প্রশ্ন + সতর্কবার্তা) — Guest ও লগইন করা student হুবহু একই দেখে | `<x-exam-paper>`, `<x-exam-heading>`, `<x-exam-participant>`, `<x-exam-timer>`, `<x-exam-submit-warning>`, `resources/js/exam-timer.js` |
 | ফলাফল | `<x-exam-result>`, `<x-exam-result-question>` |
@@ -677,7 +700,7 @@ php artisan make:observer QuestionObserver --model=Question
 6. **Board question paper:** পুরো পেপার একসাথে approve/reject হয় (individual question-level না); approved board question কখনো সাধারণ approved pool/self-practice-এ মিশে যায় না।
 7. **Staff earning:** প্রশ্ন approve হলেই ঠিক rate অনুযায়ী `staff_earnings` row তৈরি হয়; reject হলে হয় না; rate পরে বদলালেও পুরনো entry-র amount অপরিবর্তিত থাকে।
 8. **Payout:** batch payout করলে সংশ্লিষ্ট সব earning `paid` হয়ে যায়, দ্বিতীয়বার payout করলে ডাবল পেমেন্ট না হয়।
-9. **Subscription limit:** ফ্রি লিমিট (যেমন ৩টা/মাস) শেষ হলে নতুন exam/practice-exam তৈরি ব্লক হয়; পরের মাসে আবার রিসেট হয় (কোনো cron/reset job ছাড়াই, কারণ query মাস অনুযায়ী গণনা করে)।
+9. **Subscription limit:** plan-এর দিনের/মাসের সীমা শেষ হলে নতুন exam/practice-exam তৈরি ব্লক হয়; পরের দিন/মাসে আবার রিসেট হয় (কোনো cron/reset job ছাড়াই)। Plan-এর বাইরের শ্রেণি/বিষয়/difficulty/সুবিধা ব্লক হয়; plan না থাকলে সব ব্লক।
 10. **Self-practice দুই মোড:** Auto-Generate শুধু approved+latest প্রশ্ন থেকে random বাছে; Manual Selection-এ Student শুধু approved+latest প্রশ্ন দেখতে/বাছতে পারে (pending/rejected কখনো না); দুই মোডের exam-ই একসাথে monthly limit-এ গোনা হয়।
 11. **Payment idempotency:** একই gateway callback দুইবার এলে ডাবল subscription/payment তৈরি না হয়।
 12. **Exam sharing:** share_token দিয়ে Login ও Guest দুই পথেই attempt দেওয়া যায়; link expire/deactivate হলে ব্লক হয়; guest submission rate-limited।

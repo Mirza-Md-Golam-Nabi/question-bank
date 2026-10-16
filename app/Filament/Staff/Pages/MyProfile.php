@@ -8,4 +8,9 @@ use Filament\Support\Icons\Heroicon;
 class MyProfile extends MyProfilePage
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserCircle;
+
+    public function earningsUrl(): string
+    {
+        return MyEarnings::getUrl();
+    }
 }

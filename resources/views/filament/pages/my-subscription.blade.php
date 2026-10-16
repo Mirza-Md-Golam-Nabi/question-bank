@@ -1,32 +1,45 @@
 <x-filament-panels::page>
     @php
-        ['subscription' => $subscription, 'plan' => $plan, 'monthly_limit' => $monthlyLimit] = $this->planSummary();
+        $planDescriptions = $this->planDescriptions();
         $pendingPayment = $this->pendingPayment();
         $payments = $this->payments();
         $walletBalance = $this->walletBalance();
         $priceList = $this->priceList();
     @endphp
 
-    <x-filament::section :heading="__('Current plan')">
-        @if ($plan)
-            <div class="space-y-2">
-                <p class="text-lg font-bold">{{ $plan->name }}</p>
-                <p class="text-sm text-gray-500">
-                    {{ __('Monthly exam limit') }}:
-                    <span class="font-medium">{{ $monthlyLimit ?? __('Unlimited') }}</span>
-                </p>
-                @if ($subscription?->ends_at)
-                    <p class="text-sm text-gray-500">{{ __('Renews/expires') }}: {{ $subscription->ends_at->format('M j, Y') }}</p>
-                @endif
-            </div>
-        @else
-            <p class="text-sm text-gray-500">{{ __("You don't have an active subscription yet.") }}</p>
-        @endif
+    <x-filament::section :heading="__('My plans')">
+        <x-plan-usage :summary="$this->planSummary()" />
 
         <p class="mt-3 text-sm text-gray-500">
             {{ __('Wallet credit') }}: <span class="font-medium">৳{{ number_format($walletBalance, 2) }}</span>
         </p>
     </x-filament::section>
+
+    @foreach ($this->groupSubscriptions() as $groupSubscription)
+        <x-filament::section :heading="__('People on my plan: :plan', ['plan' => $groupSubscription->plan?->name])" icon="heroicon-o-users">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ __(':used of :seats seats used, yours included.', ['used' => $groupSubscription->currentMembers->count() + 1, 'seats' => $groupSubscription->seats()]) }}
+            </p>
+
+            <ul class="mt-3 divide-y divide-gray-100 text-sm dark:divide-white/10">
+                @foreach ($groupSubscription->currentMembers as $member)
+                    <li class="flex items-center justify-between gap-3 py-2">
+                        <span>
+                            {{ $member->email }}
+                            <span class="text-gray-500 dark:text-gray-400">— {{ $member->user?->name ?? __('has not signed in yet') }}</span>
+                        </span>
+                        {{ ($this->removeMemberAction)(['member' => $member->id]) }}
+                    </li>
+                @endforeach
+            </ul>
+
+            @if ($groupSubscription->currentMembers->count() + 1 < $groupSubscription->seats())
+                <div class="mt-3">
+                    {{ ($this->addMemberAction)(['subscription' => $groupSubscription->id]) }}
+                </div>
+            @endif
+        </x-filament::section>
+    @endforeach
 
     @if ($pendingPayment)
         <x-filament::section :heading="__('Payment waiting for approval')" icon="heroicon-o-clock" icon-color="warning">
@@ -49,27 +62,32 @@
                 <div class="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 dark:border-white/10">
                     <div>
                         <p class="font-bold">{{ $availablePlan->name }}</p>
-                        <p class="text-sm text-gray-500">{{ $availablePlan->billing_cycle->getLabel() }}</p>
+                        <p class="text-sm text-gray-500">{{ $availablePlan->durationLabel() }}</p>
                     </div>
 
                     <p class="text-2xl font-bold">
-                        ৳{{ number_format($quote['list_price'] - $quote['discount'], 2) }}
-                        @if ($quote['discount'] > 0)
-                            <span class="text-sm font-normal text-gray-500 line-through">৳{{ number_format($quote['list_price'], 2) }}</span>
+                        @if ($availablePlan->is_trial)
+                            {{ __('Free trial') }}
+                        @else
+                            ৳{{ number_format($quote['list_price'] - $quote['discount'], 2) }}
+                            @if ($quote['discount'] > 0)
+                                <span class="text-sm font-normal text-gray-500 line-through">৳{{ number_format($quote['list_price'], 2) }}</span>
+                            @endif
                         @endif
                     </p>
 
-                    <p class="text-sm text-gray-500">
-                        {{ __('Monthly exam limit') }}:
-                        <span class="font-medium">{{ $availablePlan->monthly_exam_limit ?? __('Unlimited') }}</span>
-                    </p>
+                    <ul class="list-inside list-disc space-y-0.5 text-sm text-gray-600 dark:text-gray-300">
+                        @foreach ($planDescriptions[$availablePlan->id] as $line)
+                            <li>{{ $line }}</li>
+                        @endforeach
+                    </ul>
 
                     <x-filament::button
                         class="mt-auto"
                         wire:click="mountAction('buy', { plan: {{ $availablePlan->id }} })"
                         :disabled="$pendingPayment !== null"
                     >
-                        {{ __('Buy') }}
+                        {{ $availablePlan->is_trial ? __('Start free trial') : __('Buy') }}
                     </x-filament::button>
                 </div>
             @empty
@@ -80,23 +98,13 @@
 
     @if ($payments->isNotEmpty())
         <x-filament::section :heading="__('My payments')">
-            <div class="overflow-x-auto">
-                <table class="fi-ta-table w-full text-start text-sm">
-                    <thead>
-                        <tr>
-                            <th class="p-2 text-start">{{ __('Date') }}</th>
-                            <th class="p-2 text-start">{{ __('Plan') }}</th>
-                            <th class="p-2 text-start">{{ __('Paid') }}</th>
-                            <th class="p-2 text-start">{{ __('Status') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            <x-data-table :columns="[__('Date') => 'start', __('Plan') => 'start', __('Paid') => 'start', __('Status') => 'start']">
                         @foreach ($payments as $payment)
                             <tr>
-                                <td class="p-2">{{ $payment->created_at->format('M j, Y') }}</td>
-                                <td class="p-2">{{ $payment->plan?->name ?? '—' }}</td>
-                                <td class="p-2">৳{{ number_format($payment->amount, 2) }}</td>
-                                <td class="p-2">
+                                <td>{{ $payment->created_at->format('M j, Y') }}</td>
+                                <td>{{ $payment->plan?->name ?? '—' }}</td>
+                                <td>৳{{ number_format($payment->amount, 2) }}</td>
+                                <td>
                                     {{ $payment->status->getLabel() }}
                                     @if (filled($payment->review_note))
                                         <span class="block text-xs text-gray-500">{{ $payment->review_note }}</span>
@@ -104,9 +112,7 @@
                                 </td>
                             </tr>
                         @endforeach
-                    </tbody>
-                </table>
-            </div>
+            </x-data-table>
         </x-filament::section>
     @endif
 </x-filament-panels::page>

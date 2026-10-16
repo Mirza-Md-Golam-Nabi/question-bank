@@ -6,6 +6,16 @@
 @endphp
 
 <x-filament-panels::page>
+    @unless ($this->hasAnyPlan())
+        <x-filament::section icon="heroicon-o-lock-closed" icon-color="warning" :heading="__('You need a plan to build exams')">
+            <p class="text-sm">{{ __('Your plan does not cover any class or subject yet. Start your free trial or buy a plan to build exams.') }}</p>
+
+            <x-filament::button tag="a" :href="$this->subscriptionUrl()" class="mt-3">
+                {{ __('See plans') }}
+            </x-filament::button>
+        </x-filament::section>
+    @endunless
+
     {{--
         The selection lives in the browser only (CLAUDE.md rule 10): this
         Alpine component keeps the ticked question ids in localStorage and

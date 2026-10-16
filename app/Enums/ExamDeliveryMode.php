@@ -36,6 +36,19 @@ enum ExamDeliveryMode: string implements HasLabel
     }
 
     /**
+     * What the teacher's plan has to include for an exam taken this way.
+     *
+     * @return array<int, PlanFeature>
+     */
+    public function requiredFeatures(): array
+    {
+        return array_values(array_filter([
+            $this->includesOnline() ? PlanFeature::OnlineExam : null,
+            $this->includesOffline() ? PlanFeature::Print : null,
+        ]));
+    }
+
+    /**
      * An online-only exam has nowhere to put a CQ question.
      */
     public function allowsCq(): bool

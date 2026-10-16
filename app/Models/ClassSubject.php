@@ -50,6 +50,31 @@ class ClassSubject extends Pivot
             ->values();
     }
 
+    /**
+     * The subjects taught in a class as select options — the subject's name
+     * in the active language, keyed by class_subject id — every one, or only
+     * the given class_subjects. The one place a subject picker gets its list
+     * from.
+     *
+     * @param  array<int, int>|null  $onlyIds
+     * @return array<int, string>
+     */
+    public static function subjectOptionsFor(int|string|null $academicClassId, ?array $onlyIds = null): array
+    {
+        if (blank($academicClassId)) {
+            return [];
+        }
+
+        return self::query()
+            ->where('academic_class_id', $academicClassId)
+            ->when($onlyIds !== null, fn ($query) => $query->whereKey($onlyIds))
+            ->with('subject')
+            ->ordered()
+            ->get()
+            ->mapWithKeys(fn (self $classSubject): array => [$classSubject->id => $classSubject->subject->display_name])
+            ->all();
+    }
+
     public function academicClass(): BelongsTo
     {
         return $this->belongsTo(AcademicClass::class);

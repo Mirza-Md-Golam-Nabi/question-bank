@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\Difficulty;
 use App\Enums\QuestionType;
 use App\Models\BillingSetting;
+use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
 use App\Models\Question;
 use App\Models\User;
@@ -116,32 +118,38 @@ class StudentMistakeTracker
     }
 
     /**
-     * How many practisable mistakes the student has in each subject —
-     * what the practice page offers to choose from.
+     * How many practisable mistakes the student has in each subject of a
+     * class — what the practice page offers to choose from.
      *
-     * @return Collection<int, int> subject id => mistakes
+     * @return Collection<int, int> class_subject id => mistakes
      */
-    public function countsBySubject(User $student): Collection
+    public function countsByClassSubject(User $student, int $academicClassId): Collection
     {
         return $this->practisableQuestions($student)
             ->join('chapters', 'chapters.id', '=', 'questions.chapter_id')
             ->join('class_subjects', 'class_subjects.id', '=', 'chapters.class_subject_id')
-            ->groupBy('class_subjects.subject_id')
+            ->where('class_subjects.academic_class_id', $academicClassId)
+            ->groupBy('class_subjects.id')
             ->toBase()
-            ->selectRaw('class_subjects.subject_id, count(*) as mistakes')
-            ->pluck('mistakes', 'subject_id');
+            ->selectRaw('class_subjects.id as class_subject_id, count(*) as mistakes')
+            ->pluck('mistakes', 'class_subject_id');
     }
 
     /**
-     * Up to `$count` of the student's practisable mistakes in a subject,
-     * drawn at random.
+     * Up to `$count` of the student's practisable mistakes in one class's
+     * subject, drawn at random — of the given difficulties only, when the
+     * student's plan limits them.
      *
+     * @param  array<int, Difficulty>|null  $difficulties
      * @return EloquentCollection<int, Question>
      */
-    public function drawForPractice(User $student, int $subjectId, int $count): EloquentCollection
+    public function drawForPractice(User $student, ClassSubject $classSubject, int $count, ?array $difficulties = null): EloquentCollection
     {
         // Drawn over ids first, as the auto-generated practice exam does.
-        $ids = $this->practisableQuestions($student)->ofSubject($subjectId)->pluck('questions.id');
+        $ids = $this->practisableQuestions($student)
+            ->ofClassSubject($classSubject->id)
+            ->when($difficulties !== null, fn (Builder $query) => $query->whereIn('questions.difficulty', $difficulties))
+            ->pluck('questions.id');
 
         return Question::query()
             ->whereKey($ids->random(min($count, $ids->count())))

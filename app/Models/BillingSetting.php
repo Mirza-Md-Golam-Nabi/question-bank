@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Everything about billing and referrals that the Admin sets rather than
- * the code: the referral percentages, the refund window, how long wallet credit lasts, the
+ * the code: the referral percentages and withdrawal reserves, the refund window, the
  * bonus for giving a phone number, whether spending credit needs an OTP,
  * the numbers customers send their payment to, and — the one setting here
  * that is not about money — how many questions one JSON import may carry.
@@ -18,11 +18,14 @@ use Illuminate\Database\Eloquent\Model;
  * anywhere in the code.
  */
 #[Fillable([
-    'referral_enabled', 'referrer_reward_percent', 'staff_reward_percent', 'referee_discount_percent',
-    'credit_expiry_months', 'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
+    'referral_enabled', 'student_reward_percent', 'teacher_reward_percent', 'staff_reward_percent', 'referee_discount_percent',
+    'commission_first_purchase_only', 'referral_lock_days', 'referral_change_days',
+    'teacher_reserve_amount', 'teacher_min_withdrawal', 'student_reserve_amount', 'student_min_withdrawal',
+    'group_member_change_days', 'teacher_device_limit', 'student_device_limit',
+    'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
     'question_import_max', 'teacher_question_import_enabled',
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
-    'mistake_clear_streak',
+    'mistake_clear_streak', 'default_negative_marks',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
 ])]
 class BillingSetting extends Model
@@ -35,8 +38,19 @@ class BillingSetting extends Model
      */
     protected $attributes = [
         'referral_enabled' => false,
-        'referrer_reward_percent' => 0,
+        'student_reward_percent' => 0,
         'staff_reward_percent' => 0,
+        'teacher_reward_percent' => 0,
+        'commission_first_purchase_only' => false,
+        'referral_lock_days' => 90,
+        'referral_change_days' => 1,
+        'teacher_reserve_amount' => 0,
+        'teacher_min_withdrawal' => 0,
+        'student_reserve_amount' => 0,
+        'student_min_withdrawal' => 0,
+        'group_member_change_days' => 30,
+        'teacher_device_limit' => 3,
+        'student_device_limit' => 2,
         'refund_window_days' => 0,
         'referee_discount_percent' => 0,
         'phone_bonus_exams' => 0,
@@ -47,17 +61,28 @@ class BillingSetting extends Model
         'difficulty_hard_max_percent' => 33,
         'difficulty_medium_max_percent' => 66,
         'mistake_clear_streak' => 2,
+        'default_negative_marks' => 0.25,
     ];
 
     protected function casts(): array
     {
         return [
             'referral_enabled' => 'boolean',
-            'referrer_reward_percent' => 'float',
+            'student_reward_percent' => 'float',
             'staff_reward_percent' => 'float',
+            'teacher_reward_percent' => 'float',
+            'commission_first_purchase_only' => 'boolean',
+            'referral_lock_days' => 'integer',
+            'referral_change_days' => 'integer',
+            'teacher_reserve_amount' => 'float',
+            'teacher_min_withdrawal' => 'float',
+            'student_reserve_amount' => 'float',
+            'student_min_withdrawal' => 'float',
+            'group_member_change_days' => 'integer',
+            'teacher_device_limit' => 'integer',
+            'student_device_limit' => 'integer',
             'refund_window_days' => 'integer',
             'referee_discount_percent' => 'float',
-            'credit_expiry_months' => 'integer',
             'phone_bonus_exams' => 'integer',
             'otp_required_for_credit' => 'boolean',
             'question_import_max' => 'integer',
@@ -66,6 +91,7 @@ class BillingSetting extends Model
             'difficulty_hard_max_percent' => 'float',
             'difficulty_medium_max_percent' => 'float',
             'mistake_clear_streak' => 'integer',
+            'default_negative_marks' => 'float',
         ];
     }
 
@@ -97,12 +123,33 @@ class BillingSetting extends Model
     }
 
     /**
-     * The referrer's share of the cash paid, which depends on who they
-     * are: Staff are paid in cash, so they have a percentage of their own.
+     * The referrer's share of the cash paid — a Teacher's, a Student's and a
+     * Staff member's each have a percentage of their own.
      */
     public function rewardPercentFor(UserRole $referrerRole): float
     {
-        return $referrerRole === UserRole::Staff ? $this->staff_reward_percent : $this->referrer_reward_percent;
+        return match ($referrerRole) {
+            UserRole::Teacher => $this->teacher_reward_percent,
+            UserRole::Staff => $this->staff_reward_percent,
+            default => $this->student_reward_percent,
+        };
+    }
+
+    /**
+     * What always stays in a Teacher's or Student's wallet — spendable on
+     * their own next subscription, never taken out as cash.
+     */
+    public function reserveFor(UserRole $role): float
+    {
+        return $role === UserRole::Teacher ? $this->teacher_reserve_amount : $this->student_reserve_amount;
+    }
+
+    /**
+     * The smallest amount a Teacher or Student can ask to take out.
+     */
+    public function minimumWithdrawalFor(UserRole $role): float
+    {
+        return $role === UserRole::Teacher ? $this->teacher_min_withdrawal : $this->student_min_withdrawal;
     }
 
     /**

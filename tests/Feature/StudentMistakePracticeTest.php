@@ -31,6 +31,8 @@ beforeEach(function () {
     $this->subject = Subject::factory()->create(['name' => 'Physics', 'short_name' => null]);
     $this->classSubject = ClassSubject::factory()->create(['subject_id' => $this->subject->id]);
     $this->chapter = Chapter::factory()->create(['class_subject_id' => $this->classSubject->id, 'name' => 'Motion']);
+    $this->student->update(['academic_class_id' => $this->classSubject->academic_class_id]);
+    $this->subscription = subscribeToEverything($this->student);
     $this->tracker = app(StudentMistakeTracker::class);
 
     $this->mcq = fn (array $attributes = []): Question => Question::factory()->approved()->for($this->chapter)->create([
@@ -179,7 +181,7 @@ it('keeps a mistake made on a teacher\'s exam out of practice until that exam\'s
     // On the list, but nothing that would show the answer yet.
     expect(($this->mistakeIds)())->toBe([$question->id])
         ->and(($this->practisableIds)())->toBe([]);
-    expect(fn () => app(SelfPracticeExamService::class)->generateFromMistakes($this->student, $this->subject->id, 10))
+    expect(fn () => app(SelfPracticeExamService::class)->generateFromMistakes($this->student, $this->classSubject, 10))
         ->toThrow(ValidationException::class);
 
     $exam->forceFill(['answers_released_at' => now()])->save();
@@ -245,7 +247,7 @@ it('builds a practice exam from the student\'s mistakes in the chosen subject on
     $neverWrong = ($this->mcq)();
     ($this->sit)(($this->examOf)([...$mistakes, $otherSubject, $neverWrong]), [$neverWrong->id => 'right']);
 
-    $attempt = app(SelfPracticeExamService::class)->generateFromMistakes($this->student, $this->subject->id, 2);
+    $attempt = app(SelfPracticeExamService::class)->generateFromMistakes($this->student, $this->classSubject, 2);
 
     expect($attempt->exam->exam_type)->toBe(ExamType::SelfPractice)
         ->and($attempt->exam->generation_mode)->toBe(GenerationMode::Mistakes)
@@ -259,7 +261,7 @@ it('shrinks the list as the student gets their mistakes right in mistake practic
     ($this->sit)(($this->examOf)([$question]), [$question->id => 'wrong']);
 
     $practise = function (string $option) use ($question): void {
-        $attempt = app(SelfPracticeExamService::class)->generateFromMistakes($this->student, $this->subject->id, 10);
+        $attempt = app(SelfPracticeExamService::class)->generateFromMistakes($this->student, $this->classSubject, 10);
         AttemptAnswer::create(['attempt_id' => $attempt->id, 'question_id' => $question->id, 'student_answer' => $option]);
         $attempt->submitAndAutoGrade();
     };
@@ -284,7 +286,7 @@ it('starts mistake practice from its page, listing only subjects with mistakes',
     livewire(PractiseMistakes::class)
         ->assertSee('Physics (1)')
         ->assertDontSee('Chemistry')
-        ->fillForm(['subject_id' => $this->subject->id, 'question_count' => 5])
+        ->fillForm(['class_subject_id' => $this->classSubject->id, 'question_count' => 5])
         ->call('start')
         ->assertHasNoFormErrors()
         ->assertRedirect();
@@ -295,14 +297,15 @@ it('starts mistake practice from its page, listing only subjects with mistakes',
 it('counts mistake practice towards the same monthly limit as other self-practice', function () {
     $this->actingAs($this->student);
     Filament::setCurrentPanel(Filament::getPanel('student'));
-    SubscriptionPlan::factory()->free()->create(['monthly_exam_limit' => 1, 'target_role' => 'student']);
+    $this->subscription->delete();
+    SubscriptionPlan::factory()->free()->forStudents()->monthlyLimit(1)->create();
     $question = ($this->mcq)();
     ($this->sit)(($this->examOf)([$question]), [$question->id => 'wrong']);
 
     livewire(PractiseMistakes::class)
-        ->fillForm(['subject_id' => $this->subject->id, 'question_count' => 5])
+        ->fillForm(['class_subject_id' => $this->classSubject->id, 'question_count' => 5])
         ->call('start')
-        ->assertNotified('Monthly free limit reached');
+        ->assertNotified('Your plan does not allow this');
 
     expect(Exam::where('generation_mode', GenerationMode::Mistakes)->count())->toBe(0);
 });

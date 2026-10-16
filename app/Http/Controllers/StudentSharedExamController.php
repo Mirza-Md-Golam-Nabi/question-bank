@@ -8,6 +8,7 @@ use App\Models\Exam;
 use App\Models\ExamAttempt;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * "Login to attempt" on an exam's share link (CLAUDE.md rule 8): takes a
@@ -47,6 +48,13 @@ class StudentSharedExamController extends Controller
 
         // Into the exam — or, for a student who has already sat it, to
         // their result: nobody gets a second go.
-        return redirect()->to(TakeExamPage::urlFor(ExamAttempt::startFor($exam, $user)));
+        try {
+            $attempt = ExamAttempt::startFor($exam, $user);
+        } catch (ValidationException $exception) {
+            // The exam is full: the share page says so.
+            return redirect()->route('guest-exam.show', $shareToken)->withErrors($exception->errors());
+        }
+
+        return redirect()->to(TakeExamPage::urlFor($attempt));
     }
 }

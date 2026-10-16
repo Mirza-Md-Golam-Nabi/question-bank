@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 class JoinExam extends Page implements HasSchemas
 {
     use InteractsWithSchemas;
+    use NotifiesValidationFailures;
     use TranslatesPageLabels;
 
     protected string $view = 'filament.student.pages.join-exam';
@@ -59,6 +61,9 @@ class JoinExam extends Page implements HasSchemas
 
         // Into the exam — or, for a student who has already sat it, to
         // their result: nobody gets a second go.
-        $this->redirect(TakeExamPage::urlFor(ExamAttempt::startFor($exam, Auth::user())));
+        // A full exam takes no one new.
+        if ($attempt = $this->rescueWithNotification(fn () => ExamAttempt::startFor($exam, Auth::user()))) {
+            $this->redirect(TakeExamPage::urlFor($attempt));
+        }
     }
 }

@@ -21,6 +21,7 @@ use function Pest\Livewire\livewire;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->teacher = User::factory()->teacher()->create();
+    subscribeToEverything($this->teacher);
     $this->otherTeacher = User::factory()->teacher()->create();
     $this->admin = User::factory()->admin()->create();
     $this->actingAs($this->teacher);
@@ -85,8 +86,9 @@ it('refuses a question the teacher may not use', function (array $attributes, bo
 it('keeps a pending question out of a student\'s self-practice', function () {
     $ownPending = ($this->ownPending)();
     $student = User::factory()->student()->create();
+    subscribeToEverything($student);
 
-    $attempt = app(SelfPracticeExamService::class)->generateManual($student, $this->classSubject->subject_id, [$ownPending->id]);
+    $attempt = app(SelfPracticeExamService::class)->generateManual($student, $this->classSubject, [$ownPending->id]);
 
     expect($attempt->exam->questions()->count())->toBe(0);
 });

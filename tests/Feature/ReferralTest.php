@@ -1,10 +1,14 @@
 <?php
 
+use App\Enums\ReferralSource;
 use App\Filament\Student\Pages\MyProfile as StudentMyProfile;
+use App\Models\AcademicClass;
 use App\Models\BillingSetting;
 use App\Models\Payment;
+use App\Models\StudentReferral;
 use App\Models\User;
 use App\Services\ReferralService;
+use App\Services\StudentReferralService;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
 use Laravel\Socialite\Facades\Socialite;
@@ -33,7 +37,13 @@ it('links a new student to the teacher whose referral link they came through', f
         ->assertRedirect(route('home'));
     signInWithGoogleAs('student', 'new-student@example.com');
 
-    expect(User::where('email', 'new-student@example.com')->first()->referred_by_id)->toBe($teacher->id);
+    // A student's referral is a time-limited one, which a link (unlike an
+    // exam link) still lets them change for a while.
+    $referral = StudentReferral::sole();
+    expect($referral->student->email)->toBe('new-student@example.com')
+        ->and($referral->referrer_id)->toBe($teacher->id)
+        ->and($referral->source)->toBe(ReferralSource::Link)
+        ->and($referral->isChangeable())->toBeTrue();
 });
 
 it('links a new teacher to the teacher who referred them', function () {
@@ -52,7 +62,8 @@ it('creates the account without a referrer when the link has an unknown code', f
     $this->get(route('referral.visit', ['code' => 'NOSUCHCODE']))->assertRedirect(route('home'));
     signInWithGoogleAs('student', 'new-student@example.com');
 
-    expect(User::where('email', 'new-student@example.com')->first()->referred_by_id)->toBeNull();
+    expect(User::where('email', 'new-student@example.com')->first()->referred_by_id)->toBeNull()
+        ->and(StudentReferral::count())->toBe(0);
 });
 
 it('ignores a referral link while the programme is off', function () {
@@ -61,7 +72,8 @@ it('ignores a referral link while the programme is off', function () {
     $this->get(route('referral.visit', ['code' => $this->referrals->codeFor($teacher)]));
     signInWithGoogleAs('student', 'new-student@example.com');
 
-    expect(User::where('email', 'new-student@example.com')->first()->referred_by_id)->toBeNull();
+    expect(User::where('email', 'new-student@example.com')->first()->referred_by_id)->toBeNull()
+        ->and(StudentReferral::count())->toBe(0);
 });
 
 it('does not refer a new staff account', function () {
@@ -84,7 +96,8 @@ it('does not re-refer an existing account that signs in after visiting a link', 
     $this->get('/auth/google/redirect/student');
     $this->get('/auth/google/callback');
 
-    expect($student->refresh()->referred_by_id)->toBeNull();
+    expect($student->refresh()->referred_by_id)->toBeNull()
+        ->and(StudentReferral::count())->toBe(0);
 });
 
 it('gives every user their own code and keeps it', function () {
@@ -106,7 +119,7 @@ it('accepts a code typed in any letter case', function () {
     $attached = $this->referrals->attach($student, ' '.strtolower($this->referrals->codeFor($teacher)).' ');
 
     expect($attached)->toBeTrue();
-    expect($student->refresh()->referred_by_id)->toBe($teacher->id);
+    expect(app(StudentReferralService::class)->current($student)->referrer_id)->toBe($teacher->id);
 });
 
 it('refuses a user\'s own code', function () {
@@ -117,40 +130,40 @@ it('refuses a user\'s own code', function () {
     expect($student->refresh()->referred_by_id)->toBeNull();
 });
 
-it('refuses a code once the user has bought a subscription', function () {
+it('refuses a teacher a code once they have bought a subscription', function () {
     BillingSetting::create(['referral_enabled' => true]);
+    $referrer = User::factory()->teacher()->create();
     $teacher = User::factory()->teacher()->create();
-    $student = User::factory()->student()->create();
-    Payment::factory()->create(['user_id' => $student->id]);
+    Payment::factory()->create(['user_id' => $teacher->id]);
 
-    expect($this->referrals->attach($student, $this->referrals->codeFor($teacher)))->toBeFalse();
+    expect($this->referrals->attach($teacher, $this->referrals->codeFor($referrer)))->toBeFalse();
 });
 
-it('does not replace the referrer a user already has', function () {
+it('does not replace the referrer a teacher already has', function () {
     BillingSetting::create(['referral_enabled' => true]);
     $first = User::factory()->teacher()->create();
     $second = User::factory()->teacher()->create();
-    $student = User::factory()->student()->create();
-    $this->referrals->attach($student, $this->referrals->codeFor($first));
+    $teacher = User::factory()->teacher()->create();
+    $this->referrals->attach($teacher, $this->referrals->codeFor($first));
 
-    expect($this->referrals->attach($student, $this->referrals->codeFor($second)))->toBeFalse();
-    expect($student->refresh()->referred_by_id)->toBe($first->id);
+    expect($this->referrals->attach($teacher, $this->referrals->codeFor($second)))->toBeFalse();
+    expect($teacher->refresh()->referred_by_id)->toBe($first->id);
 });
 
 it('flags a payment sent from a number the referrer uses', function () {
     $referrer = User::factory()->teacher()->create(['phone' => '01811111111']);
     $student = User::factory()->student()->create();
-    $student->forceFill(['referred_by_id' => $referrer->id])->save();
 
-    $fromReferrersNumber = Payment::factory()->pending()->create(['user_id' => $student->id, 'payer_number' => '01811111111']);
-    $fromAnotherNumber = Payment::factory()->pending()->create(['user_id' => $student->id, 'payer_number' => '01922222222']);
+    $fromReferrersNumber = Payment::factory()->pending()->create(['user_id' => $student->id, 'referrer_id' => $referrer->id, 'payer_number' => '01811111111']);
+    $fromAnotherNumber = Payment::factory()->pending()->create(['user_id' => $student->id, 'referrer_id' => $referrer->id, 'payer_number' => '01922222222']);
 
     expect($this->referrals->sharesPayerNumberWithReferrer($fromReferrersNumber))->toBeTrue()
         ->and($this->referrals->sharesPayerNumberWithReferrer($fromAnotherNumber))->toBeFalse();
 });
 
 it('saves a student\'s phone number in one normalized form from the profile page', function () {
-    $student = User::factory()->student()->create();
+    // A student's profile always has their class.
+    $student = User::factory()->student()->create(['academic_class_id' => AcademicClass::factory()->create()->id]);
     $this->actingAs($student);
     Filament::setCurrentPanel(Filament::getPanel('student'));
 
@@ -179,21 +192,26 @@ it('rejects a phone number that is not a mobile number', function () {
 it('lets a student enter a referral code on the profile page', function () {
     BillingSetting::create(['referral_enabled' => true]);
     $teacher = User::factory()->teacher()->create();
-    $student = User::factory()->student()->create();
+    // A student's profile always has their class.
+    $student = User::factory()->student()->create(['academic_class_id' => AcademicClass::factory()->create()->id]);
     $this->actingAs($student);
     Filament::setCurrentPanel(Filament::getPanel('student'));
 
     livewire(StudentMyProfile::class)
         ->fillForm(['referral_code' => $this->referrals->codeFor($teacher)])
         ->call('save')
-        ->assertHasNoErrors();
+        ->assertHasNoErrors()
+        // Who they are under now, and for how long, is shown straight away.
+        ->assertSee($teacher->name)
+        ->assertSee('90 days left');
 
-    expect($student->refresh()->referred_by_id)->toBe($teacher->id);
+    expect(app(StudentReferralService::class)->current($student)->referrer_id)->toBe($teacher->id);
 });
 
 it('shows an error for a referral code that does not exist', function () {
     BillingSetting::create(['referral_enabled' => true]);
-    $student = User::factory()->student()->create();
+    // A student's profile always has their class.
+    $student = User::factory()->student()->create(['academic_class_id' => AcademicClass::factory()->create()->id]);
     $this->actingAs($student);
     Filament::setCurrentPanel(Filament::getPanel('student'));
 
@@ -204,7 +222,7 @@ it('shows an error for a referral code that does not exist', function () {
 });
 
 it('shows a student their own code and wallet on the profile page', function () {
-    BillingSetting::create(['referral_enabled' => true, 'referrer_reward_percent' => 20, 'referee_discount_percent' => 10]);
+    BillingSetting::create(['referral_enabled' => true, 'student_reward_percent' => 20, 'referee_discount_percent' => 10]);
     $student = User::factory()->student()->create();
     $this->actingAs($student);
     Filament::setCurrentPanel(Filament::getPanel('student'));

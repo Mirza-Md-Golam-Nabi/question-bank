@@ -13,7 +13,7 @@
 | [05-question-bank.md](05-question-bank.md) | প্রশ্নের জীবনচক্র, approve/reject, versioning, JSON ইমপোর্ট, dynamic difficulty, বোর্ড প্রশ্নপত্র |
 | [06-exams.md](06-exams.md) | প্রশ্ন বাছাই, পরীক্ষা তৈরি/এডিট/বাতিল, শেয়ার-লিংক, Guest, খাতা জমা, ফলাফল, প্রিন্ট |
 | [07-student-practice.md](07-student-practice.md) | Self-practice-এর তিন মোড, ভুলের তালিকা, দুর্বল অধ্যায় |
-| [08-billing.md](08-billing.md) | Subscription ও লিমিট, পেমেন্ট, referral, wallet, refund, Staff earning ও payout |
+| [08-billing.md](08-billing.md) | Plan ও তার শর্ত, লিমিট, পেমেন্ট, referral, wallet, refund, Staff earning ও payout |
 | [09-admin-settings.md](09-admin-settings.md) | Admin-এর প্রতিটা সেটিং: কী করে, ডিফল্ট কত, কোথায় প্রভাব ফেলে |
 | [10-testing-and-deploy.md](10-testing-and-deploy.md) | টেস্ট, ব্রাউজারে যাচাই, deploy, জানা ফাঁদগুলো |
 | [CHANGELOG.md](CHANGELOG.md) | তারিখ ধরে কী বদলেছে |

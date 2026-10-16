@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\QuestionStatus;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\Question;
+use App\Models\ReferralReward;
 use App\Models\StaffEarning;
 use App\Models\StaffProfile;
 use App\Services\ReferralService;
@@ -20,6 +21,7 @@ use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 
@@ -178,6 +180,16 @@ class MyEarnings extends Page implements HasSchemas
     public function referralRewardSummary(): array
     {
         return app(ReferralService::class)->rewardSummaryFor(Auth::user());
+    }
+
+    /**
+     * The latest referral rewards, one row each.
+     *
+     * @return EloquentCollection<int, ReferralReward>
+     */
+    public function referralRewards(): EloquentCollection
+    {
+        return Auth::user()->recentReferralRewards();
     }
 
     /**

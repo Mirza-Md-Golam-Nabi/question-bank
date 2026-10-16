@@ -30,24 +30,27 @@ use Illuminate\Validation\Rule;
  */
 class ContentHierarchySchema
 {
-    public static function classSelect(): Select
+    /**
+     * @param  (Closure(): array<int, int>)|null  $onlyClassSubjectIds  Narrows the classes to those of these class_subjects.
+     */
+    public static function classSelect(?Closure $onlyClassSubjectIds = null): Select
     {
         return Select::make('academic_class_id')
             ->label(__('Class'))
-            ->options(fn () => AcademicClass::ordered()->pluck('name', 'id'))
+            ->options(fn (): array => AcademicClass::options($onlyClassSubjectIds
+                ? ClassSubject::query()->whereKey($onlyClassSubjectIds())->distinct()->pluck('academic_class_id')->all()
+                : null))
             ->live();
     }
 
-    public static function subjectSelect(): Select
+    /**
+     * @param  (Closure(): array<int, int>)|null  $onlyClassSubjectIds  Narrows the subjects to these class_subjects.
+     */
+    public static function subjectSelect(?Closure $onlyClassSubjectIds = null): Select
     {
         return Select::make('class_subject_id')
             ->label(__('Subject'))
-            ->options(fn (Get $get) => ClassSubject::query()
-                ->where('academic_class_id', $get('academic_class_id'))
-                ->with('subject')
-                ->ordered()
-                ->get()
-                ->pluck('subject.name', 'id'))
+            ->options(fn (Get $get): array => ClassSubject::subjectOptionsFor($get('academic_class_id'), $onlyClassSubjectIds ? $onlyClassSubjectIds() : null))
             ->live();
     }
 

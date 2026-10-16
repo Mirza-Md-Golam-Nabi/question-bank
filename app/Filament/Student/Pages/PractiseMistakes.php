@@ -3,8 +3,8 @@
 namespace App\Filament\Student\Pages;
 
 use App\Filament\Support\Pages\SelfPracticeExamPage;
+use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
-use App\Models\Subject;
 use App\Models\User;
 use App\Services\SelfPracticeExamService;
 use App\Services\StudentMistakeTracker;
@@ -30,7 +30,7 @@ class PractiseMistakes extends SelfPracticeExamPage
     {
         return $schema
             ->components([
-                Select::make('subject_id')
+                Select::make('class_subject_id')
                     ->label(__('Subject'))
                     ->options(fn (): array => $this->subjectsWithMistakes())
                     ->helperText(fn (): ?string => $this->subjectsWithMistakes() === []
@@ -53,33 +53,33 @@ class PractiseMistakes extends SelfPracticeExamPage
         return __('Start practising');
     }
 
-    protected function createAttempt(User $student, array $data): ExamAttempt
+    protected function createAttempt(User $student, ClassSubject $classSubject, array $data): ExamAttempt
     {
         return app(SelfPracticeExamService::class)->generateFromMistakes(
             $student,
-            (int) $data['subject_id'],
+            $classSubject,
             (int) $data['question_count'],
         );
     }
 
     /**
-     * The subjects the student has mistakes in, each labelled with how
-     * many — worked out once per request.
+     * The subjects of the student's class they have mistakes in, each
+     * labelled with how many — worked out once per request.
      *
      * @return array<int, string>
      */
     private function subjectsWithMistakes(): array
     {
         return once(function (): array {
-            $counts = app(StudentMistakeTracker::class)->countsBySubject(Auth::user());
+            if (! $this->hasClass()) {
+                return [];
+            }
 
-            return Subject::query()
-                ->whereKey($counts->keys())
-                ->orderBy('name')
-                ->get()
-                ->mapWithKeys(fn (Subject $subject): array => [
-                    $subject->id => "{$subject->display_name} ({$counts[$subject->id]})",
-                ])
+            $counts = app(StudentMistakeTracker::class)->countsByClassSubject(Auth::user(), Auth::user()->academic_class_id);
+
+            return collect($this->subjectOptions())
+                ->only($counts->keys())
+                ->map(fn (string $name, int $classSubjectId): string => "{$name} ({$counts[$classSubjectId]})")
                 ->all();
         });
     }

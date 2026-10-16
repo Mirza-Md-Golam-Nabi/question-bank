@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Filament\Pages\ReferralReport as ReferralReportPage;
 use App\Models\Payment;
 use App\Models\ReferralReward;
+use App\Models\StudentReferral;
 use App\Models\User;
 use App\Services\ReferralReport;
 use Database\Seeders\RoleSeeder;
@@ -15,15 +16,15 @@ beforeEach(function () {
     $this->seed(RoleSeeder::class);
 
     /**
-     * A user who signed up with the referrer's code and, when an amount is
-     * given, has one approved payment of that much.
+     * A student under the referrer's referral and, when an amount is given,
+     * with one approved payment of that much made under it.
      */
     $this->referred = function (User $referrer, ?float $paid = null): User {
         $student = User::factory()->student()->create();
-        $student->forceFill(['referred_by_id' => $referrer->id])->save();
+        StudentReferral::factory()->create(['student_id' => $student->id, 'referrer_id' => $referrer->id]);
 
         if ($paid !== null) {
-            Payment::factory()->create(['user_id' => $student->id, 'amount' => $paid]);
+            Payment::factory()->create(['user_id' => $student->id, 'referrer_id' => $referrer->id, 'amount' => $paid]);
         }
 
         return $student;
@@ -44,11 +45,28 @@ it('counts each referrer\'s sign-ups, buyers and cash, biggest earner first', fu
     expect([$rows[1]->referred_count, $rows[1]->buyers_count, (float) $rows[1]->cash_received])->toBe([2, 1, 180.0]);
 });
 
+it('counts a referred teacher and each student once, and a student\'s cash for the referrer they paid under', function () {
+    $teacher = User::factory()->teacher()->create(['name' => 'Teacher T']);
+    $other = User::factory()->teacher()->create(['name' => 'Other O']);
+    $student = ($this->referred)($teacher, 100);
+    // The same student under the teacher again, later.
+    StudentReferral::factory()->create(['student_id' => $student->id, 'referrer_id' => $teacher->id]);
+    // Then under someone else, paying them.
+    StudentReferral::factory()->create(['student_id' => $student->id, 'referrer_id' => $other->id]);
+    Payment::factory()->create(['user_id' => $student->id, 'referrer_id' => $other->id, 'amount' => 40]);
+    User::factory()->teacher()->create()->forceFill(['referred_by_id' => $teacher->id])->save();
+
+    $rows = (new ReferralReport)->rows()->keyBy('name');
+
+    expect([$rows['Teacher T']->referred_count, (float) $rows['Teacher T']->cash_received])->toBe([2, 100.0])
+        ->and([$rows['Other O']->referred_count, (float) $rows['Other O']->cash_received])->toBe([1, 40.0]);
+});
+
 it('leaves refunded and pending payments out of the cash received', function () {
     $teacher = User::factory()->teacher()->create();
     $student = ($this->referred)($teacher, 180);
-    Payment::factory()->pending()->create(['user_id' => $student->id, 'amount' => 999]);
-    Payment::factory()->create(['user_id' => $student->id, 'amount' => 777, 'status' => 'refunded']);
+    Payment::factory()->pending()->create(['user_id' => $student->id, 'referrer_id' => $teacher->id, 'amount' => 999]);
+    Payment::factory()->create(['user_id' => $student->id, 'referrer_id' => $teacher->id, 'amount' => 777, 'status' => 'refunded']);
 
     expect((float) (new ReferralReport)->rows()->first()->cash_received)->toBe(180.0);
 });

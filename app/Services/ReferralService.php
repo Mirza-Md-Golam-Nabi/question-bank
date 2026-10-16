@@ -2,29 +2,45 @@
 
 namespace App\Services;
 
+use App\Enums\ExamType;
 use App\Enums\PaymentStatus;
+use App\Enums\ReferralSource;
 use App\Enums\UserRole;
 use App\Models\BillingSetting;
+use App\Models\Exam;
 use App\Models\Payment;
 use App\Models\ReferralReward;
+use App\Models\StudentReferral;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Every referral rule in one place: who can refer whom, when a code can
- * still be entered, the newcomer's discount, and the referrer's reward.
+ * still be entered, the buyer's discount, and the referrer's reward. How
+ * long a student stays under a referrer is StudentReferralService's.
+ *
+ * Who a buyer's referrer is depends on the buyer:
+ *  - a **student** is under one referrer at a time, for a limited number of
+ *    days (a code they typed, a link they signed up through, or the exam
+ *    link of a teacher they sat an exam with). Every purchase in that time
+ *    gets the discount, and earns the referrer a reward — or only the first
+ *    one, if the Admin says so;
+ *  - a **teacher** is referred once, for good, by the code they signed up
+ *    with; only their first purchase gets the discount and the reward.
  *
  * Referrals are one level deep on purpose — a referrer is rewarded for the
  * people they brought in themselves, never for those people's own
  * referrals. Rewards only follow real money: they are worked out from the
- * cash part of the newcomer's first successful payment, never from the part
- * paid with wallet credit (credit must not be able to breed more credit).
+ * cash part of a payment, never from the part paid with wallet credit
+ * (credit must not be able to breed more credit). A payment remembers who
+ * its referrer was when it was placed.
  *
- * The rule is the same for every referrer; only where the reward ends up
- * differs. A Teacher's or Student's becomes wallet credit (WalletService
- * counts it); a Staff member's is paid out with their earnings
- * (StaffPayout). Either way it is one ReferralReward row that matures when
- * the payment's refund period ends.
+ * Where a reward ends up depends on the referrer: a Teacher's or Student's
+ * goes to their wallet, which they can spend on their subscription or take
+ * out as cash above a reserve (WithdrawalService), and is only earned while
+ * they have a paid subscription themselves; a Staff member's is paid out
+ * with their earnings (StaffPayout). Either way it is one ReferralReward
+ * row that matures when the payment's refund period ends.
  */
 class ReferralService
 {
@@ -36,7 +52,7 @@ class ReferralService
 
     private const CODE_LENGTH = 8;
 
-    public function __construct(private readonly WalletService $wallet) {}
+    public function __construct(private readonly StudentReferralService $studentReferrals) {}
 
     public function isEnabled(): bool
     {
@@ -98,27 +114,40 @@ class ReferralService
     }
 
     /**
-     * A code can be entered until the first purchase — after that the
-     * "new customer" the reward and discount exist for is no longer new.
+     * Whether the user may enter a code now. A student: while they are
+     * under no referrer, or the code they typed can still be swapped. A
+     * teacher: until their first purchase — after that the "new customer"
+     * the reward and discount exist for is no longer new.
      */
     public function canEnterCode(User $user): bool
     {
-        return $this->isEnabled()
-            && $this->canBeReferred($user)
-            && $user->referred_by_id === null
-            && ! $user->hasSuccessfulPayment();
+        if (! $this->isEnabled() || ! $this->canBeReferred($user)) {
+            return false;
+        }
+
+        if ($user->role === UserRole::Student) {
+            return $this->studentReferrals->canChange($user);
+        }
+
+        return $user->referred_by_id === null && ! $user->hasSuccessfulPayment();
     }
 
     /**
      * Records who referred this user. False when the code is unknown, is
      * the user's own, or the user can no longer be referred.
+     *
+     * @param  ReferralSource  $source  How a student got the code: typed, or through a referral link.
      */
-    public function attach(User $user, ?string $code): bool
+    public function attach(User $user, ?string $code, ReferralSource $source = ReferralSource::Code): bool
     {
         $referrer = $this->findReferrer($code);
 
         if (! $referrer || $referrer->is($user) || ! $this->canEnterCode($user)) {
             return false;
+        }
+
+        if ($user->role === UserRole::Student) {
+            return $this->studentReferrals->startFromCode($user, $referrer, $source);
         }
 
         $user->forceFill(['referred_by_id' => $referrer->id])->save();
@@ -127,15 +156,58 @@ class ReferralService
     }
 
     /**
-     * The newcomer's discount on their first purchase, as a percentage.
+     * A logged-in student opening a teacher's exam link comes under that
+     * teacher's referral — unless they are already under a fixed one.
+     */
+    public function attributeFromExam(User $student, Exam $exam): void
+    {
+        $teacher = $exam->creator;
+
+        if (! $this->isEnabled()
+            || $student->role !== UserRole::Student
+            || $exam->exam_type !== ExamType::TeacherExam
+            || $teacher?->role !== UserRole::Teacher
+            || ! $this->canRefer($teacher)) {
+            return;
+        }
+
+        $this->studentReferrals->startFromExam($student, $teacher, $exam);
+    }
+
+    /**
+     * Who would be credited with a purchase the buyer makes now, and the
+     * student referral it would be made under (none for a teacher buyer).
+     * Null when nobody would: no referrer, the programme is off, or a
+     * teacher who has bought before.
+     *
+     * @return array{referrer: User, student_referral: ?StudentReferral}|null
+     */
+    public function referralFor(User $buyer): ?array
+    {
+        if (! $this->isEnabled()) {
+            return null;
+        }
+
+        if ($buyer->role === UserRole::Student) {
+            $referral = $this->studentReferrals->current($buyer);
+
+            return $referral ? ['referrer' => $referral->referrer, 'student_referral' => $referral] : null;
+        }
+
+        if ($buyer->referred_by_id === null || $buyer->hasSuccessfulPayment()) {
+            return null;
+        }
+
+        return ['referrer' => $buyer->referrer, 'student_referral' => null];
+    }
+
+    /**
+     * The buyer's discount, as a percentage: on every purchase of a student
+     * while they are under a referrer, and on a referred teacher's first.
      */
     public function discountPercentFor(User $buyer): float
     {
-        if (! $this->isEnabled() || $buyer->referred_by_id === null || $buyer->hasSuccessfulPayment()) {
-            return 0.0;
-        }
-
-        return BillingSetting::current()->referee_discount_percent;
+        return $this->referralFor($buyer) ? BillingSetting::current()->referee_discount_percent : 0.0;
     }
 
     /**
@@ -167,31 +239,42 @@ class ReferralService
 
     /**
      * Records the referrer's reward for a payment that has just been
-     * approved — if it is the buyer's first successful one, any cash was
-     * paid, and the referrer is (still) allowed to refer at this moment.
+     * approved, when:
+     *  - cash was paid, and the payment's referrer is (still) allowed to
+     *    refer at this moment;
+     *  - a Teacher or Student referrer has a paid subscription in force
+     *    (none during the trial or on the free plan);
+     *  - for a student's purchase: every purchase while they are under the
+     *    referral, or only the first one under it if the Admin says so; for
+     *    a teacher's purchase: only their first.
      *
-     * The amount is fixed at this moment's percentage, and the reward
-     * matures when the payment's refund period ends; changing either
-     * setting later leaves it as it was. Safe to call twice for the same
-     * payment.
+     * The amount is fixed at this moment's percentage (kept on the row),
+     * and the reward matures when the payment's refund period ends;
+     * changing either setting later leaves it as it was. Safe to call twice
+     * for the same payment.
      */
     public function rewardFor(Payment $payment): ?ReferralReward
     {
-        $buyer = $payment->user;
-        $referrer = $buyer->referrer;
+        $referrer = $payment->referrer;
 
-        if (! $this->isEnabled() || ! $referrer || ! $this->canRefer($referrer) || $payment->amount <= 0) {
+        if (! $this->isEnabled() || ! $referrer || ! $this->canRefer($referrer) || $payment->amount <= 0
+            || $payment->referralReward()->exists() || ! $this->isRewardedPurchase($payment)) {
             return null;
         }
 
-        $isFirstPurchase = ! $buyer->payments()
-            ->where('status', PaymentStatus::Success)
-            ->whereKeyNot($payment->id)
-            ->exists();
+        if (! $this->earnsCommission($referrer)) {
+            Log::info('No reward: the referrer has no paid subscription.', [
+                'payment_id' => $payment->id,
+                'referrer_id' => $referrer->id,
+            ]);
 
-        $amount = round($payment->amount * $this->rewardPercentFor($referrer) / 100, 2);
+            return null;
+        }
 
-        if (! $isFirstPurchase || $amount <= 0 || $payment->referralReward()->exists()) {
+        $percent = $this->rewardPercentFor($referrer);
+        $amount = round($payment->amount * $percent / 100, 2);
+
+        if ($amount <= 0) {
             return null;
         }
 
@@ -201,21 +284,59 @@ class ReferralService
             'referrer_id' => $referrer->id,
             'payment_id' => $payment->id,
             'amount' => $amount,
+            'percent' => $percent,
             'matures_at' => $maturesAt,
-            // Only wallet credit expires; a Staff member's reward is cash owed.
-            'expires_at' => $referrer->role->holdsWallet() ? $this->wallet->expiryFor($maturesAt) : null,
+            // Wallet money and a Staff member's reward are both cash owed;
+            // neither expires.
+            'expires_at' => null,
         ]);
         $reward->forceFill(['created_at' => now()])->save();
 
         Log::info('Referral reward recorded.', [
             'payment_id' => $payment->id,
             'referrer_id' => $referrer->id,
-            'buyer_id' => $buyer->id,
+            'buyer_id' => $payment->user_id,
+            'percent' => $percent,
             'amount' => $amount,
             'matures_at' => $maturesAt->toDateTimeString(),
         ]);
 
         return $reward;
+    }
+
+    /**
+     * Whether a referrer would earn a reward on a purchase now. A Teacher or
+     * Student only with a paid subscription in force — not during the free
+     * trial, not on the free plan; a Staff member always (they have no
+     * subscription; their reward is paid with their earnings).
+     */
+    public function earnsCommission(User $referrer): bool
+    {
+        if (! $referrer->role->holdsWallet()) {
+            return true;
+        }
+
+        return $referrer->activeSubscriptions()
+            ->contains(fn ($subscription): bool => $subscription->plan && ! $subscription->plan->is_trial && ! $subscription->plan->is_default_free);
+    }
+
+    /**
+     * Whether this purchase is one that earns a reward: a student's, every
+     * one under the referral (or only the first, as the Admin sets); a
+     * teacher's, only their first.
+     */
+    private function isRewardedPurchase(Payment $payment): bool
+    {
+        $earlierSuccessful = Payment::query()
+            ->where('status', PaymentStatus::Success)
+            ->whereKeyNot($payment->id);
+
+        if ($payment->student_referral_id === null) {
+            return ! $earlierSuccessful->where('user_id', $payment->user_id)->exists();
+        }
+
+        return ! BillingSetting::current()->commission_first_purchase_only
+            || ! $earlierSuccessful->where('student_referral_id', $payment->student_referral_id)->exists();
     }
 
     /**

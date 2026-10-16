@@ -3,15 +3,24 @@
         $user = auth()->user();
         $settings = $this->settings();
         $referrer = $this->referrer();
-        $hasWallet = $this->hasWallet();
-        $rewards = $this->rewards();
+        $studentReferral = $this->studentReferral();
     @endphp
 
     <x-filament::section :heading="__('My details')">
         <p class="text-sm"><span class="text-gray-500">{{ __('Name') }}:</span> {{ $user->name }}</p>
         <p class="mb-4 text-sm"><span class="text-gray-500">{{ __('Email') }}:</span> {{ $user->email }}</p>
 
-        @if ($referrer)
+        @if ($studentReferral)
+            <div class="mb-4 rounded-lg border border-gray-200 p-3 text-sm dark:border-white/10">
+                <p><span class="text-gray-500">{{ __('Referred by') }}:</span> <span class="font-medium">{{ $studentReferral->referrer->name }}</span> ({{ $studentReferral->source->getLabel() }})</p>
+                <p class="mt-1 text-gray-500">
+                    {{ __(':days days left — on :date it ends by itself.', ['days' => $studentReferral->daysLeft(), 'date' => $studentReferral->ends_at->format('M j, Y')]) }}
+                    @if ($studentReferral->isChangeable())
+                        {{ __('You can change the code until :date.', ['date' => $studentReferral->changeable_until->format('M j, Y g:i A')]) }}
+                    @endif
+                </p>
+            </div>
+        @elseif ($referrer)
             <p class="mb-4 text-sm"><span class="text-gray-500">{{ __('Referred by') }}:</span> {{ $referrer->name }}</p>
         @endif
 
@@ -24,20 +33,55 @@
         </form>
     </x-filament::section>
 
+    @php $devices = $this->devices(); @endphp
+    @if ($devices->isNotEmpty())
+        <x-filament::section :heading="__('My devices')" icon="heroicon-o-device-phone-mobile">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ __('You can be signed in on :count devices at once. Signing in on another signs out the one used longest ago.', ['count' => $this->deviceLimit()]) }}
+            </p>
+
+            <ul class="mt-3 divide-y divide-gray-100 text-sm dark:divide-white/10">
+                @foreach ($devices as $device)
+                    <li class="flex flex-wrap items-center justify-between gap-3 py-2">
+                        <span>
+                            <span class="font-medium">{{ $device['agent'] }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">· {{ $device['ip'] }} · {{ $device['last_active']->diffForHumans() }}</span>
+                        </span>
+
+                        @if ($device['is_current'])
+                            <x-filament::badge color="success">{{ __('This device') }}</x-filament::badge>
+                        @else
+                            <x-filament::button size="xs" color="danger" outlined wire:click="signOutDevice(@js($device['id']))">
+                                {{ __('Sign out') }}
+                            </x-filament::button>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
+        </x-filament::section>
+    @endif
+
     @if ($this->canRefer())
         <x-filament::section :heading="__('Refer and earn')" icon="heroicon-o-gift">
             <p class="text-sm">
-                @if ($hasWallet)
-                    {{ __('Share your code. When someone who signed up with it buys their first subscription, :reward% of what they pay is added to your wallet — and they get :discount% off.', [
-                        'reward' => $this->rewardPercent(),
-                        'discount' => $settings->referee_discount_percent,
-                    ]) }}
-                @else
-                    {{ __('Share your code. When someone who signed up with it buys their first subscription, :reward% of what they pay is added to your earnings and paid with your payout — and they get :discount% off.', [
-                        'reward' => $this->rewardPercent(),
-                        'discount' => $settings->referee_discount_percent,
-                    ]) }}
-                @endif
+                {{ __('Share your code. A student who enters it is under your referral for :days days and gets :discount% off; you earn :reward% of what they pay on :which they make in that time.', [
+                    'days' => $settings->referral_lock_days,
+                    'discount' => $settings->referee_discount_percent,
+                    'reward' => $this->rewardPercent(),
+                    'which' => $settings->commission_first_purchase_only ? __('the first purchase') : __('every purchase'),
+                ]) }}
+            </p>
+            <p class="mt-1 text-sm text-gray-500">
+                @switch($user->role)
+                    @case(\App\Enums\UserRole::Teacher)
+                        {{ __('Students who open your exam links while logged in also come under your referral. Your commission goes to your wallet and can be taken out as cash on the Referrals & commission page — only while you have a paid subscription.') }}
+                        @break
+                    @case(\App\Enums\UserRole::Student)
+                        {{ __('Your commission goes to your wallet and can be taken out as cash on the Referrals & commission page — only while you have a paid subscription.') }}
+                        @break
+                    @default
+                        {{ __('Your reward is added to your earnings and paid with your payout.') }}
+                @endswitch
             </p>
 
             @if ($settings->refund_window_days > 0)
@@ -46,11 +90,6 @@
                 </p>
             @endif
 
-            @if ($hasWallet)
-                <p class="mt-1 text-sm text-gray-500">
-                    {{ __('Wallet credit is not paid out as cash — you spend it on your own subscription.') }}
-                </p>
-            @endif
 
             <div
                 class="mt-4 space-y-3"
@@ -96,76 +135,12 @@
             <p class="mt-4 text-sm">
                 {{ __('People who joined with your code') }}: <span class="font-bold">{{ $this->referredCount() }}</span>
             </p>
+
+            {{-- What referring has earned is on one page per role, not here. --}}
+            <x-filament::button tag="a" :href="$this->earningsUrl()" color="gray" size="sm" icon="heroicon-o-banknotes" class="mt-3">
+                {{ __('See what I have earned') }}
+            </x-filament::button>
         </x-filament::section>
     @endif
 
-    @if ($rewards->isNotEmpty())
-        <x-filament::section :heading="__('My referral rewards')" icon="heroicon-o-banknotes">
-            <x-referral-reward-summary :summary="$this->rewardSummary()" :show-paid="! $hasWallet" />
-
-            <div class="mt-4 overflow-x-auto">
-                <table class="fi-ta-table w-full text-start text-sm">
-                    <thead>
-                        <tr>
-                            <th class="p-2 text-start">{{ __('Date') }}</th>
-                            <th class="p-2 text-start">{{ __('Amount') }}</th>
-                            <th class="p-2 text-start">{{ __('Status') }}</th>
-                            <th class="p-2 text-start">{{ __('Available from') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($rewards as $reward)
-                            <tr>
-                                <td class="p-2">{{ $reward->created_at->format('M j, Y') }}</td>
-                                <td class="p-2 font-medium">৳{{ number_format($reward->amount, 2) }}</td>
-                                <td class="p-2">{{ $reward->status()->getLabel() }}</td>
-                                <td class="p-2">{{ $reward->matures_at->format('M j, Y') }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </x-filament::section>
-    @endif
-
-    @if ($hasWallet)
-        @php $entries = $this->walletEntries(); @endphp
-
-        <x-filament::section :heading="__('My wallet')" icon="heroicon-o-wallet">
-            <p class="text-2xl font-bold">৳{{ number_format($this->walletBalance(), 2) }}</p>
-
-            @if ($settings->credit_expiry_months)
-                <p class="mt-1 text-sm text-gray-500">
-                    {{ __('Credit expires :months month(s) after it is added.', ['months' => $settings->credit_expiry_months]) }}
-                </p>
-            @endif
-
-            @if ($entries->isNotEmpty())
-                <div class="mt-4 overflow-x-auto">
-                    <table class="fi-ta-table w-full text-start text-sm">
-                        <thead>
-                            <tr>
-                                <th class="p-2 text-start">{{ __('Date') }}</th>
-                                <th class="p-2 text-start">{{ __('Details') }}</th>
-                                <th class="p-2 text-start">{{ __('Amount') }}</th>
-                                <th class="p-2 text-start">{{ __('Expires') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($entries as $entry)
-                                <tr>
-                                    <td class="p-2">{{ $entry['at']->format('M j, Y') }}</td>
-                                    <td class="p-2">{{ $entry['label'] }}</td>
-                                    <td @class(['p-2 font-medium', 'text-success-600 dark:text-success-400' => $entry['amount'] > 0, 'text-danger-600 dark:text-danger-400' => $entry['amount'] < 0])>
-                                        {{ $entry['amount'] > 0 ? '+' : '−' }}৳{{ number_format(abs($entry['amount']), 2) }}
-                                    </td>
-                                    <td class="p-2">{{ $entry['expires_at']?->format('M j, Y') ?? '—' }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-filament::section>
-    @endif
 </x-filament-panels::page>

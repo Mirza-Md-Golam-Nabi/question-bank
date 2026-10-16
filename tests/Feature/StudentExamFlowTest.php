@@ -26,18 +26,22 @@ beforeEach(function () {
     $this->actingAs($this->student);
     Filament::setCurrentPanel(Filament::getPanel('student'));
 
-    $plan = SubscriptionPlan::factory()->forStudents()->create(['monthly_exam_limit' => 3]);
+    $plan = SubscriptionPlan::factory()->forStudents()->monthlyLimit(3)->create();
     Subscription::factory()->create(['user_id' => $this->student->id, 'plan_id' => $plan->id]);
+
+    // Practice is always in the student's own class.
+    $this->classSubject = ClassSubject::factory()->create();
+    $this->student->update(['academic_class_id' => $this->classSubject->academic_class_id]);
 });
 
 it('auto-generates a practice exam from the approved pool and starts an attempt', function () {
-    $classSubject = ClassSubject::factory()->create();
+    $classSubject = $this->classSubject;
     $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
     Question::factory()->approved()->for($chapter)->count(5)->create();
 
     livewire(GeneratePracticeExam::class)
         ->fillForm([
-            'subject_id' => $classSubject->subject_id,
+            'class_subject_id' => $classSubject->id,
             'question_count' => 3,
         ])
         ->call('start');
@@ -53,13 +57,13 @@ it('auto-generates a practice exam from the approved pool and starts an attempt'
 });
 
 it('builds a manual practice exam from student-picked questions', function () {
-    $classSubject = ClassSubject::factory()->create();
+    $classSubject = $this->classSubject;
     $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
     $questions = Question::factory()->approved()->for($chapter)->count(2)->create();
 
     livewire(BuildPracticeExam::class)
         ->fillForm([
-            'subject_id' => $classSubject->subject_id,
+            'class_subject_id' => $classSubject->id,
             'question_ids' => $questions->pluck('id')->all(),
         ])
         ->call('start');
@@ -70,21 +74,21 @@ it('builds a manual practice exam from student-picked questions', function () {
 });
 
 it('counts auto and manual self-practice exams together against the same limit', function () {
-    $classSubject = ClassSubject::factory()->create();
+    $classSubject = $this->classSubject;
     $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
     $questions = Question::factory()->approved()->for($chapter)->count(5)->create();
 
     // limit is 3 — generate 3 exams across both modes, the 4th must be blocked
     foreach (range(1, 3) as $i) {
         livewire(GeneratePracticeExam::class)
-            ->fillForm(['subject_id' => $classSubject->subject_id, 'question_count' => 1])
+            ->fillForm(['class_subject_id' => $classSubject->id, 'question_count' => 1])
             ->call('start');
     }
 
     expect(Exam::where('created_by', $this->student->id)->count())->toBe(3);
 
     livewire(BuildPracticeExam::class)
-        ->fillForm(['subject_id' => $classSubject->subject_id, 'question_ids' => [$questions->first()->id]])
+        ->fillForm(['class_subject_id' => $classSubject->id, 'question_ids' => [$questions->first()->id]])
         ->call('start');
 
     // still 3 — the 4th attempt was blocked by the monthly limit
@@ -244,14 +248,14 @@ it('shows a logged-in student the same exam heading and name line a guest sees',
 });
 
 it('auto-generates a practice exam of a chosen difficulty, using only questions of that difficulty', function () {
-    $classSubject = ClassSubject::factory()->create();
+    $classSubject = $this->classSubject;
     $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
     Question::factory()->approved()->for($chapter)->count(3)->create(['difficulty' => 'easy']);
     $hard = Question::factory()->approved()->for($chapter)->count(2)->create(['difficulty' => 'hard']);
 
     livewire(GeneratePracticeExam::class)
         ->fillForm([
-            'subject_id' => $classSubject->subject_id,
+            'class_subject_id' => $classSubject->id,
             'difficulty' => 'hard',
             'question_count' => 5,
         ])

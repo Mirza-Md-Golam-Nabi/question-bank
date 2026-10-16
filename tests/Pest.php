@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Subscription;
+use App\Models\SubscriptionPlan;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -44,7 +47,17 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Gives a teacher or student an active plan with no conditions at all —
+ * every class, subject, difficulty and feature, no limits — for tests about
+ * something other than plans. Without a plan a user may not build or
+ * practise any exam (CLAUDE.md rule 7).
+ */
+function subscribeToEverything(User $user): Subscription
 {
-    // ..
+    $plan = SubscriptionPlan::factory()->pro()->create([
+        'target_role' => $user->role->subscriptionTargetRole(),
+    ]);
+
+    return Subscription::factory()->create(['user_id' => $user->id, 'plan_id' => $plan->id]);
 }
