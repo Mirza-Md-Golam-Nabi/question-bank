@@ -2,11 +2,10 @@
 
 namespace App\Filament\Support\Concerns;
 
-use App\Enums\CqPartType;
-use App\Enums\EditorMode;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Filament\Support\EditorModePreference;
+use App\Filament\Support\QuestionFormData;
 use App\Filament\Support\TopicPreference;
 use App\Models\Question;
 use Filament\Notifications\Notification;
@@ -37,23 +36,11 @@ trait HandlesQuestionForm
         $record = $this->getRecord();
 
         if ($record?->question_type === QuestionType::Cq) {
-            foreach ($record->cqParts as $part) {
-                $data['cq_parts'][$part->part_type->value] = [
-                    'text' => $part->part_text,
-                    'image' => $part->part_image,
-                    'marks' => $part->marks,
-                ];
-            }
+            $data['cq_parts'] = QuestionFormData::fillCqParts($record->cqParts);
         }
 
         if ($record?->question_type === QuestionType::Mcq) {
-            $data['options'] = collect($record->options)
-                ->map(fn (array $option) => [
-                    ...$option,
-                    'is_correct' => (bool) ($option['is_correct'] ?? false),
-                    'has_image' => filled($option['image'] ?? null),
-                ])
-                ->all();
+            $data['options'] = QuestionFormData::fillOptions($record->options);
         }
 
         return $data;
@@ -73,21 +60,7 @@ trait HandlesQuestionForm
         $cqParts = $data['cq_parts'] ?? null;
         unset($data['cq_parts']);
 
-        if (! $cqParts) {
-            return null;
-        }
-
-        return collect(CqPartType::ordered())
-            ->filter(fn (CqPartType $type) => filled($cqParts[$type->value]['text'] ?? null))
-            ->map(fn (CqPartType $type) => [
-                'part_type' => $type,
-                'part_order' => $type->order(),
-                'part_text' => $cqParts[$type->value]['text'],
-                'part_image' => $cqParts[$type->value]['image'] ?? null,
-                'marks' => $cqParts[$type->value]['marks'] ?? 1,
-            ])
-            ->values()
-            ->all();
+        return QuestionFormData::cqPartRows($cqParts);
     }
 
     /**
@@ -106,10 +79,7 @@ trait HandlesQuestionForm
             return;
         }
 
-        $data['options'] = collect($data['options'] ?? [])
-            ->map(fn (array $option) => Arr::only($option, ['option', 'image', 'is_correct']))
-            ->values()
-            ->all();
+        $data['options'] = QuestionFormData::storedOptions($data['options'] ?? []);
     }
 
     /**
@@ -121,12 +91,7 @@ trait HandlesQuestionForm
      */
     protected function rememberEditorModePreference(array $data): void
     {
-        $editorMode = $data['editor_mode'] ?? null;
-        $editorMode = $editorMode instanceof EditorMode ? $editorMode : EditorMode::tryFrom($editorMode ?? '');
-
-        if ($editorMode) {
-            EditorModePreference::remember(Auth::user(), $editorMode);
-        }
+        EditorModePreference::rememberFromForm(Auth::user(), $data['editor_mode'] ?? null);
     }
 
     /**

@@ -48,7 +48,7 @@ class TakeExamPage extends Page
 
         // Anything already on record (e.g. saved when the clock ran out,
         // before a reload) is shown again rather than appearing blank.
-        $this->answers = $this->attempt->answers()->pluck('student_answer', 'question_id')->all();
+        $this->answers = $this->attempt->savedAnswers();
     }
 
     /**
@@ -74,6 +74,6 @@ class TakeExamPage extends Page
 
     public function isMcq(int $questionId): bool
     {
-        return $this->attempt->exam->questions->firstWhere('id', $questionId)?->question_type === QuestionType::Mcq;
+        return $this->attempt->exam->onlineItems()->firstWhere('id', $questionId)?->question_type === QuestionType::Mcq;
     }
 }

@@ -120,15 +120,29 @@ MCQ-র `difficulty` শুরুতে লেখকের বাছাই; য�
 
 কোড: `App\Services\QuestionDifficultyTracker` (গণনা ও নিয়মের একমাত্র জায়গা), `Question::hasCalculatedDifficulty()`।
 
-## বোর্ড প্রশ্নপত্র
+## উদ্দীপকভিত্তিক MCQ
 
-সম্পূর্ণ আলাদা সাবসিস্টেম; সাধারণ প্রশ্নের ভাণ্ডার, পরীক্ষা বা self-practice-এর সাথে কখনো মেশে না।
+"নিচের উদ্দীপকটি পড়ে ৪২ ও ৪৩ নম্বর প্রশ্নের উত্তর দাও" ধরনের প্রশ্ন: একটা উদ্দীপক (লেখা ও/অথবা ছবি, যেমন বর্তনীর চিত্র) আর তার নিচে ২–৬টা MCQ।
 
-- একটা পেপার = একটা উৎস + class-subject + সাল; একই সমন্বয়ে দুটো পেপার হয় না।
-- **উৎস** (`boards` টেবিল, Admin-এ "Paper Sources") শুধু শিক্ষা বোর্ড না: ধরন (`type`, `PaperSourceType`) হতে পারে শিক্ষা বোর্ড, মেডিকেল ভর্তি, বিশ্ববিদ্যালয় ভর্তি, চাকরির পরীক্ষা, বা স্কুল/কলেজের টেস্ট পরীক্ষা। ভর্তি পরীক্ষার পেপারের জন্য Admin একটা শ্রেণি (যেমন "Medical Admission") আর তার বিষয় বানিয়ে নেন — কাঠামো একই থাকে। পেপারের ফর্মে উৎস ধরন অনুযায়ী ভাগ করে দেখায়; তালিকায় ধরন দিয়ে ছাঁকা যায়।
-- পেপারের ভেতরে MCQ ও CQ আলাদা টেবিলে; CQ-র নম্বর এখানেও অংশের যোগফল।
-- পুরো পেপার একসাথে `pending`/`approved`/`rejected` হয়, প্রশ্ন ধরে না।
-- এখন এটা শুধু Admin প্যানেলে (`BoardQuestionPaperResource`, `BoardResource`)।
+- **কাঠামো:** উদ্দীপক আলাদা জিনিস (`question_stimuli`, অধ্যায়ের অধীনে; প্রশ্নপত্রে `board_mcq_stimuli`)। প্রতিটা MCQ আগের মতোই পূর্ণ প্রশ্ন — নিজের অপশন, উত্তর, নম্বর, difficulty, গ্রেডিং, ভুলের তালিকা — শুধু জানে কোন উদ্দীপকের (`stimulus_id`) আর তার নিচে কত নম্বরে (`stimulus_order`)।
+- **তোলা:** অধ্যায়ের প্রশ্ন-তালিকায় "উদ্দীপকসহ MCQ" (প্রশ্নপত্রের MCQ তালিকাতেও) — এক ফর্মে উদ্দীপক (এডিটর বাছাই, ছবি, preview) আর তার নিচে প্রশ্নগুলো (CKEditor, অপশন, নম্বর; প্রশ্নভাণ্ডারে difficulty ও পুরো গ্রুপের একটা topic, প্রশ্নপত্রে ব্যাখ্যা)। JSON-এ: `{ "stimulus": "…", "questions": [ … ] }`।
+- **এডিট:** গ্রুপের প্রশ্নে সাধারণ Edit নেই, আছে "উদ্দীপক এডিট" — পুরো গ্রুপ একসাথে। Approved গ্রুপ এডিট করলে নতুন উদ্দীপক আর প্রতিটা প্রশ্নের নতুন pending সংস্করণ; পুরনোটা যেসব পরীক্ষায় আছে সেখানে অক্ষত। গ্রুপ থেকে বাদ দেওয়া প্রশ্ন pool থেকে সরে যায় (approved হলে) বা মুছে যায় (না হলে; পরীক্ষায় থাকলে বাদ দেওয়া যায় না)।
+- **Approve/reject:** গ্রুপের যেকোনো একটা approve/reject করলে পুরো গ্রুপ হয়। Staff প্রতিটা MCQ-র জন্য আলাদা প্রশ্নের টাকা পান, উদ্দীপকের জন্য আলাদা কিছু না।
+- **দেখানো (`QuestionBlocks`):** গ্রুপের প্রশ্ন সবসময় পাশাপাশি, প্রথমটা যেখানে সেখানে, নিজের ক্রমে; উদ্দীপক একবারই, উপরে নম্বরসহ শিরোনাম ("… ৫ ও ৬ নম্বর", তিনটা হলে "৫–৭") — নম্বর প্রতিবার ক্রম দেখে বসে, কখনো লেখায় থাকে না। অনলাইন পরীক্ষায় প্রতিটা student-এর জন্য প্রশ্ন এলোমেলো হয় — গ্রুপ এক ব্লক হিসেবে সরে। পরীক্ষা, ফলাফল, প্রিন্ট, প্রশ্নপত্র দেখা, JSON প্রিভিউ সব জায়গায় একই নিয়ম।
+- **ব্যবহার:** Teacher "প্রশ্ন বাছাই"-এ গ্রুপের যেকোনো কয়টা প্রশ্ন নিতে পারেন (প্রতিটা কার্ডে উদ্দীপক দেখায়; তালিকায় গ্রুপ পাশাপাশি)। Student-এর Auto-Generate-এ গ্রুপের একটা প্রশ্ন উঠলে উদ্দীপকসহ শুধু সেটা আসে ("৩ নম্বর প্রশ্নের উত্তর দাও")।
+
+## বিগত সালের প্রশ্নপত্র (বোর্ড, মেডিকেল, বিশ্ববিদ্যালয়…)
+
+সম্পূর্ণ আলাদা সাবসিস্টেম; প্রশ্নগুলো কখনো সাধারণ প্রশ্নের ভাণ্ডার, "প্রশ্ন বাছাই" বা self-practice-এ মেশে না। ব্যবহার হয় শুধু **পুরো প্রশ্নপত্র একটা পরীক্ষা** হিসেবে।
+
+- **উৎস** (`boards`, Admin-এ "Paper Sources"): ধরন (`type`, `PaperSourceType`) — শিক্ষা বোর্ড, মেডিকেল ভর্তি, বিশ্ববিদ্যালয় ভর্তি, চাকরির পরীক্ষা, স্কুল/কলেজের টেস্ট। প্রতিটার চারটা নাম: বাংলা ও ইংরেজি, পূর্ণ ও সংক্ষিপ্ত (`name_bn`, `name`, `short_name_bn`, `short_name`)। প্রশ্নের পাশে ভাষা অনুযায়ী সংক্ষিপ্ত নাম ও সাল দেখায় ("ঢাবি 2023 · ক ইউনিট" — `BoardQuestionPaper::label()`, `<x-question-source>`)।
+- **প্রশ্নপত্র** = উৎস + সাল + ঐচ্ছিক ইউনিট/সেট। শিক্ষা বোর্ড ও স্কুল টেস্টের পেপারে শ্রেণি + বিষয়ও থাকে (`PaperSourceType::hasClassSubject()`); ভর্তি/চাকরির পেপারে নেই — সব বিষয় একসাথে। একই উৎস + সাল + ইউনিট (+ শ্রেণি-বিষয়) দুইবার হয় না (`BoardQuestionPaper::isTaken()`; বোর্ডের পেপার ডেটাবেজের unique key-তেও ধরা পড়ে)। পেপারে সময় ও প্রতি ভুলে কাটা নম্বর রাখা যায়।
+- **JSON থেকে যোগ:** প্রতিটা তালিকার "New MCQ/CQ question"-এর পাশে "Add from JSON" — প্রশ্নভাণ্ডারের মতোই পপআপ (format কপি, পেস্ট, প্রিভিউ, যোগ), একই নিয়ম ও একই সীমা (`question_import_max`)। MCQ তালিকা শুধু MCQ নেয়, CQ তালিকা শুধু CQ (`"type"` লাগে না; অন্য ধরন দিলে বলে দেয়)। MCQ-তে ঐচ্ছিক `"explanation"`, CQ-র অংশে ঐচ্ছিক `"answer"`; difficulty নেই। পেপারে আগে থেকে থাকা প্রশ্ন বাদ যায়, নতুনগুলো তালিকার শেষে বসে; ছবি পরে Edit থেকে। Admin সবসময় পারেন; Staff শুধু Admin সেটিংসে চালু করলে (সব Staff একসাথে)। যে পেপার বদলানো যায় না (approved Staff-এর, বা কেউ পরীক্ষা দিয়েছে) সেখানে বাটন নেই। JSON পড়ার নিয়ম একটাই জায়গায় — `QuestionJsonReader`, প্রশ্নভাণ্ডারের ইমপোর্টও সেটাই ব্যবহার করে।
+- **প্রশ্ন তোলা:** পেপারের পেজে MCQ ও CQ দুটো তালিকা; প্রতিটা প্রশ্ন আলাদা ফর্মে, প্রশ্নভাণ্ডারের মতোই এডিটর (Rich Text / CKEditor + গণিত, ছবি, preview) — `PaperQuestionForms`, যা `QuestionFormSchema`-র অংশগুলো দিয়েই তৈরি। MCQ-তে ঐচ্ছিক ব্যাখ্যা, CQ-র প্রতিটা অংশে ঐচ্ছিক উত্তর। CQ-র নম্বর অংশের যোগফল।
+- **কে তোলে:** Admin ও Staff। Staff শুধু নিজের পেপার দেখে ও approve হওয়ার আগ পর্যন্ত বদলাতে পারে; rejected পেপার বদলালে আবার pending হয়। পুরো পেপার একসাথে approve/reject হয় (প্রশ্ন না থাকলে approve হয় না)। Staff-এর পেপার approve হলে পেপারপ্রতি টাকা — ধরন অনুযায়ী Admin-এর রেট (`BillingSetting.paper_rates`), approve-এর মুহূর্তের রেট সেভ থাকে, একবারই।
+- **কেউ পরীক্ষা দেওয়ার পর** পেপার আর বদলানো যায় না (`hasBeenSat()`); কোনো পরীক্ষা বানানো হয়ে গেলে মোছাও যায় না।
+- **ব্যবহার** ("বিগত সালের প্রশ্ন" পেজ — `Support\Pages\PastPapersPage`): Student পুরো পেপারে সময়সহ পরীক্ষা দেয়, জমার পর সাথে সাথে উত্তর ও ব্যাখ্যা; প্রতিবার নতুন পরীক্ষা, প্রতিবার গোনা হয়। পরীক্ষার আগে শুধু CQ (উত্তরসহ) পড়া যায়। Teacher পুরো পেপার পরীক্ষা হিসেবে নেয় — অনলাইন (MCQ), প্রিন্ট (MCQ + CQ) বা দুটোই — তারপর অন্য পরীক্ষার মতোই প্রকাশ/প্রিন্ট। লজিক `App\Services\PastPaperExamService`-এ; অনুমতি ও গণনা plan-এর "Past papers" শর্তে (দেখুন [08-billing.md](08-billing.md))।
+- পরীক্ষায় এই প্রশ্নের difficulty, ভুলের তালিকা বা Teacher-এর প্রশ্ন-পরিসংখ্যান হিসাব হয় না — ওগুলো শুধু প্রশ্নভাণ্ডারের প্রশ্নের।
 
 ## কোড ও টেস্ট
 
@@ -138,6 +152,6 @@ MCQ-র `difficulty` শুরুতে লেখকের বাছাই; য�
 | অনুমতি | `app/Policies/QuestionPolicy.php` |
 | ফর্ম, টেবিল | `app/Filament/Support/QuestionFormSchema.php`, `QuestionsTable.php`, `McqOptionsSchema.php` |
 | প্যানেলের resource | `app/Filament/Resources/Questions`, `Teacher/Resources/Questions`, `Staff/Resources/Questions` |
-| বোর্ড | `app/Models/Board*.php`, `app/Filament/Resources/BoardQuestionPapers`, `Boards` |
+| বিগত সালের প্রশ্নপত্র | `app/Models/Board*.php`, `app/Services/PastPaperExamService.php`, `PastPaperAccess.php`, `app/Filament/Support/Resources/BoardQuestionPaperResourceBase.php`, `Support/RelationManagers/Paper*`, `Support/PaperQuestionForms.php`, `Support/Pages/PastPapersPage.php`, `app/Filament/Resources/BoardQuestionPapers`, `Staff/Resources/BoardQuestionPapers`, `Boards` |
 
-টেস্ট: `QuestionModelTest`, `AdminQuestionResourceTest`, `TeacherStaffQuestionVisibilityTest`, `QuestionSoftDeleteTest`, `CqMarksSyncTest`, `QuestionBankCardBrowserTest`, `TeacherQuestionBankCardBrowserTest`, `StaffQuestionBankCardBrowserTest`, `TopicTest`, `TopicResourceTest`, `ChapterResourceTest`, `AcademicHierarchyResourcesTest`, `QuestionJsonImportTest`, `QuestionDynamicDifficultyTest`, `TeacherOwnPendingQuestionsOnExamTest`, `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest`।
+টেস্ট: `QuestionModelTest`, `AdminQuestionResourceTest`, `TeacherStaffQuestionVisibilityTest`, `QuestionSoftDeleteTest`, `CqMarksSyncTest`, `QuestionBankCardBrowserTest`, `TeacherQuestionBankCardBrowserTest`, `StaffQuestionBankCardBrowserTest`, `TopicTest`, `TopicResourceTest`, `ChapterResourceTest`, `AcademicHierarchyResourcesTest`, `QuestionJsonImportTest`, `QuestionDynamicDifficultyTest`, `TeacherOwnPendingQuestionsOnExamTest`, `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest`, `PaperSourceTest`, `PastPaperExamTest`, `PastPaperJsonImportTest`, `StimulusGroupTest`।

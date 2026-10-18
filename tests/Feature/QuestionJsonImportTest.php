@@ -127,7 +127,9 @@ it('stores a formula as a KaTeX embed and everything else as escaped text', func
 it('accepts the sample it offers', function () {
     $result = ($this->import)(QuestionJsonImporter::sampleJson());
 
-    expect($result['added'])->toBe(2);
+    // An MCQ, a CQ, and two MCQs sharing a stimulus.
+    expect($result['added'])->toBe(4)
+        ->and(Question::whereNotNull('stimulus_id')->count())->toBe(2);
 });
 
 it('offers a format guide to copy that ends with that same sample', function () {

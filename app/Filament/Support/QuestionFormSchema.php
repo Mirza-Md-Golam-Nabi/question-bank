@@ -31,6 +31,10 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
  * The full Question create/edit form, shared as-is by the Admin, Teacher,
  * and Staff QuestionResource — the only difference between panels is which
  * rows a panel's getEloquentQuery() lets a user reach, not the form itself.
+ *
+ * Its pieces — the text with its editor choice, image and preview, the MCQ
+ * options, the CQ sub-questions — are also what a past paper's questions
+ * are written with (PaperQuestionForms), so both are typed the same way.
  */
 class QuestionFormSchema
 {
@@ -41,40 +45,7 @@ class QuestionFormSchema
     {
         return [
             Grid::make(4)->columnSpanFull()->schema([
-                Group::make()
-                    ->columnSpan(2)
-                    ->schema([
-                        Group::make()
-                            ->live()
-                            ->schema(fn (Get $get) => [
-                                static::questionTextComponent($get('editor_mode') ?? EditorMode::RichText),
-                            ]),
-
-                        FileUpload::make('question_image')
-                            ->label(__('Diagram / image (optional)'))
-                            ->image()
-                            ->disk('public')->visibility('public')
-                            ->directory('questions')
-                            ->live(),
-
-                        Group::make()
-                            ->live()
-                            ->schema(fn (Get $get) => [
-                                // ->viewData() takes a Closure specifically
-                                // so it stays lazy: calling $get() eagerly
-                                // here (a plain array) reads a FileUpload's
-                                // live state mid-hydration, which — isolated
-                                // by bisection — corrupts this form's later
-                                // default-state hydration and silently drops
-                                // the `options` Repeater's ->defaultItems(4)
-                                // to zero on first load.
-                                View::make('filament.forms.components.question-preview')
-                                    ->viewData(fn (Get $get) => [
-                                        'html' => static::resolvePreviewHtml($get('question_text')),
-                                        'imageUrl' => static::resolveUploadedFileUrl($get('question_image')),
-                                    ]),
-                            ]),
-                    ]),
+                static::textImageAndPreview('questions')->columnSpan(2),
 
                 Group::make()
                     ->columnSpan(2)
@@ -114,25 +85,7 @@ class QuestionFormSchema
                             ->required()
                             ->visible(fn (Get $get) => $get('question_type') === QuestionType::Mcq),
 
-                        Radio::make('editor_mode')
-                            ->label(__('Editor'))
-                            ->options(EditorMode::class)
-                            // Defaults to whichever editor this user saved a
-                            // question with last time (EditorModePreference),
-                            // falling back to Rich Text the very first time.
-                            // Only applies on Create — editing an existing
-                            // question fills this from the record itself,
-                            // overriding this default entirely.
-                            ->default(fn () => EditorModePreference::for(auth()->user()))
-                            ->live()
-                            ->inline()
-                            ->inlineLabel(false)
-                            // RichEditor's Tiptap-JSON live state and CKEditor's
-                            // plain-HTML state are incompatible formats — handing
-                            // one editor the other's leftover state on switch
-                            // silently breaks it, so always start clean instead.
-                            ->afterStateUpdated(fn (Set $set) => $set('question_text', null))
-                            ->required(),
+                        static::editorModeRadio(),
                     ]),
             ]),
 
@@ -145,6 +98,78 @@ class QuestionFormSchema
                     default => [],
                 }),
         ];
+    }
+
+    /**
+     * The question's text in whichever editor is picked, its image, and a
+     * live preview of both.
+     *
+     * @param  string|null  $label  Null: "Stimulus" for a CQ, "Question text" otherwise (by the form's `question_type`).
+     */
+    public static function textImageAndPreview(string $imageDirectory, ?string $label = null): Group
+    {
+        return Group::make()
+            ->schema([
+                Group::make()
+                    ->live()
+                    ->schema(fn (Get $get) => [
+                        // Before the form is filled (as in an action's
+                        // modal) the radio's own default applies, so the
+                        // text never starts in the other editor's format.
+                        static::questionTextComponent($get('editor_mode') ?? EditorModePreference::for(auth()->user()), $label),
+                    ]),
+
+                FileUpload::make('question_image')
+                    ->label(__('Diagram / image (optional)'))
+                    ->image()
+                    ->disk('public')->visibility('public')
+                    ->directory($imageDirectory)
+                    ->live(),
+
+                Group::make()
+                    ->live()
+                    ->schema(fn (Get $get) => [
+                        // ->viewData() takes a Closure specifically
+                        // so it stays lazy: calling $get() eagerly
+                        // here (a plain array) reads a FileUpload's
+                        // live state mid-hydration, which — isolated
+                        // by bisection — corrupts this form's later
+                        // default-state hydration and silently drops
+                        // the `options` Repeater's ->defaultItems(4)
+                        // to zero on first load.
+                        View::make('filament.forms.components.question-preview')
+                            ->viewData(fn (Get $get) => [
+                                'html' => static::resolvePreviewHtml($get('question_text')),
+                                'imageUrl' => static::resolveUploadedFileUrl($get('question_image')),
+                            ]),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Rich Text or CKEditor for the question text.
+     */
+    public static function editorModeRadio(): Radio
+    {
+        return Radio::make('editor_mode')
+            ->label(__('Editor'))
+            ->options(EditorMode::class)
+            // Defaults to whichever editor this user saved a
+            // question with last time (EditorModePreference),
+            // falling back to Rich Text the very first time.
+            // Only applies on Create — editing an existing
+            // question fills this from the record itself,
+            // overriding this default entirely.
+            ->default(fn () => EditorModePreference::for(auth()->user()))
+            ->live()
+            ->inline()
+            ->inlineLabel(false)
+            // RichEditor's Tiptap-JSON live state and CKEditor's
+            // plain-HTML state are incompatible formats — handing
+            // one editor the other's leftover state on switch
+            // silently breaks it, so always start clean instead.
+            ->afterStateUpdated(fn (Set $set) => $set('question_text', null))
+            ->required();
     }
 
     /**
@@ -192,7 +217,7 @@ class QuestionFormSchema
      * incompatible state formats (Tiptap JSON vs plain HTML) — only one is
      * ever mounted at a time, picked by the `editor_mode` radio.
      */
-    protected static function questionTextComponent(EditorMode $editorMode): Component
+    protected static function questionTextComponent(EditorMode $editorMode, ?string $label = null): Component
     {
         $component = $editorMode === EditorMode::CkEditor
             ? CkEditorField::make('question_text')
@@ -202,19 +227,19 @@ class QuestionFormSchema
             : RichEditor::make('question_text')->live(debounce: '500ms');
 
         return $component
-            ->label(fn (Get $get) => $get('question_type') === QuestionType::Cq ? __('Stimulus') : __('Question text'))
+            ->label(fn (Get $get) => $label ?? ($get('question_type') === QuestionType::Cq ? __('Stimulus') : __('Question text')))
             ->required();
     }
 
     /**
      * @return array<Component>
      */
-    protected static function mcqComponents(): array
+    public static function mcqComponents(string $optionImageDirectory = 'question-options'): array
     {
         return [
             Repeater::make('options')
                 ->label(__('Options'))
-                ->schema(static::mcqOptionComponents())
+                ->schema(static::mcqOptionComponents($optionImageDirectory))
                 ->columns(2)
                 ->grid(4)
                 ->addActionLabel(__('Add option'))
@@ -231,7 +256,7 @@ class QuestionFormSchema
     /**
      * @return array<Component>
      */
-    protected static function mcqOptionComponents(): array
+    protected static function mcqOptionComponents(string $imageDirectory): array
     {
         return McqOptionsSchema::components(
             CkEditorField::make('option')
@@ -239,18 +264,21 @@ class QuestionFormSchema
                 ->compact()
                 ->required()
                 ->columnSpanFull(),
-            imageDirectory: 'question-options',
+            imageDirectory: $imageDirectory,
         );
     }
 
     /**
+     * The four sub-questions, each with an image and its marks — and, for
+     * a past paper's CQ, an optional answer.
+     *
      * @return array<Component>
      */
-    protected static function cqComponents(): array
+    public static function cqComponents(string $imageDirectory = 'question-cq-parts', bool $withAnswers = false): array
     {
         return collect(CqPartType::ordered())
             ->map(fn (CqPartType $partType) => Section::make($partType->getLabel())
-                ->schema([
+                ->schema(array_values(array_filter([
                     RichEditor::make("cq_parts.{$partType->value}.text")
                         ->label(__('Sub-question text'))
                         ->required(),
@@ -258,7 +286,7 @@ class QuestionFormSchema
                         ->label(__('Image (optional)'))
                         ->image()
                         ->disk('public')->visibility('public')
-                        ->directory('question-cq-parts'),
+                        ->directory($imageDirectory),
                     TextInput::make("cq_parts.{$partType->value}.marks")
                         ->label(__('Marks'))
                         ->numeric()
@@ -266,7 +294,12 @@ class QuestionFormSchema
                         ->minValue(0.5)
                         ->default(1)
                         ->required(),
-                ])
+                    $withAnswers
+                        ? CkEditorField::make("cq_parts.{$partType->value}.answer")
+                            ->label(__('Answer (optional)'))
+                            ->columnSpanFull()
+                        : null,
+                ])))
                 ->columns(2))
             ->all();
     }

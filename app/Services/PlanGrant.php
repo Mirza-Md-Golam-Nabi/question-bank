@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\Difficulty;
 use App\Enums\PlanFeature;
 use App\Models\BillingSetting;
+use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
@@ -36,6 +37,7 @@ final class PlanGrant
         public readonly ?int $monthlyExamLimit,
         public readonly ?int $maxParticipants = null,
         public readonly ?string $sharedBy = null,
+        public readonly PastPaperAccess $pastPapers = new PastPaperAccess,
     ) {}
 
     /**
@@ -84,6 +86,7 @@ final class PlanGrant
             monthlyExamLimit: $conditions->monthlyExamLimit === null ? null : $conditions->monthlyExamLimit + $phoneBonus,
             maxParticipants: $conditions->maxParticipants,
             sharedBy: $subscription && $subscription->user_id !== $holder->id ? $subscription->user?->name : null,
+            pastPapers: $conditions->pastPapers ?? new PastPaperAccess,
         );
     }
 
@@ -121,6 +124,21 @@ final class PlanGrant
             || array_diff(array_map(fn (PlanFeature $f) => $f->value, $features), array_map(fn (PlanFeature $f) => $f->value, $this->features)) === [];
     }
 
+    /**
+     * Whether this grant lets its holder sit (or set) this past paper with
+     * these features: past papers are part of the plan, the paper is of a
+     * kind, source and age the plan reaches, and — a board's paper — of a
+     * class + subject it covers. How many are left is counted separately.
+     *
+     * @param  array<int, PlanFeature>  $features
+     */
+    public function allowsPastPaper(BoardQuestionPaper $paper, array $features = []): bool
+    {
+        return $this->allowsFeatures([PlanFeature::PastPapers, ...$features])
+            && $this->pastPapers->reaches($paper)
+            && ($paper->classSubject === null || $this->covers($paper->classSubject));
+    }
+
     public function hasLimits(): bool
     {
         return $this->dailyExamLimit !== null || $this->monthlyExamLimit !== null;
@@ -142,6 +160,7 @@ final class PlanGrant
             dailyExamLimit: $this->dailyExamLimit,
             monthlyExamLimit: $this->monthlyExamLimit,
             maxParticipants: $this->maxParticipants,
+            pastPapers: $this->pastPapers,
         ))->descriptions();
     }
 }

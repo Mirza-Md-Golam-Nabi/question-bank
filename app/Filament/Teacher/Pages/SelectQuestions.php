@@ -124,6 +124,8 @@ class SelectQuestions extends Page
         $exam = Exam::query()
             ->where('created_by', Auth::id())
             ->where('exam_type', ExamType::TeacherExam)
+            // A past paper's questions are the paper's, not picked here.
+            ->whereNull('board_question_paper_id')
             ->findOrFail($examId);
 
         // Exams made before the picker existed didn't record their class;
@@ -436,9 +438,13 @@ class SelectQuestions extends Page
                 // With both types shown, the topic narrows MCQ and leaves
                 // every CQ of the chapter in.
                 ->when($type === self::TYPE_BOTH, fn (Builder $query) => $query->orWhere('question_type', QuestionType::Cq))))
-            ->with(['topic:id,name', 'cqParts'])
+            ->with(['topic:id,name', 'cqParts', 'stimulus'])
             // 'mcq' sorts after 'cq', so descending lists MCQ first.
             ->orderByDesc('question_type')
+            // The questions of one stimulus side by side, where the first
+            // of them would stand, in their own order.
+            ->orderByRaw('coalesce((select min(grouped.id) from questions as grouped where grouped.stimulus_id = questions.stimulus_id), questions.id)')
+            ->orderBy('questions.stimulus_order')
             ->orderBy('questions.id')
             ->paginate(self::QUESTIONS_PER_PAGE);
     }

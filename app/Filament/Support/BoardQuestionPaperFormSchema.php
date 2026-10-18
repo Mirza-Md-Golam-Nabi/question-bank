@@ -2,26 +2,26 @@
 
 namespace App\Filament\Support;
 
-use App\Enums\CqPartType;
+use App\Enums\PaperSourceType;
 use App\Models\Board;
 use App\Models\BoardQuestionPaper;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\RichEditor;
+use Closure;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Get;
 
 /**
- * The Board Question Paper create/edit form. Unlike the regular question
- * bank, a whole paper is approved/rejected as one unit (no per-question
- * versioning), so its MCQ/CQ questions are plain array fields synced
- * explicitly by the page (see HandlesBoardQuestionPaperForm) rather than
- * Filament's own ->relationship() repeater saving.
+ * A past paper's details: where it is from (a board, a medical college, a
+ * university…), the year and an optional unit, the class + subject for a
+ * board's or a school's paper only, and how it is sat. Its questions are
+ * not here: they are added one by one on the paper's page
+ * (PaperMcqQuestionsRelationManager / PaperCqQuestionsRelationManager), so
+ * a paper of a hundred questions is never one huge form.
+ *
+ * The same form for the Admin and a Staff member.
  */
 class BoardQuestionPaperFormSchema
 {
@@ -31,108 +31,106 @@ class BoardQuestionPaperFormSchema
     public static function components(): array
     {
         return [
-            Grid::make(3)->schema([
-                // Grouped by kind: boards, admission tests, job exams…
-                Select::make('board_id')
-                    ->label(__('Source'))
-                    ->options(fn () => Board::ordered()->get()
-                        ->groupBy(fn (Board $board): string => $board->type->getLabel())
-                        ->map(fn ($boards) => $boards->pluck('name', 'id')->all())
-                        ->all())
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                TextInput::make('year')
-                    ->numeric()
-                    ->minValue(1990)
-                    ->maxValue((int) date('Y'))
-                    ->required()
-                    ->unique(
-                        ignoreRecord: true,
-                        modifyRuleUsing: fn ($rule, Get $get) => $rule
-                            ->where('board_id', $get('board_id'))
-                            ->where('class_subject_id', $get('class_subject_id')),
-                    ),
-            ]),
+            Section::make(__('Paper'))
+                ->columnSpanFull()
+                ->schema([
+                    Grid::make(3)->schema([
+                        // Grouped by kind: boards, admission tests, job exams…
+                        Select::make('board_id')
+                            ->label(__('Source'))
+                            ->options(fn () => Board::ordered()->get()
+                                ->groupBy(fn (Board $board): string => $board->type->getLabel())
+                                ->map(fn ($boards) => $boards->mapWithKeys(fn (Board $board) => [$board->id => "{$board->display_name} ({$board->display_short_name})"])->all())
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->required(),
+                        TextInput::make('year')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1970)
+                            ->maxValue((int) date('Y'))
+                            ->required()
+                            ->rule(fn (Get $get, ?BoardQuestionPaper $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                $boardId = (int) $get('board_id');
 
-            ...ContentHierarchySchema::classAndSubjectOnly(
-                resolveClassSubjectId: fn (?BoardQuestionPaper $record) => $record?->class_subject_id,
-                dehydrateClassSubjectId: true,
-            ),
+                                if (! $boardId || ! is_numeric($value)) {
+                                    return;
+                                }
 
-            Tabs::make('Questions')->tabs([
-                Tabs\Tab::make(__('MCQ'))->schema([
-                    Repeater::make('mcq_questions')
-                        ->label(__('MCQ questions'))
-                        ->schema(static::mcqQuestionComponents())
-                        ->addActionLabel(__('Add MCQ question'))
-                        ->reorderable()
-                        ->collapsible()
-                        ->itemLabel(fn (array $state): ?string => strip_tags($state['question_text'] ?? '') ?: null),
+                                $classSubjectId = self::hasClassSubject($get) ? ((int) $get('class_subject_id') ?: null) : null;
+
+                                if (BoardQuestionPaper::isTaken($boardId, $classSubjectId, (int) $value, $get('unit'), $record?->id)) {
+                                    $fail(__('This paper has already been entered.'));
+                                }
+                            }),
+                        TextInput::make('unit')
+                            ->label(__('Unit / set (optional)'))
+                            ->helperText(__('For example a university unit such as "Ka". Leave empty if the test has none.'))
+                            ->maxLength(50)
+                            ->dehydrateStateUsing(fn (?string $state): string => trim((string) $state)),
+                    ]),
+
+                    Grid::make(2)
+                        ->visible(fn (Get $get): bool => self::hasClassSubject($get))
+                        ->schema(ContentHierarchySchema::classAndSubjectOnly(
+                            resolveClassSubjectId: fn (?BoardQuestionPaper $record) => $record?->class_subject_id,
+                            dehydrateClassSubjectId: true,
+                        )),
+
+                    Grid::make(2)->schema([
+                        TextInput::make('duration_minutes')
+                            ->label(__('Time (minutes)'))
+                            ->helperText(__('How long an exam of this paper lasts. Leave empty for a minute per MCQ.'))
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1),
+                        TextInput::make('negative_marks')
+                            ->label(__('Marks lost per wrong MCQ answer'))
+                            ->helperText(__('As in the real test, e.g. 0.25. Leave empty if it had no negative marking.'))
+                            ->numeric()
+                            ->step(0.05)
+                            ->minValue(0),
+                    ]),
                 ]),
-                Tabs\Tab::make(__('CQ'))->schema([
-                    Repeater::make('cq_questions')
-                        ->label(__('CQ questions'))
-                        ->schema(static::cqQuestionComponents())
-                        ->addActionLabel(__('Add CQ question'))
-                        ->reorderable()
-                        ->collapsible()
-                        ->itemLabel(fn (array $state): ?string => strip_tags($state['question_text'] ?? '') ?: null),
-                ]),
-            ]),
         ];
     }
 
     /**
-     * @return array<Component>
+     * Whether the chosen source's papers are for one class + subject (a
+     * board's or a school's) — an admission test's are not.
      */
-    protected static function mcqQuestionComponents(): array
+    public static function hasClassSubject(Get $get): bool
     {
-        return [
-            RichEditor::make('question_text')->label(__('Question text'))->required(),
-            FileUpload::make('question_image')->label(__('Image (optional)'))->image()->disk('public')->visibility('public')->directory('board-mcq-questions'),
-            Repeater::make('options')
-                ->schema(static::mcqOptionComponents())
-                ->columns(2)
-                ->grid(4)
-                ->minItems(2)
-                ->maxItems(6)
-                ->required()
-                ->rule(McqOptionsSchema::exactlyOneCorrectOptionRule()),
-            TextInput::make('marks')->numeric()->step(0.5)->minValue(0.5)->default(1)->required(),
-        ];
+        return self::sourceTypeOf($get('board_id'))?->hasClassSubject() ?? false;
     }
 
     /**
-     * @return array<Component>
+     * What the form saves, made consistent: no class + subject on an
+     * admission paper (the fields are hidden, so they may hold an old pick).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
      */
-    protected static function mcqOptionComponents(): array
+    public static function normalize(array $data): array
     {
-        return McqOptionsSchema::components(
-            TextInput::make('option')
-                ->label(__('Option'))
-                ->required()
-                ->columnSpanFull(),
-            imageDirectory: 'board-mcq-options',
-        );
+        if (! (self::sourceTypeOf($data['board_id'] ?? null)?->hasClassSubject() ?? false)) {
+            $data['class_subject_id'] = null;
+        }
+
+        $data['unit'] = trim((string) ($data['unit'] ?? ''));
+
+        return $data;
     }
 
     /**
-     * @return array<Component>
+     * A source's kind — every source's read once per request.
      */
-    protected static function cqQuestionComponents(): array
+    private static function sourceTypeOf(mixed $boardId): ?PaperSourceType
     {
-        return [
-            RichEditor::make('question_text')->label(__('Stimulus'))->required(),
-            FileUpload::make('question_image')->label(__('Image (optional)'))->image()->disk('public')->visibility('public')->directory('board-cq-questions'),
-            ...collect(CqPartType::ordered())
-                ->map(fn (CqPartType $partType) => Section::make($partType->getLabel())
-                    ->schema([
-                        RichEditor::make("cq_parts.{$partType->value}.text")->label(__('Sub-question text'))->required(),
-                        TextInput::make("cq_parts.{$partType->value}.marks")->label(__('Marks'))->numeric()->step(0.5)->minValue(0.5)->default(1)->required(),
-                    ])
-                    ->columns(2))
-                ->all(),
-        ];
+        $types = once(fn (): array => Board::query()->get(['id', 'type'])->pluck('type', 'id')->all());
+
+        return is_numeric($boardId) ? ($types[(int) $boardId] ?? null) : null;
     }
 }

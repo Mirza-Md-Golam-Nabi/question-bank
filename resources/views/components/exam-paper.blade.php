@@ -25,6 +25,7 @@
      * @var iterable<int, string> $savedAnswers  question id => answer already on record (plain form only).
      */
     use App\Enums\QuestionType;
+    use App\Filament\Support\QuestionBlocks;
 
     $bind = fn (int $questionId): string => $livewire
         ? 'wire:model="answers.' . $questionId . '"'
@@ -46,15 +47,23 @@
 {{-- Locked as a whole when the clock runs out; the submit button stays outside it.
      Questions and options are a size smaller on a phone, full size from a tablet up. --}}
 <fieldset class="qb-exam-answers space-y-6 text-sm sm:space-y-8 sm:text-base" data-qb-answers wire:ignore.self>
-    @foreach ($attempt->shuffledQuestions() as $index => $question)
+    {{-- A shared stimulus stands once above the questions it is for. --}}
+    @foreach (QuestionBlocks::blocks($attempt->shuffledQuestions()) as $block)
+        @if ($block['stimulus'])
+            <x-question-stimulus :stimulus="$block['stimulus']" :heading="$block['heading']" class="border-t pt-4" />
+        @endif
+
+        @foreach ($block['questions'] as ['number' => $number, 'question' => $question])
         @php
             $savedAnswer = $savedAnswers[$question->id] ?? null;
         @endphp
 
-        <div class="border-t pt-4" data-qb-question>
+        <div @class(['pt-4', 'border-t' => ! $block['stimulus'] || $number !== $block['questions'][0]['number']]) data-qb-question>
+            <x-question-source :question="$question" />
+
             {{-- The text is stored as its own <p>, so the number sits beside it rather than inside one. --}}
             <div class="mb-3 flex gap-1.5 font-medium">
-                <span class="shrink-0">{{ $index + 1 }}.</span>
+                <span class="shrink-0">{{ $number }}.</span>
                 <div class="qb-question-text min-w-0">{!! $question->question_text !!}</div>
             </div>
 
@@ -71,6 +80,7 @@
                 <textarea {!! $bind($question->id) !!} rows="4" class="qb-input" placeholder="{{ __('Write your answer...') }}">{{ $savedAnswer }}</textarea>
             @endif
         </div>
+        @endforeach
     @endforeach
 </fieldset>
 

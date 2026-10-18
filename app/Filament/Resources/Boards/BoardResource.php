@@ -34,13 +34,23 @@ class BoardResource extends Resource
     {
         return $schema
             ->components([
+                // A question shows where it came from by the short name in
+                // the reader's language ("ঢাবি 2023" / "DU 2023").
+                TextInput::make('name_bn')
+                    ->label(__('Name (Bangla)'))
+                    ->required(),
                 TextInput::make('name')
+                    ->label(__('Name (English)'))
                     ->required()
                     ->unique(ignoreRecord: true),
-                TextInput::make('short_name')
-                    ->label(__('Short name'))
+                TextInput::make('short_name_bn')
+                    ->label(__('Short name (Bangla)'))
                     ->required()
-                    ->maxLength(10),
+                    ->maxLength(20),
+                TextInput::make('short_name')
+                    ->label(__('Short name (English)'))
+                    ->required()
+                    ->maxLength(20),
                 Select::make('type')
                     ->label(__('Kind'))
                     ->options(PaperSourceType::class)
@@ -59,8 +69,10 @@ class BoardResource extends Resource
         return $table
             ->defaultSort('order_index')
             ->columns([
-                TextColumn::make('short_name')->label(__('Short'))->badge(),
-                TextColumn::make('name')->searchable()->sortable(),
+                TextColumn::make('short_name')->label(__('Short'))->badge()
+                    ->state(fn (Board $record): string => $record->display_short_name),
+                TextColumn::make('name')->searchable(['name', 'name_bn'])->sortable()
+                    ->state(fn (Board $record): string => $record->display_name),
                 TextColumn::make('type')->label(__('Kind'))->badge(),
                 TextColumn::make('question_papers_count')->label(__('Papers'))->counts('questionPapers'),
             ])

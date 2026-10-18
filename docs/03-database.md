@@ -65,6 +65,7 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | কলাম | টীকা |
 |---|---|
 | `chapter_id`, `topic_id` (nullable) | |
+| `stimulus_id` (nullable) → `question_stimuli`, `stimulus_order` | উদ্দীপকভিত্তিক MCQ: কোন উদ্দীপকের, তার নিচে কত নম্বরে |
 | `question_type` | `mcq` / `cq` |
 | `question_text` | HTML। CQ-তে এটা উদ্দীপক। সূত্র: `<span class="qb-katex-embed">latex</span>` |
 | `question_image` | public disk-এর পাথ |
@@ -92,11 +93,13 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 
 | টেবিল | কলাম |
 |---|---|
-| `boards` | `name`, `short_name`, `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন), `order_index` |
-| `board_question_papers` | `board_id`, `class_subject_id`, `year`, `status`, `created_by`, `approved_by`, `rejection_reason`; unique(board, class_subject, year) |
-| `board_mcq_questions` | `board_question_paper_id`, `question_text`, `question_image`, `options`, `marks`, `order_index` |
-| `board_cq_questions` | `board_question_paper_id`, `question_text`, `question_image`, `marks`, `order_index` |
-| `board_cq_question_parts` | `board_cq_question_id`, `part_type`, `part_order`, `part_text`, `part_image`, `marks` |
+| `boards` | `name`, `name_bn`, `short_name`, `short_name_bn` (ইংরেজি ও বাংলা, পূর্ণ ও সংক্ষিপ্ত), `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন), `order_index` |
+| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `rejection_reason`; unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
+| `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by` — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
+| `board_mcq_stimuli` | `board_question_paper_id`, `text`, `editor_mode`, `image` — প্রশ্নপত্রের উদ্দীপক; মুছলে তার প্রশ্নও মোছে |
+| `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `explanation` (nullable), `marks`, `order_index` |
+| `board_cq_questions` | `board_question_paper_id`, `question_text`, `editor_mode`, `question_image`, `marks`, `order_index` |
+| `board_cq_question_parts` | `board_cq_question_id`, `part_type`, `part_order`, `part_text`, `part_image`, `answer` (nullable), `marks` |
 
 এগুলোর সাথে `questions` টেবিলের কোনো সম্পর্ক নেই, ইচ্ছা করেই।
 
@@ -111,9 +114,10 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | `negative_marks` (nullable) | প্রতি ভুল MCQ উত্তরে কাটা নম্বর; ফাঁকা = নেগেটিভ মার্কিং নেই (শুধু অনলাইনে নেওয়া পরীক্ষায়) |
 | `max_participants` (nullable) | সর্বোচ্চ কতজন পরীক্ষাটা শুরু করতে পারে — সেভের সময় Teacher-এর plan থেকে; ফাঁকা = সীমা নেই |
 | `exam_type` | `teacher_exam` / `self_practice` |
-| `generation_mode` | `manual` / `auto` / `mistakes` |
+| `generation_mode` | `manual` / `auto` / `mistakes` / `past_paper` |
 | `delivery_mode` | `online` / `offline` / `both` |
-| `subject_id`, `class_subject_id` (nullable) | পুরনো পরীক্ষায় `class_subject_id` ফাঁকা থাকতে পারে; নতুন self-practice-এও এখন থাকে |
+| `subject_id`, `class_subject_id` (nullable) | পুরনো পরীক্ষায় `class_subject_id` ফাঁকা থাকতে পারে; নতুন self-practice-এও এখন থাকে। ভর্তি পরীক্ষার পেপারের পরীক্ষায় দুটোই ফাঁকা |
+| `board_question_paper_id` (nullable) → `board_question_papers` | পুরো একটা বিগত সালের প্রশ্নপত্র — তখন প্রশ্ন `exam_questions`-এ না, পেপারের নিজের; পেপার মোছা যায় না (restrict) |
 | `duration_minutes`, `start_time`, `end_time` | |
 | `total_marks` | অনলাইনে নেওয়া পরীক্ষায় শুধু অনলাইনের প্রশ্নগুলোর; `recalculateTotalMarks()` বসায় |
 | `status` | `draft` / `published` / … |
@@ -139,7 +143,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 
 ### `attempt_answers`
 
-`attempt_id`, `question_id`, `student_answer`, `is_correct`, `obtained_marks`; unique(attempt, question)। শুধু উত্তর দেওয়া প্রশ্নের সারি থাকে; ফাঁকা রাখা প্রশ্নের কোনো সারি নেই।
+`attempt_id`, `question_id` (nullable), `board_mcq_question_id` (nullable), `student_answer`, `is_correct`, `obtained_marks`; unique(attempt, question), unique(attempt, board_mcq_question)। প্রশ্নপত্রের পরীক্ষায় উত্তর `board_mcq_question_id`-এ, অন্যটায় `question_id`-এ (`Exam::answerColumn()`)। শুধু উত্তর দেওয়া প্রশ্নের সারি থাকে; ফাঁকা রাখা প্রশ্নের কোনো সারি নেই।
 
 ## উত্তর থেকে জমানো হিসাব
 
@@ -184,7 +188,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 |---|---|
 | `staff_profiles` | `user_id` (unique), `payment_method`, `bank_name`, `branch_name`, `account_holder_name`, `bank_account_number` (encrypted), `mobile_banking_provider`, `mobile_banking_number` (encrypted), `total_questions_approved`, `total_earned`, `total_paid` |
 | `question_rates` | `subject_id` (null = ডিফল্ট), `rate_amount`, `effective_from` |
-| `staff_earnings` | `staff_id`, `question_id`, `amount` (approve-এর মুহূর্তের rate), `status`, `payout_id` |
+| `staff_earnings` | `staff_id`, `question_id` বা `board_question_paper_id` (একটা; পেপারপ্রতি একবারই — unique), `amount` (approve-এর মুহূর্তের rate), `status`, `payout_id` |
 | `staff_payouts` | `staff_id`, `total_amount`, `status`, `paid_at`, `reference_note`, `paid_by` |
 
 ## সেটিংস

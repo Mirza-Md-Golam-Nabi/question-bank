@@ -9,7 +9,7 @@
     <p class="text-sm text-gray-500 dark:text-gray-400">{{ __("You don't have an active subscription yet.") }}</p>
 @else
     <div class="grid gap-3 md:grid-cols-2">
-        @foreach ($summary as ['grant' => $grant, 'today' => $today, 'month' => $month])
+        @foreach ($summary as ['grant' => $grant, 'today' => $today, 'month' => $month, 'past_papers' => $pastPapers, 'past_papers_again_at' => $pastPapersAgainAt])
             <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <p class="font-semibold text-gray-950 dark:text-white">{{ $grant->name }}</p>
@@ -46,6 +46,17 @@
                             </span>
                         @endif
                     </div>
+                @endif
+
+                {{-- Past papers are counted over the plan's own rolling period. --}}
+                @if ($grant->pastPapers->hasLimit())
+                    <p @class(['mt-2 text-sm font-medium', 'text-danger-600 dark:text-danger-400' => $pastPapers >= $grant->pastPapers->limit])>
+                        {{ trans_choice('Past papers in the last :count day|Past papers in the last :count days', $grant->pastPapers->limitDays) }}: {{ $pastPapers }} / {{ $grant->pastPapers->limit }}
+
+                        @if ($pastPapers >= $grant->pastPapers->limit && $pastPapersAgainAt)
+                            <span class="font-normal">· {{ __('Next from :date', ['date' => $pastPapersAgainAt->translatedFormat('j M, g:i A')]) }}</span>
+                        @endif
+                    </p>
                 @endif
             </div>
         @endforeach

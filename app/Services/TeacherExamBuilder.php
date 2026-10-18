@@ -7,6 +7,7 @@ use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
 use App\Enums\QuestionType;
+use App\Filament\Support\QuestionBlocks;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\Question;
@@ -57,16 +58,17 @@ class TeacherExamBuilder
             ->usableInExamBy($teacher)
             ->whereIn('questions.id', $questionIds)
             ->whereHas('chapter', fn (Builder $query) => $query->where('class_subject_id', $classSubject->id))
-            ->with(['chapter:id,name,order_index', 'topic:id,name', 'cqParts'])
+            ->with(['chapter:id,name,order_index', 'topic:id,name', 'cqParts', 'stimulus'])
             ->get()
-            // Paper order: chapter by chapter, MCQ before CQ within each.
+            // Paper order: chapter by chapter, MCQ before CQ within each…
             ->sortBy([
                 fn (Question $a, Question $b) => $a->chapter->order_index <=> $b->chapter->order_index,
                 fn (Question $a, Question $b) => $a->chapter_id <=> $b->chapter_id,
                 fn (Question $a, Question $b) => ($a->question_type === QuestionType::Cq) <=> ($b->question_type === QuestionType::Cq),
                 fn (Question $a, Question $b) => $a->id <=> $b->id,
             ])
-            ->values();
+            // …with the questions of one stimulus side by side.
+            ->pipe(fn (Collection $questions): Collection => new Collection(QuestionBlocks::arrange($questions)->all()));
     }
 
     /**
@@ -161,11 +163,12 @@ class TeacherExamBuilder
     }
 
     /**
-     * An exam's paper can be changed until the first student starts it.
+     * An exam's paper can be changed until the first student starts it —
+     * never a past paper's, whose questions are the paper's own.
      */
     public function canBeEdited(Exam $exam): bool
     {
-        return ! $exam->attempts()->exists();
+        return ! $exam->isPastPaper() && ! $exam->attempts()->exists();
     }
 
     /**

@@ -6,11 +6,14 @@ use App\Enums\Difficulty;
 use App\Enums\ExamType;
 use App\Enums\PlanFeature;
 use App\Enums\UserRole;
+use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -194,10 +197,12 @@ class SubscriptionLimitService
      */
     public function usageOf(User $user, PlanGrant $grant): array
     {
+        // A past paper is counted by its own allowance (pastPaperUsageOf()).
         $exams = fn (): Builder => Exam::query()
             ->where('created_by', $user->id)
             ->where('exam_type', $this->examTypeFor($user))
-            ->where('subscription_id', $grant->subscriptionId);
+            ->where('subscription_id', $grant->subscriptionId)
+            ->whereNull('board_question_paper_id');
 
         return [
             'today' => $exams()->where('created_at', '>=', now()->startOfDay())->count(),
@@ -208,14 +213,128 @@ class SubscriptionLimitService
     /**
      * Every grant with what is left of it, for a "your plan" page.
      *
-     * @return array<int, array{grant: PlanGrant, today: int, month: int}>
+     * @return array<int, array{grant: PlanGrant, today: int, month: int, past_papers: int, past_papers_again_at: CarbonInterface|null}>
      */
     public function summaryFor(User $user): array
     {
         return array_map(
-            fn (PlanGrant $grant): array => ['grant' => $grant, ...($grant->hasLimits() ? $this->usageOf($user, $grant) : ['today' => 0, 'month' => 0])],
+            fn (PlanGrant $grant): array => [
+                'grant' => $grant,
+                ...($grant->hasLimits() ? $this->usageOf($user, $grant) : ['today' => 0, 'month' => 0]),
+                'past_papers' => $grant->pastPapers->hasLimit() ? $this->pastPaperUsageOf($user, $grant) : 0,
+                'past_papers_again_at' => $grant->pastPapers->hasLimit() ? $this->nextPastPaperAt($user, $grant) : null,
+            ],
             $this->grantsFor($user),
         );
+    }
+
+    /**
+     * The grant that lets the user sit (a student) or set (a teacher) this
+     * past paper, with these features — the one the exam is then counted
+     * against. With `$countsAgainstLimits` off (publishing or printing a
+     * paper exam already counted) only what the plan reaches is checked.
+     *
+     * @param  array<int, PlanFeature>  $features
+     *
+     * @throws ValidationException naming what is missing, or when the next paper is allowed
+     */
+    public function authorizePastPaper(User $user, BoardQuestionPaper $paper, array $features = [], bool $countsAgainstLimits = true): PlanGrant
+    {
+        $grants = array_filter($this->grantsFor($user), fn (PlanGrant $grant) => $grant->allowsPastPaper($paper, $features));
+
+        if ($grants === []) {
+            $this->deny(__('Your plan does not include this past paper. Buy a plan that covers it to continue.'));
+        }
+
+        if (! $countsAgainstLimits) {
+            return reset($grants);
+        }
+
+        // An unlimited grant first: nothing to count, and it spares a
+        // limited one's allowance.
+        usort($grants, fn (PlanGrant $a, PlanGrant $b) => $a->pastPapers->hasLimit() <=> $b->pastPapers->hasLimit());
+
+        foreach ($grants as $grant) {
+            if (! $grant->pastPapers->hasLimit() || $this->pastPaperUsageOf($user, $grant) < $grant->pastPapers->limit) {
+                return $grant;
+            }
+        }
+
+        $nextAt = collect($grants)->map(fn (PlanGrant $grant) => $this->nextPastPaperAt($user, $grant))->filter()->min();
+
+        $this->deny($nextAt
+            ? __('You have used all the past papers your plan allows for now. You can take the next one from :date.', ['date' => $nextAt->translatedFormat('j M Y, g:i A')])
+            : __('You have used all the past papers your plan allows for now.'));
+    }
+
+    /**
+     * Whether any of the grants lets this past paper be sat (or set) with
+     * these features — for marking which papers in a list are open to the
+     * user, from grants read once for the whole list.
+     *
+     * @param  array<int, PlanGrant>  $grants
+     * @param  array<int, PlanFeature>  $features
+     */
+    public static function grantsAllowPastPaper(array $grants, BoardQuestionPaper $paper, array $features = []): bool
+    {
+        foreach ($grants as $grant) {
+            if ($grant->allowsPastPaper($paper, $features)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the user may still use these features on an exam they already
+     * have — a past paper's by what the plan reaches of past papers, any
+     * other by its class + subject.
+     *
+     * @param  array<int, PlanFeature>  $features
+     */
+    public function allowsExam(User $user, Exam $exam, array $features = []): bool
+    {
+        return $exam->isPastPaper()
+            ? self::grantsAllowPastPaper($this->grantsFor($user), $exam->boardQuestionPaper, $features)
+            : $this->allows($user, $exam->classSubject, $features);
+    }
+
+    /**
+     * How many past papers have been counted against a grant within its
+     * rolling period (the last N days).
+     */
+    public function pastPaperUsageOf(User $user, PlanGrant $grant): int
+    {
+        return $this->countedPastPapers($user, $grant)->count();
+    }
+
+    /**
+     * When the oldest paper in the period stops counting — the moment a
+     * grant that has run out allows another. Null with no limit.
+     */
+    public function nextPastPaperAt(User $user, PlanGrant $grant): ?CarbonInterface
+    {
+        if (! $grant->pastPapers->hasLimit()) {
+            return null;
+        }
+
+        $oldest = $this->countedPastPapers($user, $grant)->min('created_at');
+
+        return $oldest ? Carbon::parse($oldest)->addDays($grant->pastPapers->limitDays) : null;
+    }
+
+    /**
+     * The past-paper exams a grant's period counts: made by the user under
+     * that grant within its last N days.
+     */
+    private function countedPastPapers(User $user, PlanGrant $grant): Builder
+    {
+        return Exam::query()
+            ->where('created_by', $user->id)
+            ->whereNotNull('board_question_paper_id')
+            ->where('subscription_id', $grant->subscriptionId)
+            ->where('created_at', '>', now()->subDays((int) $grant->pastPapers->limitDays));
     }
 
     /**

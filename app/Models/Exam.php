@@ -12,6 +12,7 @@ use App\Services\QuestionDifficultyTracker;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 #[Fillable([
-    'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id',
+    'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id', 'board_question_paper_id',
     'duration_minutes', 'start_time', 'end_time', 'total_marks', 'negative_marks', 'max_participants', 'status',
     'share_token', 'link_expires_at', 'is_link_active', 'answers_released_at', 'answers_release_at',
 ])]
@@ -87,6 +88,8 @@ class Exam extends Model
     public function questions(): BelongsToMany
     {
         return $this->belongsToMany(Question::class, 'exam_questions')
+            // Every view of an exam shows a shared stimulus above its MCQs.
+            ->with('stimulus')
             ->withPivot('marks_override', 'order_index')
             ->orderByPivot('order_index');
     }
@@ -104,6 +107,78 @@ class Exam extends Model
         return $this->questions()->when(
             $this->delivery_mode === ExamDeliveryMode::Both,
             fn (Builder $query) => $query->where('questions.question_type', QuestionType::Mcq),
+        );
+    }
+
+    /**
+     * The past paper this exam is, whole — its questions are the paper's,
+     * never the question pool's (CLAUDE.md rule 5).
+     */
+    public function boardQuestionPaper(): BelongsTo
+    {
+        return $this->belongsTo(BoardQuestionPaper::class);
+    }
+
+    public function isPastPaper(): bool
+    {
+        return $this->board_question_paper_id !== null;
+    }
+
+    /**
+     * What an exam paper is headed with: its subject, or — for an admission
+     * paper, which has none — where the paper is from.
+     */
+    public function heading(): string
+    {
+        return $this->subject?->display_name
+            ?? $this->boardQuestionPaper?->board?->display_name
+            ?? $this->title;
+    }
+
+    /**
+     * Where an attempt's answer says which question it answers: a past
+     * paper's MCQ or a question-bank question.
+     */
+    public function answerColumn(): string
+    {
+        return $this->isPastPaper() ? 'board_mcq_question_id' : 'question_id';
+    }
+
+    /**
+     * What is sat online, whichever kind of exam this is: a past paper's
+     * MCQs (each knowing its paper, for its "where it came from" label) or
+     * the exam's online questions. The one list the exam page, the answers
+     * kept and the grading all go by.
+     *
+     * @return EloquentCollection<int, Question|BoardMcqQuestion>
+     */
+    public function onlineItems(): EloquentCollection
+    {
+        if (! $this->isPastPaper()) {
+            return $this->onlineQuestions;
+        }
+
+        $paper = $this->boardQuestionPaper;
+
+        return $paper->mcqQuestions->each->setRelation('boardQuestionPaper', $paper);
+    }
+
+    /**
+     * Everything on the printed paper: the MCQs and then the CQs.
+     *
+     * @return EloquentCollection<int, Question|BoardMcqQuestion|BoardCqQuestion>
+     */
+    public function printedItems(): EloquentCollection
+    {
+        if (! $this->isPastPaper()) {
+            return $this->questions->loadMissing('cqParts');
+        }
+
+        // Under the name the shared question views read the parts by.
+        $paper = $this->boardQuestionPaper->loadMissing('cqQuestions.cqParts');
+
+        return $this->onlineItems()->concat(
+            $paper->cqQuestions->each->setRelation('boardQuestionPaper', $paper),
         );
     }
 
@@ -281,7 +356,10 @@ class Exam extends Model
 
             // These papers are being thrown away, so they stop counting
             // towards the questions' difficulty — while they can still be read.
-            app(QuestionDifficultyTracker::class)->forgetAttemptsOf($this);
+            // A past paper's questions have no difficulty to correct.
+            if (! $this->isPastPaper()) {
+                app(QuestionDifficultyTracker::class)->forgetAttemptsOf($this);
+            }
 
             AttemptAnswer::whereIn('attempt_id', $attemptIds)->delete();
             $this->attempts()->delete();
@@ -318,9 +396,9 @@ class Exam extends Model
      */
     public function recalculateTotalMarks(): void
     {
-        $questions = $this->delivery_mode === ExamDeliveryMode::Offline ? $this->questions : $this->onlineQuestions;
+        $questions = $this->delivery_mode === ExamDeliveryMode::Offline ? $this->printedItems() : $this->onlineItems();
 
-        $total = $questions->sum(fn (Question $question) => $question->pivot->marks_override ?? $question->marks);
+        $total = $questions->sum(fn (Model $question) => $question->pivot?->marks_override ?? $question->marks);
 
         $this->newQuery()->whereKey($this->id)->update(['total_marks' => $total]);
     }

@@ -33,7 +33,7 @@ it('approves and rejects a whole paper at once', function () {
     expect($paper->rejection_reason)->toBe('Missing answer key');
 });
 
-it('rejects duplicate board+class_subject+year combinations at the database level', function () {
+it('rejects duplicate board+class_subject+year(+unit) combinations at the database level', function () {
     $board = Board::factory()->create();
     $classSubject = ClassSubject::factory()->create();
 

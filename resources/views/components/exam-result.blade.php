@@ -16,7 +16,7 @@
      * @var bool $alwaysShowAnswers  For the exam's teacher, who may see the answers whether or not they are released to students.
      */
     $showsAnswers = $alwaysShowAnswers || $attempt->exam->showsAnswersToStudents();
-    $answersByQuestion = $showsAnswers ? $attempt->answers->keyBy('question_id') : collect();
+    $answersByQuestion = $showsAnswers ? $attempt->answersByQuestion() : collect();
 @endphp
 
 <p class="qb-result-score">
@@ -25,13 +25,19 @@
 
 @if ($showsAnswers)
     <div class="qb-result-list">
-        @foreach ($attempt->shuffledQuestions() as $index => $question)
-            <x-exam-result-question
-                class="qb-result-item"
-                :question="$question"
-                :answer="$answersByQuestion->get($question->id)"
-                :number="$index + 1"
-            />
+        @foreach (\App\Filament\Support\QuestionBlocks::blocks($attempt->shuffledQuestions()) as $block)
+            @if ($block['stimulus'])
+                <x-question-stimulus :stimulus="$block['stimulus']" :heading="$block['heading']" class="qb-result-item" />
+            @endif
+
+            @foreach ($block['questions'] as ['number' => $number, 'question' => $question])
+                <x-exam-result-question
+                    class="qb-result-item"
+                    :question="$question"
+                    :answer="$answersByQuestion->get($question->id)"
+                    :number="$number"
+                />
+            @endforeach
         @endforeach
     </div>
 @else

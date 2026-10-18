@@ -6,6 +6,7 @@ use App\Enums\Difficulty;
 use App\Enums\PlanConditionType;
 use App\Enums\PlanFeature;
 use App\Models\AcademicClass;
+use App\Models\Board;
 use App\Models\ClassSubject;
 use App\Models\Subject;
 use Illuminate\Validation\ValidationException;
@@ -39,6 +40,7 @@ final class PlanConditions
         public readonly ?int $monthlyExamLimit = null,
         public readonly ?int $maxParticipants = null,
         public readonly ?int $seats = null,
+        public readonly ?PastPaperAccess $pastPapers = null,
     ) {}
 
     /**
@@ -76,6 +78,7 @@ final class PlanConditions
                 PlanConditionType::MonthlyExamLimit => $values += ['monthlyExamLimit' => max(0, (int) ($data['limit'] ?? 0))],
                 PlanConditionType::MaxParticipants => $values += ['maxParticipants' => max(1, (int) ($data['limit'] ?? 1))],
                 PlanConditionType::Seats => $values += ['seats' => max(1, (int) ($data['count'] ?? 1))],
+                PlanConditionType::PastPapers => $values += ['pastPapers' => PastPaperAccess::fromArray($data)],
                 default => null,
             };
         }
@@ -181,7 +184,7 @@ final class PlanConditions
      */
     public function descriptions(): array
     {
-        [$classNames, $subjectNames] = self::names();
+        [$classNames, $subjectNames, $sourceNames] = self::names();
 
         $names = fn (array $ids, array $all): string => collect($ids)->map(fn (int $id) => $all[$id] ?? '?')->join(', ');
 
@@ -208,21 +211,23 @@ final class PlanConditions
             $this->monthlyExamLimit === null ? null : trans_choice(':count exam a month|:count exams a month', $this->monthlyExamLimit),
             $this->maxParticipants === null ? null : trans_choice('Up to :count participant per online exam|Up to :count participants per online exam', $this->maxParticipants),
             $this->seats === null || $this->seats < 2 ? null : __('Shared by up to :count people, each with their own Google account', ['count' => $this->seats]),
+            ...($this->pastPapers?->descriptions($sourceNames) ?? []),
         ]));
     }
 
     /**
-     * Every class's and subject's name, keyed by id. Both are short
-     * reference lists, read once per request however many plans are
-     * described (a static call, so the cache is shared by all of them).
+     * Every class's, subject's and past-paper source's name, keyed by id.
+     * All short reference lists, read once per request however many plans
+     * are described (a static call, so the cache is shared by all of them).
      *
-     * @return array{0: array<int, string>, 1: array<int, string>}
+     * @return array{0: array<int, string>, 1: array<int, string>, 2: array<int, string>}
      */
     private static function names(): array
     {
         return once(fn (): array => [
             AcademicClass::options(),
             Subject::query()->get(['id', 'name', 'name_bn'])->mapWithKeys(fn (Subject $subject) => [$subject->id => $subject->display_name])->all(),
+            Board::query()->get(['id', 'short_name', 'short_name_bn'])->mapWithKeys(fn (Board $board) => [$board->id => $board->display_short_name])->all(),
         ]);
     }
 

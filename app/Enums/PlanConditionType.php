@@ -19,10 +19,12 @@ enum PlanConditionType: string implements HasLabel
     case MonthlyExamLimit = 'monthly_exam_limit';
     case MaxParticipants = 'max_participants';
     case Seats = 'seats';
+    case PastPapers = 'past_papers';
 
     public function getLabel(): ?string
     {
         return match ($this) {
+            self::PastPapers => __('Past papers'),
             self::Classes => __('Classes'),
             self::Subjects => __('Subjects'),
             self::Difficulties => __('Difficulty'),

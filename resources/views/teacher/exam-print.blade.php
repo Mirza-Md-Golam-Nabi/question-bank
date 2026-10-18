@@ -106,7 +106,7 @@
 
             @if ($exam->classSubject)
                 <p class="mt-1">{{ $exam->classSubject->academicClass->name }} &middot; {{ $exam->subject->name }}</p>
-            @else
+            @elseif ($exam->subject)
                 <p class="mt-1">{{ $exam->subject->name }}</p>
             @endif
 
@@ -126,13 +126,20 @@
                     <h2 class="mb-2 text-center text-base font-bold">{{ __('MCQ questions') }}</h2>
                 @endif
 
-                @foreach ($mcqQuestions as $index => $question)
-                    <div class="qb-paper-question">
-                        <span class="qb-paper-number">{{ $index + 1 }}</span>
-                        <div class="min-w-0 flex-1">
-                            @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => $showAnswers])
+                {{-- A shared stimulus is printed once, above the questions it is for. --}}
+                @foreach (\App\Filament\Support\QuestionBlocks::blocks($mcqQuestions) as $block)
+                    @if ($block['stimulus'])
+                        <x-question-stimulus :stimulus="$block['stimulus']" :heading="$block['heading']" />
+                    @endif
+
+                    @foreach ($block['questions'] as ['number' => $number, 'question' => $question])
+                        <div class="qb-paper-question">
+                            <span class="qb-paper-number">{{ $number }}</span>
+                            <div class="min-w-0 flex-1">
+                                @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => $showAnswers, 'showStimulus' => false])
+                            </div>
                         </div>
-                    </div>
+                    @endforeach
                 @endforeach
             </section>
         @endif
@@ -147,7 +154,8 @@
                     <div class="qb-paper-question">
                         <span class="qb-paper-number">{{ $index + 1 }}</span>
                         <div class="min-w-0 flex-1">
-                            @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => false])
+                            {{-- Only a past paper's CQ can carry answers. --}}
+                            @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => $showAnswers])
                         </div>
                     </div>
                 @endforeach

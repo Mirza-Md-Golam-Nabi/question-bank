@@ -5,44 +5,20 @@ namespace App\Filament\Resources\BoardQuestionPapers;
 use App\Filament\Resources\BoardQuestionPapers\Pages\CreateBoardQuestionPaper;
 use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
 use App\Filament\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPapers;
-use App\Filament\Resources\BoardQuestionPapers\Schemas\BoardQuestionPaperForm;
-use App\Filament\Resources\BoardQuestionPapers\Tables\BoardQuestionPapersTable;
-use App\Filament\Support\Concerns\TranslatesResourceLabels;
-use App\Filament\Support\NavigationGroup;
-use App\Models\BoardQuestionPaper;
-use BackedEnum;
-use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Table;
+use App\Filament\Support\Resources\BoardQuestionPaperResourceBase;
+use Illuminate\Database\Eloquent\Builder;
 
-class BoardQuestionPaperResource extends Resource
+/**
+ * The Admin's past papers: everyone's, with approve and reject.
+ */
+class BoardQuestionPaperResource extends BoardQuestionPaperResourceBase
 {
-    use TranslatesResourceLabels;
+    protected static bool $reviewsPapers = true;
 
-    protected static ?string $model = BoardQuestionPaper::class;
-
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
-
-    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::QuestionBank;
-
-    protected static ?string $navigationLabel = 'Board Question Papers';
-
-    public static function form(Schema $schema): Schema
+    public static function getEloquentQuery(): Builder
     {
-        return BoardQuestionPaperForm::configure($schema);
-    }
-
-    public static function table(Table $table): Table
-    {
-        return BoardQuestionPapersTable::configure($table);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
+        // The Admin reviews every paper, whoever entered it.
+        return parent::getEloquentQuery();
     }
 
     public static function getPages(): array

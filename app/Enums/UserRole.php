@@ -40,6 +40,14 @@ enum UserRole: string implements HasLabel
     }
 
     /**
+     * An Admin or the Super Admin — whoever reviews and approves content.
+     */
+    public function isAdmin(): bool
+    {
+        return $this === self::SuperAdmin || $this === self::Admin;
+    }
+
+    /**
      * The side of the subscription plans this role buys from — also the
      * roles that take part in referrals and hold a wallet. Null for the
      * roles that have no subscription at all.

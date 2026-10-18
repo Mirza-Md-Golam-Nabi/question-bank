@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\MobileBankingProvider;
+use App\Enums\PaperSourceType;
 use App\Enums\UserRole;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,8 +13,9 @@ use Illuminate\Database\Eloquent\Model;
  * Everything about billing and referrals that the Admin sets rather than
  * the code: the referral percentages and withdrawal reserves, the refund window, the
  * bonus for giving a phone number, whether spending credit needs an OTP,
- * the numbers customers send their payment to, and — the one setting here
- * that is not about money — how many questions one JSON import may carry.
+ * the numbers customers send their payment to, what a Staff member earns
+ * per past paper of each kind, and — the one setting here that is not
+ * about money — how many questions one JSON import may carry.
  * One row, read through current() — no amount or percentage of these lives
  * anywhere in the code.
  */
@@ -23,9 +25,9 @@ use Illuminate\Database\Eloquent\Model;
     'teacher_reserve_amount', 'teacher_min_withdrawal', 'student_reserve_amount', 'student_min_withdrawal',
     'group_member_change_days', 'teacher_device_limit', 'student_device_limit',
     'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
-    'question_import_max', 'teacher_question_import_enabled',
+    'question_import_max', 'teacher_question_import_enabled', 'staff_paper_import_enabled',
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
-    'mistake_clear_streak', 'default_negative_marks',
+    'mistake_clear_streak', 'default_negative_marks', 'paper_rates',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
 ])]
 class BillingSetting extends Model
@@ -57,6 +59,7 @@ class BillingSetting extends Model
         'otp_required_for_credit' => false,
         'question_import_max' => 100,
         'teacher_question_import_enabled' => true,
+        'staff_paper_import_enabled' => false,
         'difficulty_min_answers' => 30,
         'difficulty_hard_max_percent' => 33,
         'difficulty_medium_max_percent' => 66,
@@ -87,12 +90,23 @@ class BillingSetting extends Model
             'otp_required_for_credit' => 'boolean',
             'question_import_max' => 'integer',
             'teacher_question_import_enabled' => 'boolean',
+            'staff_paper_import_enabled' => 'boolean',
             'difficulty_min_answers' => 'integer',
             'difficulty_hard_max_percent' => 'float',
             'difficulty_medium_max_percent' => 'float',
             'mistake_clear_streak' => 'integer',
             'default_negative_marks' => 'float',
+            'paper_rates' => 'array',
         ];
+    }
+
+    /**
+     * What a Staff member earns for one approved past paper of this kind;
+     * nothing until the Admin sets an amount for it.
+     */
+    public function paperRateFor(PaperSourceType $type): float
+    {
+        return (float) ($this->paper_rates[$type->value] ?? 0);
     }
 
     /**

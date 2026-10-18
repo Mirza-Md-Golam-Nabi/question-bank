@@ -3,7 +3,6 @@
 namespace App\Observers;
 
 use App\Enums\QuestionStatus;
-use App\Enums\UserRole;
 use App\Models\Question;
 use App\Models\User;
 
@@ -35,7 +34,7 @@ class QuestionObserver
 
     private function defaultStatusFor(?User $user): QuestionStatus
     {
-        $isAutoApproved = $user && in_array($user->role, [UserRole::SuperAdmin, UserRole::Admin], strict: true);
+        $isAutoApproved = $user && $user->role->isAdmin();
 
         return $isAutoApproved ? QuestionStatus::Approved : QuestionStatus::Pending;
     }

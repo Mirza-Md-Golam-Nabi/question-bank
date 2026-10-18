@@ -4,6 +4,7 @@ namespace App\Filament\Support\Concerns;
 
 use App\Services\PlanGrant;
 use App\Services\SubscriptionLimitService;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Auth;
 trait ShowsPlanSummary
 {
     /**
-     * @return array<int, array{grant: PlanGrant, today: int, month: int}>
+     * @return array<int, array{grant: PlanGrant, today: int, month: int, past_papers: int, past_papers_again_at: CarbonInterface|null}>
      */
     public function planSummary(): array
     {

@@ -25,6 +25,15 @@ Auto ও Manual দুটোই বাধ্যতামূলক (নিয়�
 
 কোড: `App\Services\SelfPracticeExamService`, `App\Filament\Support\Pages\SelfPracticeExamPage` (তিন পেজের base), `App\Filament\Student\Pages\GeneratePracticeExam`, `BuildPracticeExam`, `PractiseMistakes`।
 
+## বিগত সালের প্রশ্নপত্র
+
+"অনুশীলন → বিগত সালের প্রশ্ন" পেজে approved প্রশ্নপত্র — বোর্ড, মেডিকেল, বিশ্ববিদ্যালয়… — ধরন, উৎস ও শ্রেণি দিয়ে ছাঁকা যায়; প্রতিটা সারিতে দেখায় plan-এ আছে কি না।
+
+- **পরীক্ষা দিন:** পুরো প্রশ্নপত্রের MCQ, প্রশ্নপত্রের সময় ও নেগেটিভ মার্কসহ; জমার পর সাথে সাথে উত্তর ও ব্যাখ্যা। প্রতিবার নতুন পরীক্ষা, প্রতিবার plan-এর "বিগত সালের প্রশ্ন" সীমায় গোনা (self-practice-এর সীমা থেকে আলাদা)।
+- **সৃজনশীল দেখুন:** পরীক্ষার আগে শুধু CQ, উত্তর থাকলে উত্তরসহ। MCQ শুধু পরীক্ষায় দেখা যায়।
+- প্রতিটা প্রশ্নের পাশে কোথা থেকে এসেছে ("মেডিকেল 2019")। এই প্রশ্নের ভুল "আমার ভুলগুলো"-তে যায় না।
+- লজিক `PastPaperExamService::startPractice()`; পেজ `Student\Pages\PastPapers` (`Support\Pages\PastPapersPage`)।
+
 ## ভুলের তালিকা
 
 প্রতিটা লগইন করা student-এর একটা তালিকা থাকে: যে MCQ-গুলো সে ভুল করেছে। কোড: `App\Services\StudentMistakeTracker` (তালিকা লেখা ও পড়ার একমাত্র জায়গা), টেবিল `student_question_mistakes`।

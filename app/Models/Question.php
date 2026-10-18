@@ -9,6 +9,7 @@ use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\Concerns\HasApprovalStatus;
+use App\Models\Concerns\SharesStimulus;
 use App\Observers\QuestionObserver;
 use App\Services\QuestionDifficultyTracker;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,17 +21,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
 #[Fillable([
-    'chapter_id', 'topic_id', 'question_type', 'question_text', 'editor_mode', 'question_image', 'options',
+    'chapter_id', 'topic_id', 'stimulus_id', 'stimulus_order', 'question_type', 'question_text', 'editor_mode', 'question_image', 'options',
     'marks', 'difficulty', 'status', 'created_by', 'approved_by',
     'rejection_reason', 'parent_id', 'version', 'is_latest',
 ])]
 #[ObservedBy(QuestionObserver::class)]
 class Question extends Model
 {
-    use HasApprovalStatus, HasFactory, SoftDeletes;
+    use HasApprovalStatus, HasFactory, SharesStimulus, SoftDeletes;
 
     /**
      * How many matches a question select shows for one search.
@@ -80,6 +82,14 @@ class Question extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * The stimulus this MCQ shares with the others under it, if any.
+     */
+    public function stimulus(): BelongsTo
+    {
+        return $this->belongsTo(QuestionStimulus::class, 'stimulus_id');
     }
 
     public function parent(): BelongsTo
@@ -266,18 +276,53 @@ class Question extends Model
             ->all();
     }
 
+    /**
+     * Approves this question — and, under a shared stimulus, every current
+     * question of its group that isn't approved yet: a group is reviewed as
+     * one, since its questions mean nothing without each other. Each is
+     * approved on its own record (its log, a Staff member's pay per
+     * question), never twice.
+     */
     public function approve(User $approver): void
     {
         DB::transaction(function () use ($approver) {
-            $this->markApproved($approver);
-
-            $this->approvalLogs()->create([
-                'action' => QuestionApprovalAction::Approved,
-                'performed_by' => $approver->id,
-            ]);
-
-            $this->recordStaffEarningIfOwnerIsStaff();
+            foreach ($this->groupToReview(QuestionStatus::Approved) as $question) {
+                $question->approveAlone($approver);
+            }
         });
+    }
+
+    private function approveAlone(User $approver): void
+    {
+        $this->markApproved($approver);
+
+        $this->approvalLogs()->create([
+            'action' => QuestionApprovalAction::Approved,
+            'performed_by' => $approver->id,
+        ]);
+
+        $this->recordStaffEarningIfOwnerIsStaff();
+    }
+
+    /**
+     * This question, with — under a shared stimulus — the other current
+     * questions of its group not already in `$status`.
+     *
+     * @return SupportCollection<int, self>
+     */
+    private function groupToReview(QuestionStatus $status): SupportCollection
+    {
+        if (! $this->isInStimulusGroup()) {
+            return collect([$this]);
+        }
+
+        return self::query()
+            ->where('stimulus_id', $this->stimulus_id)
+            ->where('is_latest', true)
+            ->whereKeyNot($this->id)
+            ->where('status', '!=', $status)
+            ->get()
+            ->prepend($this);
     }
 
     /**
@@ -303,15 +348,23 @@ class Question extends Model
         StaffProfile::firstOrCreateFor($this->creator)->incrementEarnings($amount);
     }
 
+    /**
+     * Rejects this question — with the rest of its stimulus group, as
+     * approve() does.
+     */
     public function reject(User $rejecter, string $reason): void
     {
-        $this->markRejected($reason);
+        DB::transaction(function () use ($rejecter, $reason) {
+            foreach ($this->groupToReview(QuestionStatus::Rejected) as $question) {
+                $question->markRejected($reason);
 
-        $this->approvalLogs()->create([
-            'action' => QuestionApprovalAction::Rejected,
-            'performed_by' => $rejecter->id,
-            'reason' => $reason,
-        ]);
+                $question->approvalLogs()->create([
+                    'action' => QuestionApprovalAction::Rejected,
+                    'performed_by' => $rejecter->id,
+                    'reason' => $reason,
+                ]);
+            }
+        });
     }
 
     /**

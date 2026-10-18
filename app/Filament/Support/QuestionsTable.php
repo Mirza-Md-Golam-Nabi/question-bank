@@ -56,7 +56,10 @@ class QuestionsTable
                 ViewAction::make()
                     ->schema(QuestionInfolist::components())
                     ->iconButton(),
-                EditAction::make()->iconButton(),
+                // A question under a shared stimulus is edited with its whole
+                // group, so the group always changes as one.
+                EditAction::make()->iconButton()->hidden(fn (Question $record): bool => $record->isInStimulusGroup()),
+                StimulusGroupActions::edit(),
                 DeleteAction::make()->iconButton(),
                 RestoreAction::make()->iconButton(),
                 ForceDeleteAction::make()->iconButton(),

@@ -46,9 +46,15 @@ class StaffProfile extends Model
         return self::firstOrCreate(['user_id' => $staff->id]);
     }
 
-    public function incrementEarnings(float $amount): void
+    /**
+     * @param  int  $questions  How many approved questions the amount is for — none for a whole past paper.
+     */
+    public function incrementEarnings(float $amount, int $questions = 1): void
     {
-        $this->increment('total_questions_approved');
+        if ($questions > 0) {
+            $this->increment('total_questions_approved', $questions);
+        }
+
         $this->increment('total_earned', $amount);
     }
 }

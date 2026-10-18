@@ -88,7 +88,10 @@ class ExamsTable
             ->defaultSort('created_at', 'desc')
             // One query for the whole page tells every row whether students
             // have started it, instead of each row asking separately.
-            ->modifyQueryUsing(fn (Builder $query) => $query->withExists('attempts'))
+            ->modifyQueryUsing(fn (Builder $query) => $query
+                ->withExists('attempts')
+                // A past paper's questions are counted on the paper.
+                ->with(['boardQuestionPaper' => fn ($paper) => $paper->withCount(['mcqQuestions', 'cqQuestions'])]))
             ->columns([
                 // Only exams built with the question picker know their class.
                 TextColumn::make('classSubject.academicClass.name')
@@ -100,7 +103,13 @@ class ExamsTable
                 TextColumn::make('delivery_mode')->label(__('Exam mode'))->badge()->color('gray')->alignCenter(),
                 TextColumn::make('status')->badge()->alignCenter(),
                 TextColumn::make('total_marks')->alignCenter(),
-                TextColumn::make('questions_count')->label(__('Questions'))->counts('questions')->alignCenter(),
+                TextColumn::make('questions_count')
+                    ->label(__('Questions'))
+                    ->counts('questions')
+                    ->state(fn (Exam $record): int => $record->isPastPaper()
+                        ? $record->boardQuestionPaper->mcq_questions_count + ($record->delivery_mode->includesOffline() ? $record->boardQuestionPaper->cq_questions_count : 0)
+                        : (int) $record->questions_count)
+                    ->alignCenter(),
                 // Until when the exam can be started; red once that has passed.
                 TextColumn::make('link_expires_at')
                     ->label(__('Ends at'))
@@ -241,13 +250,14 @@ class ExamsTable
                     ->openUrlInNewTab(),
                 // Editing works like creating: the exam opens in the question
                 // picker with its questions already selected. Gone once a
-                // student has started it — the paper they sat must not change.
+                // student has started it — the paper they sat must not change
+                // — and for a past paper, whose questions are the paper's.
                 Action::make('editQuestions')
                     ->label(__('Edit'))
                     ->tooltip(__('Edit'))
                     ->icon('heroicon-o-pencil-square')
                     ->iconButton()
-                    ->visible(fn (Exam $record) => ! self::hasAttempts($record))
+                    ->visible(fn (Exam $record) => ! self::hasAttempts($record) && ! $record->isPastPaper())
                     ->authorize('update')
                     ->url(fn (Exam $record): string => SelectQuestions::getUrl(['exam' => $record->id])),
                 // The way back to an editable paper once students have started:

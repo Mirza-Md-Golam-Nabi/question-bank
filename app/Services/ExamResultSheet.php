@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Enums\ExamAttemptStatus;
 use App\Models\AttemptAnswer;
+use App\Models\BoardMcqQuestion;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Question;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
@@ -86,7 +88,7 @@ class ExamResultSheet
      * ones that are auto-graded.
      *
      * @return Collection<int, array{
-     *     question: Question,
+     *     question: Question|BoardMcqQuestion,
      *     correct: int,
      *     wrong: int,
      *     unanswered: int,
@@ -98,20 +100,27 @@ class ExamResultSheet
         $attemptIds = $this->rowsFor($exam)->map(fn (array $row) => $row['attempt']->id);
         $participants = $attemptIds->count();
 
+        $column = $exam->answerColumn();
+
         $tallies = $participants === 0
             ? collect()
             : AttemptAnswer::query()
                 ->whereIn('attempt_id', $attemptIds)
                 ->whereNotNull('is_correct')
-                ->selectRaw('question_id, SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, COUNT(*) AS answered_count')
-                ->groupBy('question_id')
+                ->selectRaw("{$column} AS item_id, SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, COUNT(*) AS answered_count")
+                ->groupBy($column)
                 ->get()
-                ->keyBy('question_id');
+                ->keyBy('item_id');
 
-        return $exam->onlineQuestions
-            ->load('cqParts')
+        $questions = $exam->onlineItems();
+
+        if (! $exam->isPastPaper()) {
+            $questions->load('cqParts');
+        }
+
+        return $questions
             ->values()
-            ->map(function (Question $question, int $index) use ($tallies, $participants): array {
+            ->map(function (Model $question, int $index) use ($tallies, $participants): array {
                 $correct = (int) ($tallies->get($question->id)?->correct_count ?? 0);
                 $answered = (int) ($tallies->get($question->id)?->answered_count ?? 0);
 
@@ -141,14 +150,14 @@ class ExamResultSheet
      */
     public function wrongAnswersFor(Exam $exam, int $questionId): Collection
     {
-        if (! $exam->onlineQuestions->contains('id', $questionId)) {
+        if (! $exam->onlineItems()->contains('id', $questionId)) {
             return collect();
         }
 
         $rows = $this->rowsFor($exam)->keyBy(fn (array $row) => $row['attempt']->id);
 
         return AttemptAnswer::query()
-            ->where('question_id', $questionId)
+            ->where($exam->answerColumn(), $questionId)
             ->where('is_correct', false)
             ->whereIn('attempt_id', $rows->keys())
             ->get(['attempt_id', 'student_answer'])
@@ -174,14 +183,14 @@ class ExamResultSheet
      */
     public function unansweredBy(Exam $exam, int $questionId): Collection
     {
-        if (! $exam->onlineQuestions->contains('id', $questionId)) {
+        if (! $exam->onlineItems()->contains('id', $questionId)) {
             return collect();
         }
 
         $rows = $this->rowsFor($exam);
 
         $answeredAttemptIds = AttemptAnswer::query()
-            ->where('question_id', $questionId)
+            ->where($exam->answerColumn(), $questionId)
             ->whereNotNull('is_correct')
             ->whereIn('attempt_id', $rows->map(fn (array $row) => $row['attempt']->id))
             ->pluck('attempt_id');

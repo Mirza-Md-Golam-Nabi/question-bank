@@ -118,6 +118,6 @@ class QuestionPolicy
 
     private function isAdmin(User $user): bool
     {
-        return in_array($user->role, [UserRole::SuperAdmin, UserRole::Admin], strict: true);
+        return $user->role->isAdmin();
     }
 }

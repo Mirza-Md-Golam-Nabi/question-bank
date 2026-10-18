@@ -413,7 +413,8 @@ livewire(ListUsers::class)
 2. `subjects` একটা মাস্টার লিস্ট (class-নির্ভর না) — কোন class-এ কোন subject আছে সেটা `class_subjects` পিভট ট্র্যাক করে। `chapters.class_subject_id` সরাসরি `class_subjects.id`-কে পয়েন্ট করে, `subjects.id`-কে না (একই subject বিভিন্ন class-এ আলাদা chapter সেট রাখে)।
 3. CQ প্রশ্নে `questions.question_text`/`question_image` = উদ্দীপক, আর ৪টা সাব-প্রশ্ন `question_cq_parts`-এ (`knowledge`/`comprehension`/`application`/`higher_application`)।
 4. CQ-এর `questions.marks` = তার ৪টা `question_cq_parts.marks`-এর যোগফল — **`QuestionObserver`-এ auto-sync**, ম্যানুয়ালি সেট করা যাবে না।
-5. `academic_classes`/`subjects`/`class_subjects`/`chapters` — সবগুলো Admin-only reference data (`created_by` নেই, Teacher/Staff শুধু select করবে, নিজে তৈরি করতে পারবে না)।
+5. **উদ্দীপকভিত্তিক MCQ** (অভিন্ন তথ্যভিত্তিক): একটা উদ্দীপক (লেখা/ছবি) আর তার নিচে ২–৬টা MCQ। প্রতিটা MCQ আগের মতোই পূর্ণ প্রশ্ন (নিজের গ্রেডিং, difficulty, সংস্করণ), শুধু `stimulus_id` + `stimulus_order` জানে — প্রশ্নভাণ্ডারে `question_stimuli`, প্রশ্নপত্রে `board_mcq_stimuli`। গ্রুপ একসাথে approve/reject হয় (`Question::approve()`), approved গ্রুপ এডিট করলে পুরো গ্রুপের নতুন সংস্করণ (`StimulusGroupService`); গ্রুপের প্রশ্ন একা এডিট হয় না। Teacher গ্রুপের যেকোনো কয়টা প্রশ্ন নিতে পারেন; Auto-Generate-এ একটা প্রশ্ন উঠলে উদ্দীপকসহ শুধু সেটাই আসে। "নিচের উদ্দীপকটি পড়ে ৫ ও ৬ নম্বর প্রশ্নের উত্তর দাও" কখনো লেখায় থাকে না — প্রতিবার ক্রম দেখে বসে, আর গ্রুপের প্রশ্ন সবসময় পাশাপাশি (এলোমেলো করার সময়ও এক ব্লক) — সব শুধু `QuestionBlocks`-এ। Staff প্রতিটা MCQ-র জন্য আলাদা প্রশ্ন হিসেবে টাকা পান।
+6. `academic_classes`/`subjects`/`class_subjects`/`chapters` — সবগুলো Admin-only reference data (`created_by` নেই, Teacher/Staff শুধু select করবে, নিজে তৈরি করতে পারবে না)।
 
 ### ৪. Versioning (Approved প্রশ্ন এডিট)
 - একই `questions` টেবিলে `parent_id`, `version`, `is_latest` কলাম দিয়ে versioning।
@@ -424,21 +425,23 @@ livewire(ListUsers::class)
 ### ৫. Board Question Papers — সম্পূর্ণ আলাদা সাবসিস্টেম
 > **বোর্ড প্রশ্ন (`boards`/`board_question_papers`/`board_mcq_questions`/`board_cq_questions`/`board_cq_question_parts`) কখনো সাধারণ `questions` পুলের সাথে মিশবে না — আলাদা টেবিল, আলাদা approval workflow।**
 
-1. `board_question_papers` = একটা নির্দিষ্ট board + `class_subject_id` + `year`-এর পুরো প্রশ্নপত্র, পুরোটা একসাথে `pending`/`approved`/`rejected` হয় (individual question-level approval না)।
-2. `unique(board_id, class_subject_id, year)` — একই বোর্ড+সাল+সাবজেক্টের পেপার দুইবার তৈরি করা যাবে না।
+1. `board_question_papers` = একটা উৎস + `year` + ঐচ্ছিক `unit`-এর পুরো প্রশ্নপত্র; শিক্ষা বোর্ড/স্কুল টেস্টের পেপারে `class_subject_id`-ও থাকে, ভর্তি/চাকরির পেপারে না (সব বিষয় একসাথে — `PaperSourceType::hasClassSubject()`)। পুরোটা একসাথে `pending`/`approved`/`rejected` হয় (individual question-level approval না)।
+2. একই উৎস + সাল + ইউনিট (+ শ্রেণি-বিষয়)-এর পেপার দুইবার তৈরি করা যাবে না — `BoardQuestionPaper::isTaken()` (বোর্ডের পেপারে ডেটাবেজের unique key-ও)।
 3. `board_cq_questions.marks` একইভাবে তার `board_cq_question_parts`-এর যোগফল থেকে auto-sync।
-4. Self-practice/Teacher exam-এর question picker-এ board question papers কখনো approved pool-এর সাথে mix করা যাবে না — এটা আলাদা browsing/UI flow।
-5. `boards` = প্রশ্নপত্রের **উৎস**, ধরন (`type`, `PaperSourceType`): শিক্ষা বোর্ড, মেডিকেল ভর্তি, বিশ্ববিদ্যালয় ভর্তি, চাকরির পরীক্ষা, স্কুল/কলেজের টেস্ট। সব ধরনেই ওপরের নিয়মগুলো একই।
+4. Self-practice/Teacher exam-এর question picker-এ board question papers কখনো approved pool-এর সাথে mix করা যাবে না — এটা আলাদা browsing/UI flow ("বিগত সালের প্রশ্ন" পেজ)। **প্রশ্নপত্র ব্যবহার হয় শুধু পুরোটা একটা পরীক্ষা হিসেবে** (`exams.board_question_paper_id`; উত্তর `attempt_answers.board_mcq_question_id`-এ): Student নিজে বসে (সাথে সাথে উত্তর ও ব্যাখ্যা), Teacher পুরোটা পরীক্ষা হিসেবে নেন (অনলাইন = MCQ, প্রিন্ট = MCQ + CQ)। লজিক শুধু `PastPaperExamService`-এ। এই প্রশ্নের difficulty/ভুলের তালিকা/Teacher-এর পরিসংখ্যান হয় না।
+5. `boards` = প্রশ্নপত্রের **উৎস**, ধরন (`type`, `PaperSourceType`): শিক্ষা বোর্ড, মেডিকেল ভর্তি, বিশ্ববিদ্যালয় ভর্তি, চাকরির পরীক্ষা, স্কুল/কলেজের টেস্ট; বাংলা ও ইংরেজিতে পূর্ণ ও সংক্ষিপ্ত নাম। প্রশ্ন দেখানোর সময় কোথা থেকে এসেছে সংক্ষিপ্ত নাম + সাল দিয়ে দেখায় (`<x-question-source>`)।
+6. পেপার তোলেন Admin ও Staff (Staff শুধু নিজেরটা, approve হওয়ার আগ পর্যন্ত বদলাতে পারেন); প্রশ্ন একটা একটা করে প্রশ্নভাণ্ডারের এডিটর দিয়ে, MCQ-তে ঐচ্ছিক ব্যাখ্যা ও CQ-র অংশে ঐচ্ছিক উত্তর। কেউ পরীক্ষা দেওয়ার পর পেপার আর বদলানো যায় না (`hasBeenSat()`)।
 
 ### ৬. Staff Payment
 > **Staff-এর প্রশ্ন `approved` হওয়ার মুহূর্তেই তার পারিশ্রমিক `staff_earnings` ledger-এ যোগ হবে — rejected প্রশ্নের জন্য কোনো টাকা যোগ হবে না।**
 - Rate `question_rates` টেবিল থেকে (subject-ভিত্তিক, না থাকলে default) নেওয়া হবে এবং **approve করার মুহূর্তের rate `staff_earnings.amount`-এ snapshot হিসেবে সেভ থাকবে** — পরে rate বদলালেও পুরনো entry অপরিবর্তিত থাকবে।
 - `staff_profiles.bank_account_number` ও `mobile_banking_number` **অবশ্যই `encrypted` cast দিয়ে** স্টোর করতে হবে — plain column-এ কখনো না।
 - Payout একটা batch action (`staff_payouts`), individual earning row-কে সরাসরি "paid" না বানিয়ে payout batch-এর মাধ্যমে।
+- **বিগত সালের প্রশ্নপত্র:** Staff-এর পেপার approve হলে **পেপারপ্রতি** টাকা — পেপারের ধরন অনুযায়ী Admin-এর রেট (`BillingSetting.paper_rates`), approve-এর মুহূর্তের রেট snapshot, পেপারপ্রতি একবারই (`BoardQuestionPaper::approve()`); rejected পেপারে কিছু না।
 
 ### ৭. Subscription / Freemium
 > **Teacher exam তৈরি/publish/print করার আগে, ও Student self-practice exam জেনারেট করার আগে (সব মোডে) — user-এর plan-এ সেই কাজটা আছে কিনা সার্ভারে চেক করতে হবে। Plan না থাকলে কিছুই না।**
-- **দামের তালিকা পুরোপুরি ডায়নামিক** — কোডে কোনো plan/দাম নেই। Admin প্রতিটা plan-এ মেয়াদ (দিন/মাস/বছর/নির্দিষ্ট তারিখ পর্যন্ত) আর **শর্ত** যোগ-বিয়োগ করেন: শ্রেণি, বিষয় (দুটোই ক্রেতা কেনার সময় বাছতে পারে; বাছাই করা বিষয় plan-এর সব শ্রেণিতে পড়ানো হতে হয় — `PlanConditions::pickableSubjectIds()`), difficulty, সুবিধা (অনলাইন পরীক্ষা / প্রিন্ট), দিনে ও মাসে পরীক্ষা। যে বিষয়ে শর্ত নেই সেখানে সীমা নেই। শর্তের অর্থ শুধু `PlanConditions`-এ।
+- **দামের তালিকা পুরোপুরি ডায়নামিক** — কোডে কোনো plan/দাম নেই। Admin প্রতিটা plan-এ মেয়াদ (দিন/মাস/বছর/নির্দিষ্ট তারিখ পর্যন্ত) আর **শর্ত** যোগ-বিয়োগ করেন: শ্রেণি, বিষয় (দুটোই ক্রেতা কেনার সময় বাছতে পারে; বাছাই করা বিষয় plan-এর সব শ্রেণিতে পড়ানো হতে হয় — `PlanConditions::pickableSubjectIds()`), difficulty, সুবিধা (অনলাইন পরীক্ষা / প্রিন্ট / বিগত সালের প্রশ্ন), দিনে ও মাসে পরীক্ষা, আর বিগত সালের প্রশ্নের শর্ত — ধরন, উৎস, কত বছরের পুরনো, "প্রতি N দিনে X টা" (চলমান গণনা; self-practice/পরীক্ষার সীমা থেকে আলাদা; অর্থ `PastPaperAccess`-এ, যাচাই ও গণনা `SubscriptionLimitService::authorizePastPaper()`-এ)। যে বিষয়ে শর্ত নেই সেখানে সীমা নেই। শর্তের অর্থ শুধু `PlanConditions`-এ।
 - একজন user-এর অধিকার = তার সব সক্রিয় subscription + role-এর ফ্রি plan মিলিয়ে; যাচাই ও "কোন plan-এ গোনা হবে" শুধু `SubscriptionLimitService`-এ (`authorize()`, `allows()`)। প্রতিটা exam যে subscription-এ অনুমতি পেল তার সীমাতেই গোনা হয় (`exams.subscription_id`; ফাঁকা = ফ্রি plan)।
 - Subscription কেনার মুহূর্তে plan-এর শর্তের কপি ও ক্রেতার বাছাই রেখে দেয় — পরে plan বদলালে কেনা জিনিস বদলায় না।
 - Teacher-এর ট্রায়াল একাউন্টপ্রতি একবারই। Student-এর প্রোফাইলে শ্রেণি থাকে; self-practice সবসময় নিজের শ্রেণি থেকে।
@@ -626,6 +629,15 @@ CLAUDE.md
 | চার প্যানেলের অভিন্ন কনফিগ (theme, middleware, navigation) | `App\Filament\Support\PanelDefaults::apply()` |
 | প্রতিটা প্যানেলের `QuestionResource`-এর অভিন্ন অংশ (model, form, table) | `Support\Resources\QuestionResourceBase` — `getEloquentQuery()` কিন্তু প্রতিটা প্যানেলে নিজেই লিখতে হবে (নিয়ম ২) |
 | প্রশ্ন তৈরি/এডিট পেজ (সব প্যানেল) | `Support\Pages\Questions\CreateQuestionPage`, `EditQuestionPage` |
+| উদ্দীপকভিত্তিক MCQ: সাজানো, নম্বর, "… নম্বর প্রশ্নের উত্তর দাও" শিরোনাম, পরীক্ষায় এক ব্লকে এলোমেলো | `Support\QuestionBlocks` (`units()`, `arrange()`, `blocks()`, `heading()`); দেখানো `<x-question-stimulus>` |
+| উদ্দীপক + তার MCQ লেখার ফর্ম ও বাটন (প্রশ্নভাণ্ডার ও প্রশ্নপত্র) | `Support\StimulusGroupForm`; প্রশ্নভাণ্ডারের বাটন `Support\StimulusGroupActions`, সেভ ও সংস্করণ `App\Services\StimulusGroupService`; প্রশ্নপত্রে `PaperMcqQuestionsRelationManager`; গ্রুপের আকার `QuestionStimulus::MIN_QUESTIONS`/`MAX_QUESTIONS` |
+| JSON-এর প্রশ্ন বানানো ও সেভ (উদ্দীপক আগে, ডুপ্লিকেট বাদ) — দুই importer-এর অভিন্ন অংশ | `App\Services\ImportedQuestions` |
+| প্রশ্ন লেখার ফর্মের অংশ (এডিটর বাছাই + লেখা + ছবি + preview, MCQ অপশন, CQ অংশ) — প্রশ্নভাণ্ডার ও বিগত সালের প্রশ্নপত্র দুটোতেই | `Support\QuestionFormSchema::textImageAndPreview()`, `editorModeRadio()`, `mcqComponents()`, `cqComponents()`; পেপারের জন্য `Support\PaperQuestionForms` |
+| অপশন/CQ অংশ ফর্ম ↔ ডেটাবেজে রূপান্তর | `Support\QuestionFormData`; এডিটর পছন্দ মনে রাখা `EditorModePreference::rememberFromForm()` |
+| Admin কি না | `UserRole::isAdmin()` |
+| বিগত সালের প্রশ্নপত্র: Admin/Staff resource, প্রশ্নের তালিকা, Teacher/Student পেজ, পরীক্ষা বানানো | `Support\Resources\BoardQuestionPaperResourceBase`, `Support\RelationManagers\PaperMcqQuestionsRelationManager` / `PaperCqQuestionsRelationManager`, `Support\Pages\PastPapersPage`, `App\Services\PastPaperExamService` |
+| পরীক্ষায় যা বসা হয় / প্রিন্ট হয় (প্রশ্নভাণ্ডারের বা প্রশ্নপত্রের) | `Exam::onlineItems()`, `printedItems()`, `answerColumn()`, `heading()`; `ExamAttempt::savedAnswers()`, `answersByQuestion()` |
+| প্রশ্ন কোথা থেকে এসেছে / ব্যাখ্যা দেখানো | `<x-question-source>`, `<x-question-explanation>` |
 | Class → Subject → Chapter → Topic select | `Support\ContentHierarchySchema` (`classSelect()` … `topicSelect()`; শ্রেণি/বিষয় সীমিত করতে ids-এর closure দেওয়া যায়) |
 | শ্রেণি বা একটা শ্রেণির বিষয়ের তালিকা (যেকোনো select-এ) | `AcademicClass::options()`, `ClassSubject::subjectOptionsFor()` |
 | সাধারণ (Filament-টেবিল নয় এমন) টেবিল | `<x-data-table :columns>` — স্টাইল `qb-data-table` (question-display.css) |
@@ -633,7 +645,7 @@ CLAUDE.md
 | Service কিছু আটকালে লাল notification (try/catch লিখবেন না) | `Support\Concerns\NotifiesValidationFailures::rescueWithNotification()` |
 | MCQ অপশনের ফিল্ড + "একটাই সঠিক উত্তর" নিয়ম | `Support\McqOptionsSchema` |
 | প্রশ্নের ফর্ম / টেবিল / View | `Support\QuestionFormSchema`, `QuestionsTable`, `QuestionInfolist` |
-| JSON পেস্ট করে একসাথে অনেক প্রশ্ন যোগ (Teacher/Admin; Staff না) — যাচাই, গণিত (`$...$` → KaTeX embed) ও তৈরি | `App\Services\QuestionJsonImporter`, `QuestionImportText`; বাটন `Support\QuestionJsonImportAction`; অনুমতি `QuestionPolicy::import()`; একবারের সীমা `BillingSetting.question_import_max` |
+| JSON পেস্ট করে একসাথে অনেক প্রশ্ন যোগ — অধ্যায়ে (Teacher/Admin; Staff না) ও বিগত সালের প্রশ্নপত্রে (Admin; Staff শুধু Admin চালু করলে — `BillingSetting.staff_paper_import_enabled`) | JSON পড়া, যাচাই ও format/sample-এর একমাত্র জায়গা `App\Services\QuestionJsonReader` (+ `QuestionImportText`, গণিত `$...$` → KaTeX embed); প্রশ্ন বানায় `QuestionJsonImporter` (অধ্যায়) ও `PastPaperJsonImporter` (প্রশ্নপত্র); বাটন ও পপআপ `Support\QuestionJsonImportAction` (`make()`, `forPastPaper()`); অনুমতি `QuestionPolicy::import()`, `BoardQuestionPaperPolicy::import()`; একবারের সীমা `BillingSetting.question_import_max` (দুই জায়গাতেই) |
 | MCQ-র difficulty student-দের উত্তর থেকে নিজে ঠিক হওয়া (শুধু Teacher-এর পরীক্ষা, ফাঁকা = ভুল; গণনা প্রশ্নের নিজের `answer_count`/`correct_answer_count`-এ, তাই পুরনো attempt মুছলেও থাকে; "পরীক্ষা বাতিল"-এ গণনা কমে) | `App\Services\QuestionDifficultyTracker` (গণনা ও নিয়মের একমাত্র জায়গা); সংখ্যাগুলো `BillingSetting.difficulty_*`; `Question::hasCalculatedDifficulty()` |
 | Student-এর ভুলের তালিকা ও "ভুলগুলো অনুশীলন" (যেকোনো পরীক্ষার ভুল/ফাঁকা MCQ জমে; পরপর `BillingSetting.mistake_clear_streak` বার সঠিক হলে বাদ; **Teacher-এর পরীক্ষার ভুল সেই পরীক্ষার উত্তর প্রকাশের আগে অনুশীলনে আসে না** — নইলে উত্তর ফাঁস হয়) | `App\Services\StudentMistakeTracker` (একমাত্র জায়গা); পরীক্ষা বানায় `SelfPracticeExamService::generateFromMistakes()` (`generation_mode='mistakes'`, একই মাসিক লিমিটে গোনা); পেজ `Student\Pages\PractiseMistakes`, widget `StudentWeakChaptersWidget` |
 | Teacher-এর নিজের ছাত্ররা কোন প্রশ্নে কতবার ভুল করেছে (তার সব পরীক্ষা মিলিয়ে) ও "প্রশ্ন বাছাই"-এ সেই ফিল্টার | `App\Services\TeacherQuestionStats` |

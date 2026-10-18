@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ExamAttemptStatus;
 use App\Enums\QuestionType;
+use App\Filament\Support\QuestionBlocks;
 use App\Services\QuestionDifficultyTracker;
 use App\Services\ReferralService;
 use App\Services\StudentMistakeTracker;
@@ -259,11 +260,37 @@ class ExamAttempt extends Model
      * (on a page reload, a Livewire re-render, and again on the result).
      * Options are deliberately left in their written order.
      *
-     * @return Collection<int, Question>
+     * @return Collection<int, Question|BoardMcqQuestion>
      */
     public function shuffledQuestions(): Collection
     {
-        return new Collection($this->shuffleWithSeed($this->exam->onlineQuestions->all(), $this->id));
+        // The questions under one stimulus move as one block and keep their
+        // own order (QuestionBlocks::units()); a paper without any shuffles
+        // exactly as it always has.
+        $units = $this->shuffleWithSeed(QuestionBlocks::units($this->exam->onlineItems()), $this->id);
+
+        return new Collection(array_merge(...$units));
+    }
+
+    /**
+     * The answers on record, keyed by the question each answers (a past
+     * paper's MCQ or a question-bank question — Exam::answerColumn()).
+     *
+     * @return array<int, string>
+     */
+    public function savedAnswers(): array
+    {
+        return $this->answers()->pluck('student_answer', $this->exam->answerColumn())->all();
+    }
+
+    /**
+     * The graded answers keyed the same way, for showing a result.
+     *
+     * @return Collection<int, AttemptAnswer>
+     */
+    public function answersByQuestion(): Collection
+    {
+        return $this->answers->keyBy($this->exam->answerColumn());
     }
 
     /**
@@ -325,7 +352,8 @@ class ExamAttempt extends Model
             return;
         }
 
-        $examQuestionIds = $this->exam->onlineQuestions->pluck('id')->flip();
+        $examQuestionIds = $this->exam->onlineItems()->pluck('id')->flip();
+        $column = $this->exam->answerColumn();
 
         $rows = collect($answers)
             ->filter(fn (mixed $studentAnswer, int|string $questionId): bool => $examQuestionIds->has($questionId)
@@ -333,7 +361,7 @@ class ExamAttempt extends Model
                 && $studentAnswer !== '')
             ->map(fn (string $studentAnswer, int|string $questionId): array => [
                 'attempt_id' => $this->id,
-                'question_id' => (int) $questionId,
+                $column => (int) $questionId,
                 'student_answer' => $studentAnswer,
             ])
             ->values();
@@ -342,7 +370,7 @@ class ExamAttempt extends Model
         // a whole class's pages send this at the same instant when the
         // clock runs out.
         if ($rows->isNotEmpty()) {
-            AttemptAnswer::upsert($rows->all(), ['attempt_id', 'question_id'], ['student_answer']);
+            AttemptAnswer::upsert($rows->all(), ['attempt_id', $column], ['student_answer']);
         }
 
         $this->unsetRelation('answers');
@@ -361,15 +389,17 @@ class ExamAttempt extends Model
     {
         // The exam's questions are already in memory, so no answer has to
         // load its own question.
-        $examQuestionsById = $this->exam->questions->keyBy('id');
-        $penalty = $this->exam->marksLostPerWrongAnswer();
+        $exam = $this->exam;
+        $examQuestionsById = ($exam->isPastPaper() ? $exam->onlineItems() : $exam->questions)->keyBy('id');
+        $column = $exam->answerColumn();
+        $penalty = $exam->marksLostPerWrongAnswer();
 
         /** @var array<string, array{is_correct: bool, obtained_marks: float, ids: array<int, int>}> $outcomes */
         $outcomes = [];
         $correctQuestionIds = [];
 
-        foreach ($this->answers()->get(['id', 'question_id', 'student_answer']) as $answer) {
-            $question = $examQuestionsById->get($answer->question_id);
+        foreach ($this->answers()->get(['id', $column, 'student_answer']) as $answer) {
+            $question = $examQuestionsById->get($answer->{$column});
 
             if ($question?->question_type !== QuestionType::Mcq) {
                 continue;
@@ -411,8 +441,11 @@ class ExamAttempt extends Model
             'total_score' => max(0, (float) $this->answers()->sum('obtained_marks')),
         ])->save();
 
-        // How the paper went feeds each question's difficulty.
-        app(QuestionDifficultyTracker::class)->recordAttempt($this, $correctQuestionIds);
+        // How the paper went feeds each question's difficulty — a question
+        // of the pool's, which a past paper's are not.
+        if (! $exam->isPastPaper()) {
+            app(QuestionDifficultyTracker::class)->recordAttempt($this, $correctQuestionIds);
+        }
 
         $this->recordStatistics($correctQuestionIds);
     }
@@ -434,7 +467,9 @@ class ExamAttempt extends Model
             ->whereNull('statistics_recorded_at')
             ->update(['statistics_recorded_at' => now()]);
 
-        if ($claimed === 0) {
+        // A past paper's questions are not the pool's, so neither the
+        // mistakes list nor the teacher's question numbers take them.
+        if ($claimed === 0 || $this->exam->isPastPaper()) {
             return;
         }
 

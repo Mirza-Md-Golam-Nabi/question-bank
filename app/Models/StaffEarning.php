@@ -10,7 +10,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-#[Fillable(['staff_id', 'question_id', 'amount', 'status', 'payout_id'])]
+/**
+ * What a Staff member earned for one approved question, or one approved
+ * past paper (board_question_paper_id) — never both.
+ */
+#[Fillable(['staff_id', 'question_id', 'board_question_paper_id', 'amount', 'status', 'payout_id'])]
 class StaffEarning extends Model
 {
     use HasFactory;
@@ -119,6 +123,11 @@ class StaffEarning extends Model
     public function question(): BelongsTo
     {
         return $this->belongsTo(Question::class);
+    }
+
+    public function boardQuestionPaper(): BelongsTo
+    {
+        return $this->belongsTo(BoardQuestionPaper::class);
     }
 
     public function payout(): BelongsTo

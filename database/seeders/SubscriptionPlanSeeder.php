@@ -51,6 +51,7 @@ class SubscriptionPlanSeeder extends Seeder
             ['Free', 0, PlanDuration::Unlimited, null, [
                 $condition(PlanConditionType::Difficulties, ['difficulties' => ['easy']]),
                 $condition(PlanConditionType::DailyExamLimit, ['limit' => 1]),
+                $condition(PlanConditionType::PastPapers, ['min_age_years' => 5, 'limit' => 1, 'per_days' => 30]),
             ], ['is_default_free' => true]],
             ['1 subject', 29, PlanDuration::Months, 1, [$pickClass, $pickSubject]],
             ['All subjects', 79, PlanDuration::Months, 1, [$pickClass]],

@@ -23,14 +23,14 @@ class ExamPolicy
 
     /**
      * Backs CLAUDE.md rule 7: sharing the exam online needs a plan that
-     * covers its class + subject and includes online exams. It was already
+     * covers its class + subject (or its past paper) and includes online exams. It was already
      * counted against the plan's limits when it was saved, so publishing
      * it doesn't count it again.
      */
     public function publish(User $user, Exam $exam): bool
     {
         return $exam->created_by === $user->id
-            && $this->subscriptionLimits->allows($user, $exam->classSubject, [PlanFeature::OnlineExam]);
+            && $this->subscriptionLimits->allowsExam($user, $exam, [PlanFeature::OnlineExam]);
     }
 
     /**
@@ -41,7 +41,7 @@ class ExamPolicy
     public function print(User $user, Exam $exam): bool
     {
         return $exam->created_by === $user->id
-            && $this->subscriptionLimits->allows($user, $exam->classSubject, [PlanFeature::Print]);
+            && $this->subscriptionLimits->allowsExam($user, $exam, [PlanFeature::Print]);
     }
 
     /**

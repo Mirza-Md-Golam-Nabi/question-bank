@@ -5,7 +5,7 @@
      * field's own value is how many formulas KaTeX refused, reported back
      * so the window won't add questions with a broken formula.
      *
-     * @var \Illuminate\Support\Collection<int, \App\Models\Question> $questions
+     * @var \Illuminate\Support\Collection<int, \App\Models\Question|\App\Models\BoardMcqQuestion|\App\Models\BoardCqQuestion> $questions
      */
     $unrenderableMessage = __(':count formula(s) could not be drawn — they are shown in red.');
 @endphp
@@ -35,14 +35,21 @@
             class="qb-import-preview-warning"
         ></p>
 
-        @foreach ($questions as $index => $question)
-            <div class="qb-question-preview">
-                <p class="qb-question-preview-label">
-                    {{ $index + 1 }} · {{ $question->question_type->getLabel() }} · {{ $question->difficulty->getLabel() }}
-                </p>
+        @foreach (\App\Filament\Support\QuestionBlocks::blocks($questions) as $block)
+            @if ($block['stimulus'])
+                <x-question-stimulus :stimulus="$block['stimulus']" :heading="$block['heading']" />
+            @endif
 
-                @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => true])
-            </div>
+            @foreach ($block['questions'] as ['number' => $number, 'question' => $question])
+                <div class="qb-question-preview">
+                    <p class="qb-question-preview-label">
+                        {{-- A past paper's question has no difficulty. --}}
+                        {{ collect([$number, $question->question_type->getLabel(), $question->difficulty?->getLabel()])->filter()->join(' · ') }}
+                    </p>
+
+                    @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => true, 'showStimulus' => false])
+                </div>
+            @endforeach
         @endforeach
     </div>
 </x-dynamic-component>

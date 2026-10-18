@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\PaperSourceType;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\BillingSetting;
@@ -166,11 +167,29 @@ class BillingSettings extends Page
                             ->label(__('Teachers can add questions from JSON'))
                             ->helperText(__('When off, only an Admin sees the "Add from JSON" button.'))
                             ->columnSpanFull(),
+                        Toggle::make('staff_paper_import_enabled')
+                            ->label(__('Staff can add past paper questions from JSON'))
+                            ->helperText(__('When on, every Staff member gets the "Add from JSON" button on their past papers; when off, none does. An Admin always has it.'))
+                            ->columnSpanFull(),
                         TextInput::make('question_import_max')
                             ->label(__('Most questions in one JSON import'))
-                            ->helperText(__('How many questions a Teacher or an Admin can add at once by pasting JSON.'))
+                            ->helperText(__('How many questions can be added at once by pasting JSON — to a chapter or to a past paper.'))
                             ->integer()->minValue(1)->maxValue(1000)->required(),
                     ]),
+
+                // One amount per kind of paper, paid when an Admin approves a
+                // Staff member's paper — snapshotted then, like question rates.
+                Section::make(__('Staff pay per past paper'))
+                    ->description(__('What a Staff member earns for each of their past papers an Admin approves.'))
+                    ->columns(3)
+                    ->schema(collect(PaperSourceType::cases())
+                        ->map(fn (PaperSourceType $type) => TextInput::make("paper_rates.{$type->value}")
+                            ->label($type->getLabel())
+                            ->prefix('৳')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0))
+                        ->all()),
 
                 Section::make(__('Question difficulty'))
                     ->description(__('The difficulty of an MCQ is set from how students answer it on teacher exams, once enough of them have.'))

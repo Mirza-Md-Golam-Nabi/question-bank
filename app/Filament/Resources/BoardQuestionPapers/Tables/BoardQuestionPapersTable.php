@@ -15,22 +15,31 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * The past papers list — the Admin's, with approve/reject, and a Staff
+ * member's own.
+ */
 class BoardQuestionPapersTable
 {
-    public static function configure(Table $table): Table
+    public static function configure(Table $table, bool $reviewing = true): Table
     {
         return $table
             ->defaultSort('created_at', 'desc')
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['board', 'classSubject.academicClass', 'classSubject.subject', 'creator:id,name']))
             ->columns([
                 TextColumn::make('board.short_name')->label(__('Source'))->badge()
-                    ->description(fn ($record): ?string => $record->board?->type->getLabel()),
-                TextColumn::make('classSubject.academicClass.name')->label(__('Class')),
-                TextColumn::make('classSubject.subject.name')->label(__('Subject')),
-                TextColumn::make('year'),
-                TextColumn::make('mcq_questions_count')->label(__('MCQ'))->counts('mcqQuestions'),
-                TextColumn::make('cq_questions_count')->label(__('CQ'))->counts('cqQuestions'),
+                    ->state(fn (BoardQuestionPaper $record): string => $record->board->display_short_name)
+                    ->description(fn (BoardQuestionPaper $record): ?string => $record->board->type->getLabel()),
+                TextColumn::make('year')->sortable(),
+                TextColumn::make('unit')->label(__('Unit'))->placeholder('—'),
+                TextColumn::make('classSubject.academicClass.name')->label(__('Class'))->placeholder('—'),
+                TextColumn::make('classSubject.subject.name')->label(__('Subject'))
+                    ->state(fn (BoardQuestionPaper $record): ?string => $record->classSubject?->subject?->display_name)
+                    ->placeholder('—'),
+                TextColumn::make('mcq_questions_count')->label(__('MCQ'))->counts('mcqQuestions')->alignCenter(),
+                TextColumn::make('cq_questions_count')->label(__('CQ'))->counts('cqQuestions')->alignCenter(),
                 TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor()),
-                TextColumn::make('creator.name')->label(__('Created by')),
+                TextColumn::make('creator.name')->label(__('Created by'))->visible($reviewing),
             ])
             ->filters([
                 SelectFilter::make('status')->options(QuestionStatus::class),
@@ -39,22 +48,28 @@ class BoardQuestionPapersTable
                     ->options(PaperSourceType::class)
                     ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null, fn (Builder $query, string $type) => $query->whereHas('board', fn (Builder $board) => $board->where('type', $type)))),
             ])
-            ->recordActions([
-                self::approveAction(),
-                self::rejectAction(),
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions(TableActions::bulkDelete());
+            ->recordActions(array_values(array_filter([
+                $reviewing ? self::approveAction() : null,
+                $reviewing ? self::rejectAction() : null,
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
+            ])))
+            ->toolbarActions($reviewing ? TableActions::bulkDelete() : []);
     }
 
+    /**
+     * Only a paper with questions in it can be approved — a Staff member
+     * starts one empty and fills it in.
+     */
     protected static function approveAction(): Action
     {
         return Action::make('approve')
             ->label(__('Approve'))
             ->color('success')
             ->icon('heroicon-o-check-circle')
-            ->visible(fn (BoardQuestionPaper $record) => $record->status !== QuestionStatus::Approved && auth()->user()->can('approve', $record))
+            ->visible(fn (BoardQuestionPaper $record) => $record->status !== QuestionStatus::Approved
+                && ($record->mcq_questions_count + $record->cq_questions_count) > 0
+                && auth()->user()->can('approve', $record))
             ->requiresConfirmation()
             ->action(fn (BoardQuestionPaper $record) => $record->approve(auth()->user()));
     }

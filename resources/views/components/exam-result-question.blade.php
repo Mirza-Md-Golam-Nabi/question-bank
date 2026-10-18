@@ -11,10 +11,11 @@
      * with the correct one on a success background and the student's own
      * wrong pick on a danger background.
      *
-     * @var \App\Models\Question $question
+     * @var \App\Models\Question|\App\Models\BoardMcqQuestion $question  A past paper's MCQ also shows where it came from and its explanation.
      * @var \App\Models\AttemptAnswer|null $answer  Null when the question was left unanswered.
      */
     use App\Enums\QuestionType;
+    use App\Models\BoardMcqQuestion;
     use App\Filament\Support\QuestionDisplay;
 
     $isMcq = $question->question_type === QuestionType::Mcq;
@@ -23,6 +24,8 @@
 @endphp
 
 <div {{ $attributes->class(['qb-result-question']) }}>
+    <x-question-source :question="$question" />
+
     <div class="qb-result-question-head">
         @if ($number !== null)
             <span class="qb-result-question-number">{{ $number }}.</span>
@@ -80,6 +83,8 @@
                 {{ $answer->is_correct ? __('Correct') : __('Incorrect') }} — {{ __(':marks marks', ['marks' => QuestionDisplay::marks($answer->obtained_marks)]) }}
             @endif
         </p>
+
+        <x-question-explanation :text="$question instanceof BoardMcqQuestion ? $question->explanation : null" />
     @else
         <p class="qb-result-verdict">{{ __('Pending manual grading') }}</p>
     @endif

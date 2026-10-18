@@ -23,13 +23,17 @@ it('lets the admin add a medical admission test as a source of past papers', fun
     livewire(ManageBoards::class)
         ->callAction('create', data: [
             'name' => 'MBBS Admission',
+            'name_bn' => 'মেডিকেল ভর্তি পরীক্ষা',
             'short_name' => 'MBBS',
+            'short_name_bn' => 'মেডিকেল',
             'type' => PaperSourceType::Medical->value,
             'order_index' => 1,
         ])
         ->assertHasNoActionErrors();
 
-    expect(Board::sole()->type)->toBe(PaperSourceType::Medical);
+    expect(Board::sole())
+        ->type->toBe(PaperSourceType::Medical)
+        ->short_name_bn->toBe('মেডিকেল');
 });
 
 it('narrows the paper sources and the past papers to one kind', function () {

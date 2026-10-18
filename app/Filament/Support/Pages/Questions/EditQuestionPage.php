@@ -5,6 +5,7 @@ namespace App\Filament\Support\Pages\Questions;
 use App\Filament\Support\Concerns\HandlesQuestionForm;
 use App\Models\Question;
 use Filament\Actions\DeleteAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,6 +17,24 @@ use Illuminate\Database\Eloquent\Model;
 abstract class EditQuestionPage extends EditRecord
 {
     use HandlesQuestionForm;
+
+    /**
+     * A question under a shared stimulus is only edited with its group (from
+     * the question list), never on its own here.
+     */
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        /** @var Question $question */
+        $question = $this->getRecord();
+
+        if ($question->isInStimulusGroup()) {
+            Notification::make()->title(__('Edit this question together with its stimulus, from the question list.'))->warning()->send();
+
+            $this->redirect(static::getResource()::getUrl('list', ['chapter' => $question->chapter_id]));
+        }
+    }
 
     protected function getHeaderActions(): array
     {

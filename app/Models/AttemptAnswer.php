@@ -7,7 +7,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['attempt_id', 'question_id', 'student_answer', 'is_correct', 'obtained_marks'])]
+/**
+ * One answer on an attempt: to a question-bank question, or — on an exam
+ * made of a past paper — to one of that paper's MCQs (Exam::answerColumn()).
+ */
+#[Fillable(['attempt_id', 'question_id', 'board_mcq_question_id', 'student_answer', 'is_correct', 'obtained_marks'])]
 class AttemptAnswer extends Model
 {
     use HasFactory;
@@ -27,5 +31,10 @@ class AttemptAnswer extends Model
     public function question(): BelongsTo
     {
         return $this->belongsTo(Question::class);
+    }
+
+    public function boardMcqQuestion(): BelongsTo
+    {
+        return $this->belongsTo(BoardMcqQuestion::class);
     }
 }

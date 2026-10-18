@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['board_cq_question_id', 'part_type', 'part_order', 'part_text', 'part_image', 'marks'])]
+#[Fillable(['board_cq_question_id', 'part_type', 'part_order', 'part_text', 'part_image', 'answer', 'marks'])]
 class BoardCqQuestionPart extends Model
 {
     use HasFactory, SyncsMarksFromParts;

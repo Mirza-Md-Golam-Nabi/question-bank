@@ -29,6 +29,16 @@ enum PaperSourceType: string implements HasColor, HasLabel
         };
     }
 
+    /**
+     * Whether a paper of this kind belongs to one class + subject — a
+     * board's or a school's test paper does; an admission or job test's
+     * paper is one paper with every subject together.
+     */
+    public function hasClassSubject(): bool
+    {
+        return in_array($this, [self::Board, self::SchoolTest], true);
+    }
+
     public function getColor(): string
     {
         return match ($this) {

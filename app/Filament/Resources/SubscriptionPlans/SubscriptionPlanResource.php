@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SubscriptionPlans;
 
 use App\Enums\Difficulty;
+use App\Enums\PaperSourceType;
 use App\Enums\PlanConditionType;
 use App\Enums\PlanDuration;
 use App\Enums\PlanFeature;
@@ -12,6 +13,7 @@ use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\TableActions;
 use App\Models\AcademicClass;
+use App\Models\Board;
 use App\Models\Subject;
 use App\Models\SubscriptionPlan;
 use BackedEnum;
@@ -217,6 +219,47 @@ class SubscriptionPlanResource extends Resource
                         ->integer()
                         ->minValue(1)
                         ->required(),
+                ]),
+
+            Block::make(PlanConditionType::PastPapers->value)
+                ->label(PlanConditionType::PastPapers->getLabel())
+                ->icon(Heroicon::OutlinedArchiveBox)
+                ->maxItems(1)
+                ->columns(2)
+                ->schema([
+                    CheckboxList::make('source_types')
+                        ->label(__('Kinds of paper'))
+                        ->helperText(__('Leave all unticked for every kind.'))
+                        ->options(PaperSourceType::class)
+                        ->columns(2)
+                        ->columnSpanFull(),
+                    Select::make('board_ids')
+                        ->label(__('Only these sources'))
+                        ->helperText(__('Leave empty for every source.'))
+                        ->options(fn (): array => Board::ordered()->get()->mapWithKeys(fn (Board $board) => [$board->id => $board->display_name])->all())
+                        ->multiple()
+                        ->searchable()
+                        ->columnSpanFull(),
+                    TextInput::make('min_age_years')
+                        ->label(__('Only papers at least this many years old'))
+                        ->helperText(__('E.g. 5: papers from the last 5 years then need another plan. Leave empty for every year.'))
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->columnSpanFull(),
+                    TextInput::make('limit')
+                        ->label(__('Papers'))
+                        ->helperText(__('How many papers. Leave empty for no limit.'))
+                        ->numeric()
+                        ->integer()
+                        ->minValue(0),
+                    TextInput::make('per_days')
+                        ->label(__('In how many days'))
+                        ->helperText(__('7 = a week, 15 = a fortnight, 30 = a month.'))
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->required(fn (Get $get): bool => filled($get('limit'))),
                 ]),
 
             Block::make(PlanConditionType::Seats->value)

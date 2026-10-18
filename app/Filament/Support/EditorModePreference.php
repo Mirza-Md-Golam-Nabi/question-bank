@@ -20,6 +20,19 @@ class EditorModePreference
         Cache::forever(static::cacheKey($user), $mode->value);
     }
 
+    /**
+     * Remembers the editor a saved form used — its `editor_mode` as the form
+     * hands it over (the enum, or its value); nothing when it has none.
+     */
+    public static function rememberFromForm(User $user, mixed $editorMode): void
+    {
+        $editorMode = $editorMode instanceof EditorMode ? $editorMode : EditorMode::tryFrom((string) $editorMode);
+
+        if ($editorMode) {
+            static::remember($user, $editorMode);
+        }
+    }
+
     public static function for(User $user): EditorMode
     {
         return EditorMode::tryFrom(Cache::get(static::cacheKey($user)) ?? '') ?? EditorMode::RichText;

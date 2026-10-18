@@ -125,7 +125,7 @@ class GuestExamController extends Controller
         return view('guest-exam.take', [
             'attempt' => $attempt,
             // Whatever is already on record (saved as the clock ran out).
-            'savedAnswers' => $attempt->answers()->pluck('student_answer', 'question_id'),
+            'savedAnswers' => $attempt->savedAnswers(),
         ]);
     }
 
