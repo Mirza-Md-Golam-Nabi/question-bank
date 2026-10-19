@@ -11,11 +11,10 @@
      * with the correct one on a success background and the student's own
      * wrong pick on a danger background.
      *
-     * @var \App\Models\Question|\App\Models\BoardMcqQuestion $question  A past paper's MCQ also shows where it came from and its explanation.
+     * @var \App\Models\Question|\App\Models\BoardMcqQuestion $question  Shown with its explanation; a past paper's MCQ also with where it came from.
      * @var \App\Models\AttemptAnswer|null $answer  Null when the question was left unanswered.
      */
     use App\Enums\QuestionType;
-    use App\Models\BoardMcqQuestion;
     use App\Filament\Support\QuestionDisplay;
 
     $isMcq = $question->question_type === QuestionType::Mcq;
@@ -84,7 +83,7 @@
             @endif
         </p>
 
-        <x-question-explanation :text="$question instanceof BoardMcqQuestion ? $question->explanation : null" />
+        <x-question-explanation :text="$question->explanation" />
     @else
         <p class="qb-result-verdict">{{ __('Pending manual grading') }}</p>
     @endif

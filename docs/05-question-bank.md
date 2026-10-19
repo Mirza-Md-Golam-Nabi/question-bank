@@ -16,11 +16,14 @@
 |---|---|---|
 | `question_text` | প্রশ্ন | উদ্দীপক |
 | উত্তর | `options`-এ ২ থেকে ৬টা অপশন, ঠিক একটা সঠিক | সিস্টেমে উত্তর নেই |
+| ব্যাখ্যা | ঐচ্ছিক (`explanation`) | নেই |
 | অংশ | নেই | চারটা: জ্ঞান, অনুধাবন, প্রয়োগ, উচ্চতর দক্ষতা (`question_cq_parts`) |
 | নম্বর | লেখক দেয় (ডিফল্ট ১) | অংশগুলোর যোগফল; নিজে থেকে বসে, হাতে দেওয়া যায় না |
 | অনলাইন পরীক্ষা | হ্যাঁ | না, শুধু প্রিন্টে |
 
 অন্য কোনো ধরন (true/false, সংক্ষিপ্ত, বর্ণনামূলক) নেই।
+
+**MCQ-র ব্যাখ্যা:** কেন উত্তরটা সঠিক, ঐচ্ছিক, CKEditor-এ (সূত্রসহ)। ঘরটা একটাই জায়গায় (`QuestionFormSchema::mcqComponents()`), তাই সাধারণ প্রশ্ন, উদ্দীপকের গ্রুপ ও বিগত সালের প্রশ্নপত্র — তিন ফর্মেই একই। দেখায় শুধু যেখানে সঠিক উত্তর দেখায় (`question-body`-এর `showAnswers`, `<x-exam-result-question>`): self-practice-এর ফলাফলে সাথে সাথে, Teacher-এর পরীক্ষায় উত্তর প্রকাশের পর (`Exam::showsAnswersToStudents()`), প্রিন্টের "উত্তরসহ" কপিতে, Teacher-এর "প্রশ্ন বাছাই"-এর কার্ডে; পরীক্ষা চলার সময় কখনো না — নইলে উত্তর ফাঁস হয়। এডিটে নতুন সংস্করণে কপি হয়; প্রশ্ন CQ-তে বদলালে ব্যাখ্যা মুছে যায়।
 
 ## এডিটর ও গণিত
 
@@ -90,14 +93,14 @@ Chapter-এর প্রশ্নের তালিকায় "JSON দিয
 
 ```json
 [
-  { "type": "mcq", "question": "...", "options": ["...", "..."], "answer": 2, "difficulty": "easy", "marks": 1 },
+  { "type": "mcq", "question": "...", "options": ["...", "..."], "answer": 2, "difficulty": "easy", "marks": 1, "explanation": "..." },
   { "type": "cq", "question": "উদ্দীপক", "parts": [ {"text": "...", "marks": 1}, {"text": "...", "marks": 2}, {"text": "...", "marks": 3}, {"text": "...", "marks": 4} ] }
 ]
 ```
 
 **নিয়ম:**
 - একটা প্রশ্নে ভুল থাকলে কিছুই সেভ হয় না; সব ভুল প্রশ্ন নম্বরসহ একসাথে দেখায়।
-- `answer` = সঠিক অপশনের ক্রমিক (১ থেকে)। `type` না দিলে `mcq`। `difficulty` ও MCQ-র `marks` ঐচ্ছিক; CQ-র প্রতিটা অংশের `marks` বাধ্যতামূলক।
+- `answer` = সঠিক অপশনের ক্রমিক (১ থেকে)। `type` না দিলে `mcq`। `difficulty`, MCQ-র `marks` ও `explanation` ঐচ্ছিক; CQ-র প্রতিটা অংশের `marks` বাধ্যতামূলক।
 - সূত্র `$...$`-এর মাঝে LaTeX; JSON-এ প্রতিটা ব্যাকস্ল্যাশ দুইবার। সার্ভার যাচাই করে: `$` জোড়ায় আছে, বন্ধনী মেলে, `\left`/`\right` ও `\begin`/`\end` মেলে, সূত্রের ভেতরে বাংলা নেই, এবং একবার-লেখা ব্যাকস্ল্যাশের চিহ্ন (অদৃশ্য নিয়ন্ত্রণ-অক্ষর) নেই।
 - সব লেখা escape হয়ে ঢোকে; JSON দিয়ে HTML ঢোকানো যায় না। ছবি পরে এডিট করে যোগ করতে হয়।
 - user ওই chapter-এ যে প্রশ্ন আগে থেকে দেখতে পায়, বা একই পেস্টে দুইবার থাকা প্রশ্ন, বাদ পড়ে।
@@ -137,7 +140,7 @@ MCQ-র `difficulty` শুরুতে লেখকের বাছাই; য�
 
 - **উৎস** (`boards`, Admin-এ "Paper Sources"): ধরন (`type`, `PaperSourceType`) — শিক্ষা বোর্ড, মেডিকেল ভর্তি, বিশ্ববিদ্যালয় ভর্তি, চাকরির পরীক্ষা, স্কুল/কলেজের টেস্ট। প্রতিটার চারটা নাম: বাংলা ও ইংরেজি, পূর্ণ ও সংক্ষিপ্ত (`name_bn`, `name`, `short_name_bn`, `short_name`)। প্রশ্নের পাশে ভাষা অনুযায়ী সংক্ষিপ্ত নাম ও সাল দেখায় ("ঢাবি 2023 · ক ইউনিট" — `BoardQuestionPaper::label()`, `<x-question-source>`)।
 - **প্রশ্নপত্র** = উৎস + সাল + ঐচ্ছিক ইউনিট/সেট। শিক্ষা বোর্ড ও স্কুল টেস্টের পেপারে শ্রেণি + বিষয়ও থাকে (`PaperSourceType::hasClassSubject()`); ভর্তি/চাকরির পেপারে নেই — সব বিষয় একসাথে। একই উৎস + সাল + ইউনিট (+ শ্রেণি-বিষয়) দুইবার হয় না (`BoardQuestionPaper::isTaken()`; বোর্ডের পেপার ডেটাবেজের unique key-তেও ধরা পড়ে)। পেপারে সময় ও প্রতি ভুলে কাটা নম্বর রাখা যায়।
-- **JSON থেকে যোগ:** প্রতিটা তালিকার "New MCQ/CQ question"-এর পাশে "Add from JSON" — প্রশ্নভাণ্ডারের মতোই পপআপ (format কপি, পেস্ট, প্রিভিউ, যোগ), একই নিয়ম ও একই সীমা (`question_import_max`)। MCQ তালিকা শুধু MCQ নেয়, CQ তালিকা শুধু CQ (`"type"` লাগে না; অন্য ধরন দিলে বলে দেয়)। MCQ-তে ঐচ্ছিক `"explanation"`, CQ-র অংশে ঐচ্ছিক `"answer"`; difficulty নেই। পেপারে আগে থেকে থাকা প্রশ্ন বাদ যায়, নতুনগুলো তালিকার শেষে বসে; ছবি পরে Edit থেকে। Admin সবসময় পারেন; Staff শুধু Admin সেটিংসে চালু করলে (সব Staff একসাথে)। যে পেপার বদলানো যায় না (approved Staff-এর, বা কেউ পরীক্ষা দিয়েছে) সেখানে বাটন নেই। JSON পড়ার নিয়ম একটাই জায়গায় — `QuestionJsonReader`, প্রশ্নভাণ্ডারের ইমপোর্টও সেটাই ব্যবহার করে।
+- **JSON থেকে যোগ:** প্রতিটা তালিকার "New MCQ/CQ question"-এর পাশে "Add from JSON" — প্রশ্নভাণ্ডারের মতোই পপআপ (format কপি, পেস্ট, প্রিভিউ, যোগ), একই নিয়ম ও একই সীমা (`question_import_max`)। MCQ তালিকা শুধু MCQ নেয়, CQ তালিকা শুধু CQ (`"type"` লাগে না; অন্য ধরন দিলে বলে দেয়)। MCQ-তে ঐচ্ছিক `"explanation"` (প্রশ্নভাণ্ডারের মতোই), CQ-র অংশে ঐচ্ছিক `"answer"` (শুধু প্রশ্নপত্রে); difficulty নেই। পেপারে আগে থেকে থাকা প্রশ্ন বাদ যায়, নতুনগুলো তালিকার শেষে বসে; ছবি পরে Edit থেকে। Admin সবসময় পারেন; Staff শুধু Admin সেটিংসে চালু করলে (সব Staff একসাথে)। যে পেপার বদলানো যায় না (approved Staff-এর, বা কেউ পরীক্ষা দিয়েছে) সেখানে বাটন নেই। JSON পড়ার নিয়ম একটাই জায়গায় — `QuestionJsonReader`, প্রশ্নভাণ্ডারের ইমপোর্টও সেটাই ব্যবহার করে।
 - **প্রশ্ন তোলা:** পেপারের পেজে MCQ ও CQ দুটো তালিকা; প্রতিটা প্রশ্ন আলাদা ফর্মে, প্রশ্নভাণ্ডারের মতোই এডিটর (Rich Text / CKEditor + গণিত, ছবি, preview) — `PaperQuestionForms`, যা `QuestionFormSchema`-র অংশগুলো দিয়েই তৈরি। MCQ-তে ঐচ্ছিক ব্যাখ্যা, CQ-র প্রতিটা অংশে ঐচ্ছিক উত্তর। CQ-র নম্বর অংশের যোগফল।
 - **কে তোলে:** Admin ও Staff। Staff শুধু নিজের পেপার দেখে ও approve হওয়ার আগ পর্যন্ত বদলাতে পারে; rejected পেপার বদলালে আবার pending হয়। পুরো পেপার একসাথে approve/reject হয় (প্রশ্ন না থাকলে approve হয় না)। Staff-এর পেপার approve হলে পেপারপ্রতি টাকা — ধরন অনুযায়ী Admin-এর রেট (`BillingSetting.paper_rates`), approve-এর মুহূর্তের রেট সেভ থাকে, একবারই।
 - **কেউ পরীক্ষা দেওয়ার পর** পেপার আর বদলানো যায় না (`hasBeenSat()`); কোনো পরীক্ষা বানানো হয়ে গেলে মোছাও যায় না।
@@ -154,4 +157,4 @@ MCQ-র `difficulty` শুরুতে লেখকের বাছাই; য�
 | প্যানেলের resource | `app/Filament/Resources/Questions`, `Teacher/Resources/Questions`, `Staff/Resources/Questions` |
 | বিগত সালের প্রশ্নপত্র | `app/Models/Board*.php`, `app/Services/PastPaperExamService.php`, `PastPaperAccess.php`, `app/Filament/Support/Resources/BoardQuestionPaperResourceBase.php`, `Support/RelationManagers/Paper*`, `Support/PaperQuestionForms.php`, `Support/Pages/PastPapersPage.php`, `app/Filament/Resources/BoardQuestionPapers`, `Staff/Resources/BoardQuestionPapers`, `Boards` |
 
-টেস্ট: `QuestionModelTest`, `AdminQuestionResourceTest`, `TeacherStaffQuestionVisibilityTest`, `QuestionSoftDeleteTest`, `CqMarksSyncTest`, `QuestionBankCardBrowserTest`, `TeacherQuestionBankCardBrowserTest`, `StaffQuestionBankCardBrowserTest`, `TopicTest`, `TopicResourceTest`, `ChapterResourceTest`, `AcademicHierarchyResourcesTest`, `QuestionJsonImportTest`, `QuestionDynamicDifficultyTest`, `TeacherOwnPendingQuestionsOnExamTest`, `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest`, `PaperSourceTest`, `PastPaperExamTest`, `PastPaperJsonImportTest`, `StimulusGroupTest`।
+টেস্ট: `QuestionModelTest`, `AdminQuestionResourceTest`, `TeacherStaffQuestionVisibilityTest`, `QuestionSoftDeleteTest`, `CqMarksSyncTest`, `QuestionBankCardBrowserTest`, `TeacherQuestionBankCardBrowserTest`, `StaffQuestionBankCardBrowserTest`, `TopicTest`, `TopicResourceTest`, `ChapterResourceTest`, `AcademicHierarchyResourcesTest`, `QuestionJsonImportTest`, `QuestionDynamicDifficultyTest`, `TeacherOwnPendingQuestionsOnExamTest`, `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest`, `PaperSourceTest`, `PastPaperExamTest`, `PastPaperJsonImportTest`, `StimulusGroupTest`, `QuestionExplanationTest`।

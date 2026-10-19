@@ -68,6 +68,8 @@ trait HandlesQuestionForm
      * as-is on each `options` entry (the form's own validation rule
      * guarantees exactly one is checked) — this just strips the UI-only
      * `has_image` flag so only `option`/`image`/`is_correct` are persisted.
+     * A CQ has no explanation (only an MCQ does), so one left from before
+     * the question was switched to a CQ is dropped.
      *
      * @param  array<string, mixed>  $data
      */
@@ -76,6 +78,8 @@ trait HandlesQuestionForm
         $questionType = $data['question_type'] ?? null;
 
         if (! in_array($questionType, [QuestionType::Mcq, QuestionType::Mcq->value], strict: true)) {
+            $data['explanation'] = null;
+
             return;
         }
 

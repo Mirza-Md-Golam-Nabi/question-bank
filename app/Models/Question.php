@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 
 #[Fillable([
     'chapter_id', 'topic_id', 'stimulus_id', 'stimulus_order', 'question_type', 'question_text', 'editor_mode', 'question_image', 'options',
-    'marks', 'difficulty', 'status', 'created_by', 'approved_by',
+    'explanation', 'marks', 'difficulty', 'status', 'created_by', 'approved_by',
     'rejection_reason', 'parent_id', 'version', 'is_latest',
 ])]
 #[ObservedBy(QuestionObserver::class)]

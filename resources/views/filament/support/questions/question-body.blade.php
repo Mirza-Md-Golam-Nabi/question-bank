@@ -6,13 +6,12 @@
      * question paper and the past-paper views.
      *
      * @var \App\Models\Question|\App\Models\BoardMcqQuestion|\App\Models\BoardCqQuestion $question
-     * @var bool $showAnswers  Marks the correct MCQ option, and shows a past paper's explanations and CQ answers.
+     * @var bool $showAnswers  Marks the correct MCQ option, and shows its explanation and a past paper's CQ answers.
      * @var bool $showStimulus  Shows a shared stimulus above the question — off where the view already lays questions out under their stimulus (QuestionBlocks).
      */
     use App\Enums\QuestionType;
     use App\Filament\Support\QuestionBlocks;
     use App\Filament\Support\QuestionDisplay;
-    use App\Models\BoardMcqQuestion;
 
     $showAnswers ??= false;
     $showStimulus ??= true;
@@ -59,7 +58,7 @@
             @endforeach
         </ol>
 
-        @if ($showAnswers && $question instanceof BoardMcqQuestion)
+        @if ($showAnswers)
             <x-question-explanation :text="$question->explanation" />
         @endif
     @else

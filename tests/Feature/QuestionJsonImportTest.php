@@ -92,6 +92,30 @@ it('adds the MCQs of the JSON to the chapter as the teacher\'s own pending quest
         ->and(array_column($second->options, 'is_correct'))->toBe([false, false, true, false]);
 });
 
+it('stores an MCQ\'s explanation when one is given, and none when it is left out', function () {
+    ($this->import)([
+        ($this->mcq)(['explanation' => 'HyperText হলো $x^2$ নয়।']),
+        ($this->mcq)(['question' => 'দ্বিতীয় প্রশ্ন?']),
+        ['stimulus' => 'একটি উদ্দীপক।', 'questions' => [
+            ($this->mcq)(['question' => 'উদ্দীপকের প্রথম প্রশ্ন?', 'explanation' => 'প্রথমটির ব্যাখ্যা।']),
+            ($this->mcq)(['question' => 'উদ্দীপকের দ্বিতীয় প্রশ্ন?']),
+        ]],
+    ]);
+
+    expect(Question::orderBy('id')->pluck('explanation')->all())->toBe([
+        '<p>HyperText হলো <span class="qb-katex-embed">x^2</span> নয়।</p>',
+        null,
+        '<p>প্রথমটির ব্যাখ্যা।</p>',
+        null,
+    ]);
+});
+
+it('checks an explanation like any other text', function () {
+    expect(($this->problems)([($this->mcq)(['explanation' => 'ভাঙা $\frac{1}{2'])]))->not->toBeEmpty();
+
+    expect(Question::count())->toBe(0);
+});
+
 it('approves an admin\'s imported questions straight away, like the ones typed into the form', function () {
     $this->actingAs(User::factory()->admin()->create());
 

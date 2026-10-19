@@ -70,6 +70,7 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | `question_text` | HTML। CQ-তে এটা উদ্দীপক। সূত্র: `<span class="qb-katex-embed">latex</span>` |
 | `question_image` | public disk-এর পাথ |
 | `options` (JSON) | শুধু MCQ: `[{option, image, is_correct}]`; ঠিক একটা `is_correct` |
+| `explanation` (nullable) | শুধু MCQ: সঠিক উত্তরের ব্যাখ্যা (HTML); দেখায় শুধু যেখানে সঠিক উত্তর দেখায় |
 | `marks` | MCQ-তে লেখক দেয়; CQ-তে অংশগুলোর যোগফল, নিজে থেকে বসে |
 | `difficulty` | লেখকের বাছাই; যথেষ্ট উত্তর জমলে সিস্টেম বদলায় |
 | `answer_count`, `correct_answer_count` | difficulty-র গণনা (শুধু Teacher-এর পরীক্ষা থেকে) |

@@ -21,8 +21,9 @@ use JsonException;
  *
  * How it reads depends on where the questions go: a past paper's MCQ list
  * takes only MCQs and its CQ list only CQs (`$onlyType`, so "type" may be
- * left out), and a past paper's questions carry optional explanations and
- * CQ answers (`$withAnswers`) but no difficulty (`$withDifficulty`).
+ * left out), and a past paper's CQs carry optional answers
+ * (`$withCqAnswers`) but no difficulty (`$withDifficulty`). Every MCQ may
+ * carry an explanation, wherever it goes.
  *
  * It is all or nothing — one unacceptable question and the whole JSON is
  * refused with every problem listed, so the user fixes it and pastes again.
@@ -36,7 +37,7 @@ final class QuestionJsonReader
 
     public function __construct(
         private readonly ?QuestionType $onlyType = null,
-        private readonly bool $withAnswers = false,
+        private readonly bool $withCqAnswers = false,
         private readonly bool $withDifficulty = true,
     ) {}
 
@@ -109,13 +110,13 @@ final class QuestionJsonReader
                     'order' => implode(', ', array_map(fn (CqPartType $type): string => $type->getLabel(), CqPartType::ordered())),
                 ])
                 : null,
-            $this->withAnswers && $this->onlyType !== QuestionType::Cq
+            $this->onlyType !== QuestionType::Cq
                 ? __('"explanation" (may be left out): why the answer is the right one.')
                 : null,
             $this->onlyType !== QuestionType::Cq
                 ? __('MCQs that share a stimulus go in one object: "stimulus" is its text, and "questions" lists :min to :max MCQs. Do not write "answer questions 42 and 43" — the paper numbers them itself.', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])
                 : null,
-            $this->withAnswers && $this->onlyType !== QuestionType::Mcq
+            $this->withCqAnswers && $this->onlyType !== QuestionType::Mcq
                 ? __('"answer" on a sub-question (may be left out): its answer.')
                 : null,
             __('Maths: write every formula as LaTeX between $ signs, write every backslash twice (:twice, not \frac), and keep Bangla text outside the $ signs.', ['twice' => '\\\\frac']),
@@ -137,7 +138,7 @@ final class QuestionJsonReader
             'options' => ['$2$', '$3$', '$\frac{9}{2}$', '$9$'],
             'answer' => 2,
             'difficulty' => $this->withDifficulty ? Difficulty::Easy->value : null,
-            'explanation' => $this->withAnswers ? '$3^2 = 9$, তাই $x = 3$।' : null,
+            'explanation' => '$3^2 = 9$, তাই $x = 3$।',
         ], fn (mixed $value): bool => $value !== null);
 
         $cq = array_filter([
@@ -154,7 +155,7 @@ final class QuestionJsonReader
 
         // Only a past paper's CQ has answers, and only some of them.
         $cq['parts'] = array_map(
-            fn (array $part): array => array_filter($part, fn (mixed $value, string $key): bool => $key !== 'answer' || ($this->withAnswers && $value !== null), ARRAY_FILTER_USE_BOTH),
+            fn (array $part): array => array_filter($part, fn (mixed $value, string $key): bool => $key !== 'answer' || ($this->withCqAnswers && $value !== null), ARRAY_FILTER_USE_BOTH),
             $cq['parts'],
         );
 
@@ -172,7 +173,7 @@ final class QuestionJsonReader
                     'options' => ['$2.5$ A', '$5$ A', '$10$ A', '$20$ A'],
                     'answer' => 3,
                     'difficulty' => $this->withDifficulty ? Difficulty::Medium->value : null,
-                    'explanation' => $this->withAnswers ? '$I = \\frac{20}{2} = 10$ A।' : null,
+                    'explanation' => '$I = \\frac{20}{2} = 10$ A।',
                 ], fn (mixed $value): bool => $value !== null),
             ],
         ];
@@ -329,7 +330,7 @@ final class QuestionJsonReader
             $problems[] = $this->marksProblem(__('the question'));
         }
 
-        if ($this->withAnswers && isset($item['explanation'])) {
+        if (isset($item['explanation'])) {
             array_push($problems, ...$this->textProblems($item['explanation'], __('the explanation')));
         }
 
@@ -368,7 +369,7 @@ final class QuestionJsonReader
                 $problems[] = $this->marksProblem($name);
             }
 
-            if ($this->withAnswers && isset($part['answer'])) {
+            if ($this->withCqAnswers && isset($part['answer'])) {
                 array_push($problems, ...$this->textProblems($part['answer'], __('the answer of :name', ['name' => $name])));
             }
         }
@@ -473,7 +474,7 @@ final class QuestionJsonReader
                         'part_order' => $partType->order(),
                         'part_text' => QuestionImportText::toHtml($item['parts'][$index]['text']),
                         'marks' => $item['parts'][$index]['marks'],
-                        'answer' => $this->withAnswers ? $html($item['parts'][$index]['answer'] ?? null) : null,
+                        'answer' => $this->withCqAnswers ? $html($item['parts'][$index]['answer'] ?? null) : null,
                     ])
                     ->all(),
             ];
@@ -489,7 +490,7 @@ final class QuestionJsonReader
                 ])
                 ->all(),
             'marks' => $item['marks'] ?? null,
-            'explanation' => $this->withAnswers ? $html($item['explanation'] ?? null) : null,
+            'explanation' => $html($item['explanation'] ?? null),
         ];
     }
 

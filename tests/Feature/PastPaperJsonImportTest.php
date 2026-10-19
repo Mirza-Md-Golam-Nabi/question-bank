@@ -135,8 +135,9 @@ it('offers a guide and a sample for each list that the list itself accepts', fun
     'CQ' => [QuestionType::Cq, '"answer"', 1],
 ]);
 
-it('leaves the question bank\'s own format as it was', function () {
-    expect(QuestionJsonImporter::formatGuide())->not->toContain('"explanation"')
+it('leaves the question bank\'s own format without CQ answers, but with MCQ explanations', function () {
+    expect(QuestionJsonImporter::formatGuide())->not->toContain('"answer" on a sub-question')
+        ->toContain('"explanation"')
         ->toContain('"type" is "mcq" or "cq"');
 });
 

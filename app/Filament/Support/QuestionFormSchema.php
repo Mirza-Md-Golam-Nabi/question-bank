@@ -232,6 +232,9 @@ class QuestionFormSchema
     }
 
     /**
+     * An MCQ's options and its optional explanation — the same in the
+     * question bank, on a past paper and under a shared stimulus.
+     *
      * @return array<Component>
      */
     public static function mcqComponents(string $optionImageDirectory = 'question-options'): array
@@ -250,6 +253,10 @@ class QuestionFormSchema
                 ->live()
                 ->required()
                 ->rule(McqOptionsSchema::exactlyOneCorrectOptionRule()),
+
+            CkEditorField::make('explanation')
+                ->label(__('Explanation (optional)'))
+                ->columnSpanFull(),
         ];
     }
 

@@ -2,7 +2,7 @@
 
 @php
     /**
-     * The explanation of an answer — a past paper MCQ's, or a CQ
+     * The explanation of an MCQ's answer, or a past paper CQ
      * sub-question's answer. Nothing when none was written.
      *
      * @var string|null $text

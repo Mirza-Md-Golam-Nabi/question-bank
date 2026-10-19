@@ -24,8 +24,8 @@ use Illuminate\Support\Collection;
  * stimulus and answer the questions below" — the same in the question
  * bank and on a past paper. The stimulus is written like a question's
  * text (QuestionFormSchema: the editor choice, text, image, preview); each
- * MCQ under it in CKEditor, with its options, marks and whatever its side
- * adds (a difficulty in the question bank, an explanation on a past paper).
+ * MCQ under it in CKEditor, with its options, explanation, marks and
+ * whatever its side adds (a difficulty in the question bank).
  *
  * The form keeps the stimulus under the question form's own field names
  * (`question_text`, `question_image`, `editor_mode`) and the MCQs in
@@ -35,7 +35,7 @@ class StimulusGroupForm
 {
     /**
      * @param  array<Component>  $groupFields  Fields for the whole group (the question bank's topic).
-     * @param  array<Component>  $questionFields  Fields each MCQ adds (a difficulty, an explanation).
+     * @param  array<Component>  $questionFields  Fields each MCQ adds (the question bank's difficulty).
      * @return array<Component>
      */
     public static function components(string $imageDirectory, array $groupFields = [], array $questionFields = []): array
@@ -119,6 +119,7 @@ class StimulusGroupForm
                 'id' => $question->id,
                 'question_text' => $question->question_text,
                 'options' => QuestionFormData::fillOptions($question->options),
+                'explanation' => $question->explanation,
                 'marks' => $question->marks,
                 ...Arr::only($question->getAttributes(), $questionFields),
             ])->values()->all(),
@@ -159,6 +160,7 @@ class StimulusGroupForm
                     // The questions are written in CKEditor (with its maths).
                     'editor_mode' => EditorMode::CkEditor,
                     'options' => QuestionFormData::storedOptions($item['options'] ?? []),
+                    'explanation' => $item['explanation'] ?? null,
                     'marks' => $item['marks'] ?? Question::DEFAULT_MCQ_MARKS,
                     'stimulus_order' => $index + 1,
                     ...Arr::only($item, $questionFields),

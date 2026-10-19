@@ -3,7 +3,6 @@
 namespace App\Filament\Support\RelationManagers;
 
 use App\Enums\QuestionType;
-use App\Filament\Forms\Components\CkEditorField;
 use App\Filament\Support\PaperQuestionForms;
 use App\Filament\Support\QuestionFormData;
 use App\Filament\Support\StimulusGroupForm;
@@ -11,17 +10,11 @@ use App\Models\BoardMcqQuestion;
 use App\Models\BoardMcqStimulus;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Component;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
 {
-    /**
-     * What each MCQ of a past paper's stimulus group adds: its explanation.
-     */
-    private const GROUP_QUESTION_FIELDS = ['explanation'];
-
     protected static string $relationship = 'mcqQuestions';
 
     protected static ?string $title = 'MCQ';
@@ -66,7 +59,6 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 Action::make('createStimulusGroup'),
                 creating: true,
                 imageDirectory: 'board-mcq',
-                questionFields: $this->groupQuestionFields(),
             )
                 ->color('gray')
                 ->visible(fn (): bool => ! $this->isReadOnly())
@@ -81,7 +73,6 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 Action::make('editStimulusGroup'),
                 creating: false,
                 imageDirectory: 'board-mcq',
-                questionFields: $this->groupQuestionFields(),
             )
                 ->iconButton()
                 ->tooltip(__('Edit stimulus'))
@@ -89,21 +80,8 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 ->fillForm(fn (BoardMcqQuestion $record): array => StimulusGroupForm::fill(
                     $record->stimulus,
                     $record->stimulus->questions()->get(),
-                    self::GROUP_QUESTION_FIELDS,
                 ))
                 ->action(fn (BoardMcqQuestion $record, array $data) => $this->saveGroup($record->stimulus, $data)),
-        ];
-    }
-
-    /**
-     * @return array<Component>
-     */
-    private function groupQuestionFields(): array
-    {
-        return [
-            CkEditorField::make('explanation')
-                ->label(__('Explanation (optional)'))
-                ->columnSpanFull(),
         ];
     }
 
@@ -126,7 +104,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
             $questions = $stimulus->questions()->get()->keyBy('id');
             $place = $questions->min('order_index') ?? (int) $paper->mcqQuestions()->max('order_index') + 1;
 
-            foreach (StimulusGroupForm::questionRows($data, self::GROUP_QUESTION_FIELDS) as $row) {
+            foreach (StimulusGroupForm::questionRows($data) as $row) {
                 $question = $row['id'] ? $questions->pull($row['id']) : null;
                 $attributes = [...$row['attributes'], 'stimulus_id' => $stimulus->id, 'order_index' => $place];
 

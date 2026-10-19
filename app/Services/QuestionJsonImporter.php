@@ -122,7 +122,7 @@ class QuestionJsonImporter
 
     /**
      * The question bank's format: MCQs and CQs together, each with a
-     * difficulty, no explanations.
+     * difficulty; no CQ answers.
      */
     private static function reader(): QuestionJsonReader
     {
@@ -154,6 +154,7 @@ class QuestionJsonImporter
         return $question
             ->fill([
                 'options' => $item['options'],
+                'explanation' => $item['explanation'],
                 'marks' => $item['marks'] ?? Question::DEFAULT_MCQ_MARKS,
             ])
             ->setRelation('cqParts', collect());
