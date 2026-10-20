@@ -19,6 +19,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 
 /**
  * Columns, filters, and row actions shared by every panel's QuestionResource
@@ -83,6 +84,11 @@ class QuestionsTable
             ->icon('heroicon-o-check-circle')
             ->visible(fn (Question $record) => $record->status !== QuestionStatus::Approved && auth()->user()->can('approve', $record))
             ->requiresConfirmation()
+            // Whether it looks like a question already in the chapter — seen
+            // before the question goes into the pool (and a Staff member is paid).
+            ->modalContent(fn (Question $record): View => view('filament.support.questions.duplicate-warnings', [
+                'matches' => DuplicateQuestionCheck::forApproval($record),
+            ]))
             ->action(fn (Question $record) => $record->approve(auth()->user()));
     }
 

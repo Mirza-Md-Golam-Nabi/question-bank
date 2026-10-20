@@ -67,12 +67,21 @@
                 <div class="qb-question-text min-w-0">{!! $question->question_text !!}</div>
             </div>
 
+            <x-question-image :path="$question->question_image" class="mb-3" />
+
             @if ($question->question_type === QuestionType::Mcq)
                 <div class="space-y-2">
                     @foreach ($question->options as $option)
+                        @php
+                            $value = $question::answerValueOf($option);
+                        @endphp
+
                         <label class="flex items-center gap-2">
-                            <input type="radio" {!! $bind($question->id) !!} value="{{ $option['option'] }}" @checked($savedAnswer === $option['option'])>
-                            <span>{!! $option['option'] !!}</span>
+                            <input type="radio" {!! $bind($question->id) !!} value="{{ $value }}" @checked($savedAnswer === $value)>
+                            <span>
+                                {!! $option['option'] !!}
+                                <x-question-image :path="$option['image'] ?? null" option />
+                            </span>
                         </label>
                     @endforeach
                 </div>

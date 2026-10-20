@@ -41,6 +41,10 @@ class PanelDefaults
             ->path($id)
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->sidebarCollapsibleOnDesktop()
+            // The bell: what BellNotifier sends each user, looked for once
+            // a minute — every open page asks, so not more often.
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('60s')
             // Handing Filament the enum itself would fix each heading in the
             // language that was active when the panel was set up; a closure
             // reads it again in the visitor's language on every page.

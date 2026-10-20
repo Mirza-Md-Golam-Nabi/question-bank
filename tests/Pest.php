@@ -3,7 +3,10 @@
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\ImportedImages;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /*
@@ -60,4 +63,20 @@ function subscribeToEverything(User $user): Subscription
     ]);
 
     return Subscription::factory()->create(['user_id' => $user->id, 'plan_id' => $plan->id]);
+}
+
+/**
+ * The images a JSON import names in "image", as uploads: a small PNG for
+ * each file name, kept on a fake public disk.
+ */
+function imagesNamedIn(string $json): ImportedImages
+{
+    Storage::fake(ImportedImages::DISK);
+
+    preg_match_all('/"image":\s*"([^"]+)"/', $json, $names);
+
+    return ImportedImages::fromUploads(array_map(
+        fn (string $name): UploadedFile => UploadedFile::fake()->image($name, 40, 40),
+        array_unique($names[1]),
+    ));
 }

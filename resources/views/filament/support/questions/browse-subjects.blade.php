@@ -3,12 +3,14 @@
 @endphp
 
 <x-filament-panels::page>
-    <x-browse.grid :is-empty="$subjects->isEmpty()" :empty-text="__('No subjects attached to this class yet.')">
+    <x-browse.grid searchable :is-empty="$subjects->isEmpty()" :empty-text="__('No subjects attached to this class yet.')">
         @foreach ($subjects as $index => $classSubject)
             <x-browse.card
                 :index="$index"
                 :palette-offset="1"
-                :title="$classSubject->subject->name"
+                :title="$classSubject->subject->display_name"
+                {{-- Found by any of its names, whichever language is on. --}}
+                :search="collect([$classSubject->subject->name, $classSubject->subject->name_bn, $classSubject->subject->short_name])->filter()->join(' ')"
                 icon="heroicon-o-book-open"
                 :href="$this->getResource()::getUrl('chapters', ['class' => $this->class->id, 'classSubject' => $classSubject->id])"
             >

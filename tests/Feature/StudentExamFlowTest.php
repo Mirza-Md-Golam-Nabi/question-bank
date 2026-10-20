@@ -244,7 +244,10 @@ it('shows a logged-in student the same exam heading and name line a guest sees',
             $classSubject->academicClass->name,
             'Name', $this->student->name,
             'Phone/Email', $this->student->email,
-        ]);
+        ])
+        // The paper heads itself; the page has no heading of its own.
+        ->assertDontSee('Take Exam Page')
+        ->assertDontSeeHtml('fi-header-heading');
 });
 
 it('auto-generates a practice exam of a chosen difficulty, using only questions of that difficulty', function () {

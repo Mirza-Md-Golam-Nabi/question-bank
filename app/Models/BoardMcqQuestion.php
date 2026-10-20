@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EditorMode;
 use App\Enums\QuestionType;
+use App\Models\Concerns\HasMcqOptions;
 use App\Models\Concerns\SharesStimulus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class BoardMcqQuestion extends Model
 {
-    use HasFactory, SharesStimulus;
+    use HasFactory, HasMcqOptions, SharesStimulus;
 
     protected function casts(): array
     {

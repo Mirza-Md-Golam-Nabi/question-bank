@@ -37,7 +37,7 @@ abstract class BrowseChaptersPage extends Page
 
     public function getTitle(): string|Htmlable
     {
-        return "{$this->class->name} · {$this->classSubject->subject->name} — ".__('Chapters');
+        return "{$this->class->name} · {$this->classSubject->subject->display_name} — ".__('Chapters');
     }
 
     /**
@@ -48,7 +48,7 @@ abstract class BrowseChaptersPage extends Page
         return [
             static::getResource()::getUrl('index') => __('Classes'),
             static::getResource()::getUrl('subjects', ['class' => $this->class->id]) => $this->class->name,
-            "{$this->classSubject->subject->name} — ".__('Chapters'),
+            "{$this->classSubject->subject->display_name} — ".__('Chapters'),
         ];
     }
 

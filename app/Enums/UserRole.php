@@ -72,6 +72,16 @@ enum UserRole: string implements HasLabel
     }
 
     /**
+     * The language this role's panel opens in until its user picks one —
+     * the Admin panel in English, the rest of the platform in the app's
+     * own (Bangla). Also what their bell notifications are written in.
+     */
+    public function defaultLocale(): Locale
+    {
+        return $this->isAdmin() ? Locale::En : (Locale::tryFrom((string) config('app.locale')) ?? Locale::Bn);
+    }
+
+    /**
      * The Filament panel id this role is allowed into.
      */
     public function panelId(): string

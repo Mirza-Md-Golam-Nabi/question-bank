@@ -6,6 +6,8 @@ use App\Enums\EditorMode;
 use App\Filament\Forms\Components\CkEditorField;
 use App\Models\Question;
 use App\Models\QuestionStimulus;
+use App\Services\DuplicateMatch;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -13,6 +15,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
@@ -36,9 +39,10 @@ class StimulusGroupForm
     /**
      * @param  array<Component>  $groupFields  Fields for the whole group (the question bank's topic).
      * @param  array<Component>  $questionFields  Fields each MCQ adds (the question bank's difficulty).
+     * @param  Closure(Get, ?Model): ?DuplicateMatch  $duplicates  What the group's questions are checked against (DuplicateQuestionCheck).
      * @return array<Component>
      */
-    public static function components(string $imageDirectory, array $groupFields = [], array $questionFields = []): array
+    public static function components(string $imageDirectory, Closure $duplicates, array $groupFields = [], array $questionFields = []): array
     {
         return [
             Grid::make(4)->columnSpanFull()->schema([
@@ -80,6 +84,8 @@ class StimulusGroupForm
                 ->collapsible()
                 ->itemLabel(fn (array $state): ?string => strip_tags((string) ($state['question_text'] ?? '')) ?: null)
                 ->columnSpanFull(),
+
+            DuplicateQuestionCheck::field($duplicates),
         ];
     }
 
@@ -87,10 +93,11 @@ class StimulusGroupForm
      * The window a group is written in, for an action of either side:
      * "new stimulus" or "edit stimulus", with the side's own fields.
      *
+     * @param  Closure(Get, ?Model): ?DuplicateMatch  $duplicates
      * @param  array<Component>  $groupFields
      * @param  array<Component>  $questionFields
      */
-    public static function configureAction(Action $action, bool $creating, string $imageDirectory, array $groupFields = [], array $questionFields = []): Action
+    public static function configureAction(Action $action, bool $creating, string $imageDirectory, Closure $duplicates, array $groupFields = [], array $questionFields = []): Action
     {
         return $action
             ->label($creating ? __('New stimulus with MCQs') : __('Edit stimulus'))
@@ -99,7 +106,7 @@ class StimulusGroupForm
             ->modalDescription(__('Write the stimulus once, then the questions that use it. The paper heads them with their numbers itself ("Read the stimulus below and answer questions 5 and 6").'))
             ->modalWidth(Width::SevenExtraLarge)
             ->modalSubmitActionLabel(__('Save'))
-            ->schema(static::components($imageDirectory, $groupFields, $questionFields));
+            ->schema(static::components($imageDirectory, $duplicates, $groupFields, $questionFields));
     }
 
     /**

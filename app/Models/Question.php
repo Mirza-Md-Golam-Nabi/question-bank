@@ -9,6 +9,7 @@ use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\Concerns\HasApprovalStatus;
+use App\Models\Concerns\HasMcqOptions;
 use App\Models\Concerns\SharesStimulus;
 use App\Observers\QuestionObserver;
 use App\Services\QuestionDifficultyTracker;
@@ -32,7 +33,7 @@ use Illuminate\Support\Facades\DB;
 #[ObservedBy(QuestionObserver::class)]
 class Question extends Model
 {
-    use HasApprovalStatus, HasFactory, SharesStimulus, SoftDeletes;
+    use HasApprovalStatus, HasFactory, HasMcqOptions, SharesStimulus, SoftDeletes;
 
     /**
      * How many matches a question select shows for one search.
@@ -141,6 +142,27 @@ class Question extends Model
     {
         return $query->where('created_by', $user->id)
             ->orWhere(fn (Builder $q) => $q->approvedPool());
+    }
+
+    /**
+     * What a question of this chapter is checked against for duplicates
+     * (DuplicateQuestionFinder): the current version of every question the
+     * user can see — all of them for an Admin — with what the check reads.
+     */
+    public function scopeDuplicateCandidatesIn(Builder $query, int $chapterId, User $viewer): Builder
+    {
+        return $query->where('chapter_id', $chapterId)
+            ->where('is_latest', true)
+            ->when(! $viewer->role->isAdmin(), fn (Builder $query) => $query->where(fn (Builder $query) => $query->visibleTo($viewer)))
+            ->with(['cqParts', 'stimulus']);
+    }
+
+    /**
+     * Whether two rows are versions of one question.
+     */
+    public function isVersionOf(self $other): bool
+    {
+        return ($this->parent_id ?? $this->id) === ($other->parent_id ?? $other->id);
     }
 
     /**

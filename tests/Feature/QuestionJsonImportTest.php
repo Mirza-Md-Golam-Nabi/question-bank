@@ -71,7 +71,7 @@ it('adds the MCQs of the JSON to the chapter as the teacher\'s own pending quest
 
     $result = ($this->import)([($this->mcq)(), ($this->mcq)(['question' => 'দ্বিতীয় প্রশ্ন?', 'answer' => 3, 'difficulty' => 'hard', 'marks' => 2])], $topic->id);
 
-    expect($result)->toBe(['added' => 2, 'skipped' => 0]);
+    expect($result)->toBe(['added' => 2, 'skipped' => 0, 'possible_duplicates' => 0]);
 
     [$first, $second] = Question::orderBy('id')->get()->all();
 
@@ -148,12 +148,14 @@ it('stores a formula as a KaTeX embed and everything else as escaped text', func
         ->and($question->options[1]['option'])->toBe('<p>&lt;h1&gt;</p>');
 });
 
-it('accepts the sample it offers', function () {
-    $result = ($this->import)(QuestionJsonImporter::sampleJson());
+it('accepts the sample it offers, with the images it names', function () {
+    $sample = QuestionJsonImporter::sampleJson();
+    $result = $this->importer->import($sample, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($sample));
 
-    // An MCQ, a CQ, and two MCQs sharing a stimulus.
-    expect($result['added'])->toBe(4)
-        ->and(Question::whereNotNull('stimulus_id')->count())->toBe(2);
+    // An MCQ, a CQ, two MCQs sharing a stimulus, and an MCQ with figures.
+    expect($result['added'])->toBe(5)
+        ->and(Question::whereNotNull('stimulus_id')->count())->toBe(2)
+        ->and(Question::whereNotNull('question_image')->count())->toBe(1);
 });
 
 it('offers a format guide to copy that ends with that same sample', function () {
@@ -270,7 +272,7 @@ it('leaves out a question the user already has in the chapter, or that is pasted
 
     $result = ($this->import)([($this->mcq)(), ($this->mcq)(['question' => 'নতুন?']), ($this->mcq)(['question' => 'নতুন?'])]);
 
-    expect($result)->toBe(['added' => 1, 'skipped' => 2]);
+    expect($result)->toBe(['added' => 1, 'skipped' => 2, 'possible_duplicates' => 0]);
     expect(Question::count())->toBe(2);
 });
 
@@ -278,7 +280,7 @@ it('does not treat someone else\'s pending question as already there', function 
     $otherTeacher = User::factory()->teacher()->create();
     Question::factory()->for($this->chapter)->create(['created_by' => $otherTeacher->id, 'question_text' => '<p>HTML এর পূর্ণরূপ কী?</p>']);
 
-    expect(($this->import)([($this->mcq)()]))->toBe(['added' => 1, 'skipped' => 0]);
+    expect(($this->import)([($this->mcq)()]))->toBe(['added' => 1, 'skipped' => 0, 'possible_duplicates' => 0]);
 });
 
 it('does not let staff or a suspended teacher import', function (User $user) {

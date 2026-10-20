@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +45,7 @@ class SubscriptionPurchaseService
         private readonly WalletService $wallet,
         private readonly ReferralService $referrals,
         private readonly OtpService $otp,
+        private readonly PurchaseNotifications $notifications,
     ) {}
 
     /**
@@ -178,7 +180,10 @@ class SubscriptionPurchaseService
             $this->approve($payment);
         }
 
-        return $payment->refresh();
+        $payment->refresh();
+        $this->notifications->placed($payment);
+
+        return $payment;
     }
 
     /**
@@ -191,7 +196,7 @@ class SubscriptionPurchaseService
      */
     public function approve(Payment $payment, ?User $reviewer = null): bool
     {
-        return DB::transaction(function () use ($payment, $reviewer): bool {
+        return $this->thenNotify($payment, fn (Payment $payment) => $this->notifications->approved($payment), DB::transaction(function () use ($payment, $reviewer): bool {
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
             if (! $payment?->isPending() || ! $payment->plan) {
@@ -218,7 +223,7 @@ class SubscriptionPurchaseService
             ]);
 
             return true;
-        });
+        }));
     }
 
     /**
@@ -227,7 +232,7 @@ class SubscriptionPurchaseService
      */
     public function reject(Payment $payment, User $reviewer, ?string $note = null): bool
     {
-        return DB::transaction(function () use ($payment, $reviewer, $note): bool {
+        return $this->thenNotify($payment, fn (Payment $payment) => $this->notifications->rejected($payment), DB::transaction(function () use ($payment, $reviewer, $note): bool {
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
             if (! $payment?->isPending()) {
@@ -246,7 +251,7 @@ class SubscriptionPurchaseService
             Log::info('Payment rejected.', ['payment_id' => $payment->id, 'reviewed_by' => $reviewer->id]);
 
             return true;
-        });
+        }));
     }
 
     /**
@@ -260,7 +265,7 @@ class SubscriptionPurchaseService
      */
     public function refund(Payment $payment, User $reviewer, ?string $note = null): bool
     {
-        return DB::transaction(function () use ($payment, $reviewer, $note): bool {
+        return $this->thenNotify($payment, fn (Payment $payment) => $this->notifications->refunded($payment), DB::transaction(function () use ($payment, $reviewer, $note): bool {
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
             if (! $payment?->isRefundable()) {
@@ -285,7 +290,23 @@ class SubscriptionPurchaseService
             Log::info('Payment refunded.', ['payment_id' => $payment->id, 'refunded_by' => $reviewer->id]);
 
             return true;
-        });
+        }));
+    }
+
+    /**
+     * Tells whoever should know once a step has really happened (it
+     * returned true, its transaction committed) — so a step done twice is
+     * told once.
+     *
+     * @param  Closure(Payment): void  $notify
+     */
+    private function thenNotify(Payment $payment, Closure $notify, bool $happened): bool
+    {
+        if ($happened) {
+            $notify($payment->refresh());
+        }
+
+        return $happened;
     }
 
     /**

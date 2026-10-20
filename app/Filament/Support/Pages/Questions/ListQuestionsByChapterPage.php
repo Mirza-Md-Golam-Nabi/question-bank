@@ -48,7 +48,7 @@ abstract class ListQuestionsByChapterPage extends ListRecords
         return [
             static::getResource()::getUrl('index') => __('Classes'),
             static::getResource()::getUrl('subjects', ['class' => $classSubject->academic_class_id]) => $classSubject->academicClass->name,
-            static::getResource()::getUrl('chapters', ['class' => $classSubject->academic_class_id, 'classSubject' => $classSubject->id]) => $classSubject->subject->name,
+            static::getResource()::getUrl('chapters', ['class' => $classSubject->academic_class_id, 'classSubject' => $classSubject->id]) => $classSubject->subject->display_name,
             "{$this->chapter->name} — ".__('Questions'),
         ];
     }

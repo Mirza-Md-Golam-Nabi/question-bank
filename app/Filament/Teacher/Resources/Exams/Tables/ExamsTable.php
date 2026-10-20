@@ -4,6 +4,7 @@ namespace App\Filament\Teacher\Resources\Exams\Tables;
 
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
+use App\Enums\QuestionType;
 use App\Filament\Support\FutureDateTimePicker;
 use App\Filament\Support\SubjectColumn;
 use App\Filament\Support\TableActions;
@@ -14,10 +15,13 @@ use App\Services\TeacherExamBuilder;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Js;
 
 class ExamsTable
@@ -58,6 +62,34 @@ class ExamsTable
             ->color('warning')
             ->visible(fn (Exam $record) => $record->status !== ExamStatus::Draft && $record->delivery_mode->includesOnline())
             ->url(fn (Exam $record): string => ExamResults::getUrl(['record' => $record], panel: 'teacher'));
+    }
+
+    /**
+     * The eye button: the exam's questions to read, with their answers and
+     * explanations — whatever kind of exam it is (online exams have no
+     * printed paper to look at). Shared with the dashboard's "Recent exams".
+     */
+    public static function viewQuestionsAction(): Action
+    {
+        return Action::make('viewQuestions')
+            ->label(__('View questions'))
+            ->tooltip(__('View questions'))
+            ->icon('heroicon-o-eye')
+            ->iconButton()
+            ->color('gray')
+            ->modalHeading(fn (Exam $record): string => $record->title)
+            ->modalDescription(fn (Exam $record): ?string => $record->heading() !== $record->title ? $record->heading() : null)
+            ->modalWidth(Width::FiveExtraLarge)
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel(__('Close'))
+            ->modalContent(function (Exam $record): View {
+                $questions = $record->printedItems();
+
+                return view('filament.support.questions.question-list', [
+                    'mcqQuestions' => $questions->filter(fn (Model $question): bool => $question->question_type === QuestionType::Mcq)->values(),
+                    'cqQuestions' => $questions->filter(fn (Model $question): bool => $question->question_type === QuestionType::Cq)->values(),
+                ]);
+            });
     }
 
     /**
@@ -241,6 +273,7 @@ class ExamsTable
 
                         Notification::make()->title(__('Answers hidden from students'))->success()->send();
                     }),
+                self::viewQuestionsAction(),
                 Action::make('print')
                     ->label(__('Print / PDF'))
                     ->color('gray')

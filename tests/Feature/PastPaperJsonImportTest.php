@@ -68,7 +68,7 @@ it('adds MCQs with their explanations after the ones already in the paper', func
 
     $added = $this->paper->mcqQuestions()->where('order_index', '>', 5)->get();
 
-    expect($result)->toBe(['added' => 2, 'skipped' => 0])
+    expect($result)->toBe(['added' => 2, 'skipped' => 0, 'possible_duplicates' => 0])
         ->and($added->pluck('order_index')->all())->toBe([6, 7])
         ->and($added[0]->editor_mode)->toBe(EditorMode::CkEditor)
         ->and($added[0]->explanation)->toContain('অক্সিজেন')
@@ -109,7 +109,7 @@ it('leaves out a question the paper already has, or that is pasted twice', funct
 
     $result = $this->importer->import(json_encode([($this->mcq)(), ($this->mcq)(['question' => 'নতুন?']), ($this->mcq)(['question' => 'নতুন?'])]), $this->paper, QuestionType::Mcq);
 
-    expect($result)->toBe(['added' => 1, 'skipped' => 2])
+    expect($result)->toBe(['added' => 1, 'skipped' => 2, 'possible_duplicates' => 0])
         ->and($this->paper->mcqQuestions()->count())->toBe(2);
 });
 
@@ -126,12 +126,12 @@ it('offers a guide and a sample for each list that the list itself accepts', fun
         ->toContain($mentions)
         ->not->toContain('"difficulty"');
 
-    $this->importer->import($reader->sampleJson(), $this->paper, $type);
+    $this->importer->import($reader->sampleJson(), $this->paper, $type, images: imagesNamedIn($reader->sampleJson()));
 
     expect($type === QuestionType::Mcq ? $this->paper->mcqQuestions()->count() : $this->paper->cqQuestions()->count())->toBe($questions);
 })->with([
-    // An MCQ, and two MCQs sharing a stimulus.
-    'MCQ' => [QuestionType::Mcq, '"stimulus"', 3],
+    // An MCQ, two MCQs sharing a stimulus, and an MCQ with figures.
+    'MCQ' => [QuestionType::Mcq, '"stimulus"', 4],
     'CQ' => [QuestionType::Cq, '"answer"', 1],
 ]);
 

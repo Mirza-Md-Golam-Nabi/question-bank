@@ -7,11 +7,16 @@ use App\Enums\QuestionType;
 use App\Models\BoardQuestionPaper;
 use App\Models\Chapter;
 use App\Models\Question;
+use App\Services\DuplicateMatch;
+use App\Services\ImportedImages;
+use App\Services\ImportedQuestions;
 use App\Services\PastPaperJsonImporter;
 use App\Services\QuestionJsonImporter;
 use App\Services\QuestionJsonReader;
 use Closure;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -25,6 +30,7 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use WeakMap;
 
 /**
  * The "Add from JSON" button: paste the JSON, look the questions over as
@@ -36,6 +42,19 @@ use Illuminate\Validation\ValidationException;
  */
 class QuestionJsonImportAction
 {
+    /**
+     * The preview step's field of possible duplicates to add anyway.
+     */
+    public const ACCEPTED_FIELD = 'accepted_duplicates';
+
+    /**
+     * The preview's work, per Livewire component — so per request — and
+     * per JSON.
+     *
+     * @var WeakMap<object, array<string, array{questions: Collection<int, mixed>, matches: array<int, DuplicateMatch>, notTaken: array<string, string>}>>|null
+     */
+    protected static ?WeakMap $reviews = null;
+
     public static function make(Chapter $chapter): Action
     {
         $importer = app(QuestionJsonImporter::class);
@@ -45,7 +64,8 @@ class QuestionJsonImportAction
                 ->visible(fn (): bool => (bool) auth()->user()?->can('import', Question::class))
                 ->modalDescription($chapter->name),
             guide: QuestionJsonImporter::formatGuide(),
-            parse: fn (string $json, Get $get): Collection => $importer->parse($json, $chapter, $get('topic_id'), static::difficulty($get('difficulty'))),
+            parse: fn (string $json, Get $get, ImportedImages $images): Collection => $importer->parse($json, $chapter, $get('topic_id'), static::difficulty($get('difficulty')), $images),
+            duplicates: fn (Collection $questions): array => $importer->duplicates($questions, $chapter),
             fields: [
                 // The topic select lists the topics of whichever
                 // chapter the form names.
@@ -62,16 +82,20 @@ class QuestionJsonImportAction
                     ->native(false),
             ],
         )->action(function (array $data, Action $action) use ($chapter, $importer): void {
+            $images = static::images($data[ImportedQuestions::IMAGES_KEY] ?? null);
+
             $result = static::importOrHalt(fn (): array => $importer->import(
                 $data[QuestionJsonImporter::ERROR_KEY],
                 $chapter,
                 $data['topic_id'] ?? null,
                 static::difficulty($data['difficulty']),
+                static::accepted($data),
+                $images,
             ), $action);
 
             TopicPreference::remember(auth()->user(), $chapter->id, $data['topic_id'] ?? null);
 
-            static::notifyAdded($result, trans_choice(':count was left out because it is already in this chapter.|:count were left out because they are already in this chapter.', $result['skipped']));
+            static::notifyAdded($result, $images);
         });
     }
 
@@ -88,23 +112,30 @@ class QuestionJsonImportAction
                 ->visible(fn (): bool => (bool) auth()->user()?->can('import', $paper))
                 ->modalDescription($paper->title().' · '.$type->getLabel()),
             guide: PastPaperJsonImporter::reader($type)->formatGuide(),
-            parse: fn (string $json): Collection => $importer->parse($json, $paper, $type),
+            parse: fn (string $json, Get $get, ImportedImages $images): Collection => $importer->parse($json, $paper, $type, $images),
+            duplicates: fn (Collection $questions): array => $importer->duplicates($questions, $paper, $type),
         )->action(function (array $data, Action $action) use ($paper, $type, $importer): void {
-            $result = static::importOrHalt(fn (): array => $importer->import($data[PastPaperJsonImporter::ERROR_KEY], $paper, $type), $action);
+            $images = static::images($data[ImportedQuestions::IMAGES_KEY] ?? null);
 
-            static::notifyAdded($result, trans_choice(':count was left out because it is already in this paper.|:count were left out because they are already in this paper.', $result['skipped']));
+            $result = static::importOrHalt(fn (): array => $importer->import($data[PastPaperJsonImporter::ERROR_KEY], $paper, $type, static::accepted($data), $images), $action);
+
+            static::notifyAdded($result, $images);
         });
     }
 
     /**
      * The window both imports share: a first step with the import's own
-     * fields, the format to copy and the JSON box (checked by `$parse`), and
-     * a preview step showing the questions `$parse` builds.
+     * fields, the format to copy, the JSON box and the box for its images
+     * (checked by `$parse`), and a preview step showing the questions
+     * `$parse` builds — the images not taken listed by name, each question
+     * that is already there, or may be (`$duplicates`), beside the one it
+     * looks like, and the possible duplicates to tick to add anyway.
      *
-     * @param  Closure(string, Get): Collection<int, mixed>  $parse  Builds the questions, or throws a ValidationException listing every problem.
+     * @param  Closure(string, Get, ImportedImages): Collection<int, mixed>  $parse  Builds the questions with their images, or throws a ValidationException listing every problem.
+     * @param  Closure(Collection<int, mixed>): array<int, DuplicateMatch>  $duplicates  Which of them look like questions already there.
      * @param  array<Component>  $fields
      */
-    protected static function configure(Action $action, string $guide, Closure $parse, array $fields = []): Action
+    protected static function configure(Action $action, string $guide, Closure $parse, Closure $duplicates, array $fields = []): Action
     {
         return $action
             ->label(__('Add from JSON'))
@@ -125,12 +156,24 @@ class QuestionJsonImportAction
 
                         Textarea::make(QuestionJsonReader::ERROR_KEY)
                             ->label(__('Questions as JSON'))
-                            ->helperText(__('"answer" is the number of the correct option. A formula goes between $ signs, and in JSON every backslash of it is written twice: :example. Images are added afterwards by editing the question.', ['example' => '$\\\\frac{1}{2}$']))
+                            ->helperText(__('"answer" is the number of the correct option. A formula goes between $ signs, and in JSON every backslash of it is written twice: :example. A figure is an image file named in "image" and given below.', ['example' => '$\\\\frac{1}{2}$']))
                             ->rows(12)
                             ->extraInputAttributes(['spellcheck' => 'false', 'dir' => 'ltr'])
                             ->required()
                             ->showAllValidationMessages()
                             ->rule(fn (Get $get): Closure => static::acceptableJsonRule($parse, $get))
+                            ->columnSpanFull(),
+
+                        // Kept as uploads until the questions are added;
+                        // what is in them is ImportedImages' to judge.
+                        FileUpload::make(ImportedQuestions::IMAGES_KEY)
+                            ->label(__('Images (optional)'))
+                            ->helperText(__('The figures the JSON names in "image" — one ZIP, or the image files themselves (PNG, JPG, WebP), found by their file names.'))
+                            ->multiple()
+                            ->storeFiles(false)
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp', 'application/zip', 'application/x-zip-compressed'])
+                            ->maxSize(ImportedImages::UPLOAD_CEILING_KB)
+                            ->previewable(false)
                             ->columnSpanFull(),
                     ]),
 
@@ -144,30 +187,41 @@ class QuestionJsonImportAction
                         ViewField::make('unrenderable_formulas')
                             ->hiddenLabel()
                             ->view('filament.support.questions.json-import-preview')
-                            ->viewData(fn (Get $get): array => [
-                                'questions' => static::previewQuestions($parse, $get),
-                            ])
+                            ->viewData(fn (Get $get, object $livewire): array => static::review($parse, $duplicates, $get, $livewire))
                             ->default(0)
                             ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail) {
                                 if ((int) $value > 0) {
                                     $fail(__('Some formulas could not be drawn. Go back, fix them in the JSON, and try again.'));
                                 }
                             }),
+
+                        CheckboxList::make(self::ACCEPTED_FIELD)
+                            ->label(__('Possible duplicates to add anyway'))
+                            ->helperText(__('Each is shown above beside the question it looks like. One left unticked is not added.'))
+                            ->options(fn (Get $get, object $livewire): array => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)))
+                            ->allowHtml()
+                            ->visible(fn (Get $get, object $livewire): bool => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)) !== [])
+                            ->bulkToggleable()
+                            ->selectAllAction(fn (Action $action): Action => $action->label(__('Accept all')))
+                            ->deselectAllAction(fn (Action $action): Action => $action->label(__('Accept none'))),
                     ]),
             ]);
     }
 
     /**
-     * Fails with every problem the importer finds in the JSON, each as its
-     * own message.
+     * Fails with every problem the importer finds in the JSON and in the
+     * images it names, each as its own message — an image not given or
+     * not taken by its file name.
      */
     protected static function acceptableJsonRule(Closure $parse, Get $get): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($parse, $get): void {
             try {
-                $parse((string) $value, $get);
+                $parse((string) $value, $get, static::images($get(ImportedQuestions::IMAGES_KEY)));
             } catch (ValidationException $exception) {
-                foreach ($exception->errors()[QuestionJsonReader::ERROR_KEY] ?? [] as $problem) {
+                $errors = $exception->errors();
+
+                foreach ([...$errors[QuestionJsonReader::ERROR_KEY] ?? [], ...$errors[ImportedQuestions::IMAGES_KEY] ?? []] as $problem) {
                     $fail($problem);
                 }
             }
@@ -175,22 +229,87 @@ class QuestionJsonImportAction
     }
 
     /**
-     * The questions to show on the preview step — none while the JSON is
-     * still unacceptable, which the first step is already saying.
-     *
-     * @return Collection<int, mixed>
+     * The images in the upload box.
      */
-    protected static function previewQuestions(Closure $parse, Get $get): Collection
+    protected static function images(mixed $files): ImportedImages
     {
-        if (blank($get(QuestionJsonReader::ERROR_KEY))) {
-            return collect();
+        return ImportedImages::fromUploads(is_iterable($files) ? $files : []);
+    }
+
+    /**
+     * The questions to show on the preview step, and which of them look
+     * like questions already there — none while the JSON is still
+     * unacceptable, which the first step is already saying. Worked out once
+     * per request for the same JSON, however many parts of the step ask.
+     *
+     * @return array{questions: Collection<int, mixed>, matches: array<int, DuplicateMatch>, notTaken: array<string, string>}
+     */
+    protected static function review(Closure $parse, Closure $duplicates, Get $get, object $livewire): array
+    {
+        $json = (string) $get(QuestionJsonReader::ERROR_KEY);
+        $images = static::images($get(ImportedQuestions::IMAGES_KEY));
+        $key = implode('|', [spl_object_id($parse), md5($json), $images->key(), $get('topic_id'), static::difficulty($get('difficulty'))->value]);
+
+        static::$reviews ??= new WeakMap;
+        $reviews = static::$reviews[$livewire] ?? [];
+
+        if (! isset($reviews[$key])) {
+            try {
+                $questions = blank($json) ? collect() : $parse($json, $get, $images);
+            } catch (ValidationException) {
+                $questions = collect();
+            }
+
+            $reviews[$key] = [
+                'questions' => $questions,
+                'matches' => $questions->isEmpty() ? [] : $duplicates($questions),
+                'notTaken' => $questions->isEmpty() ? [] : $images->notTaken(),
+            ];
+            static::$reviews[$livewire] = $reviews;
         }
 
-        try {
-            return $parse($get(QuestionJsonReader::ERROR_KEY), $get);
-        } catch (ValidationException) {
-            return collect();
-        }
+        return $reviews[$key];
+    }
+
+    /**
+     * The possible duplicates to tick, by the place of their (unit's first)
+     * question: "Question 12 — 92% alike", with a button that jumps to that
+     * question in the preview above.
+     *
+     * @param  array{questions: Collection<int, mixed>, matches: array<int, DuplicateMatch>, notTaken: array<string, string>}  $review
+     * @return array<int, string>
+     */
+    protected static function possibleDuplicateOptions(array $review): array
+    {
+        return collect(ImportedQuestions::units($review['questions']))
+            ->filter(fn (array $unit): bool => ImportedQuestions::isPossibleDuplicate($unit, $review['matches']))
+            ->map(fn (array $unit): string => view('filament.support.questions.duplicate-option', [
+                'label' => __('Question :numbers — :percent% alike', [
+                    'numbers' => count($unit) > 1 ? ($unit[0] + 1).'–'.(end($unit) + 1) : $unit[0] + 1,
+                    'percent' => collect($unit)->map(fn (int $index): int => ($review['matches'][$index] ?? null)?->percent ?? 0)->max(),
+                ]),
+                'anchor' => static::previewAnchor($unit[0] + 1),
+            ])->render())
+            ->all();
+    }
+
+    /**
+     * The id of a question's box in the preview, by its number there.
+     */
+    public static function previewAnchor(int $number): string
+    {
+        return "qb-import-question-{$number}";
+    }
+
+    /**
+     * The possible duplicates the user ticked.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>
+     */
+    protected static function accepted(array $data): array
+    {
+        return array_map('intval', $data[self::ACCEPTED_FIELD] ?? []);
     }
 
     /**
@@ -217,13 +336,21 @@ class QuestionJsonImportAction
     }
 
     /**
-     * @param  array{added: int, skipped: int}  $result
+     * @param  array{added: int, skipped: int, possible_duplicates: int}  $result
      */
-    protected static function notifyAdded(array $result, string $skippedMessage): void
+    protected static function notifyAdded(array $result, ImportedImages $images): void
     {
+        $notTaken = array_keys($images->notTaken());
+
+        $leftOut = array_filter([
+            $result['skipped'] > 0 ? trans_choice(':count was left out because the same question is already there, or earlier in the JSON.|:count were left out because the same questions are already there, or earlier in the JSON.', $result['skipped']) : null,
+            $result['possible_duplicates'] > 0 ? trans_choice(':count possible duplicate was not added.|:count possible duplicates were not added.', $result['possible_duplicates']) : null,
+            $notTaken !== [] ? __('Images not taken: :names.', ['names' => implode(', ', $notTaken)]) : null,
+        ]);
+
         Notification::make()
             ->title(trans_choice(':count question added|:count questions added', $result['added']))
-            ->body($result['skipped'] > 0 ? $skippedMessage : null)
+            ->body($leftOut === [] ? null : implode(' ', $leftOut))
             ->success()
             ->send();
     }

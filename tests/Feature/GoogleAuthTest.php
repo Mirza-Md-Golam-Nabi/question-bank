@@ -51,6 +51,32 @@ it('creates a new staff account as pending approval on first google login', func
     expect($user->status)->toBe(UserStatus::Pending);
 });
 
+it('shows the google profile photo in the panel menu and on the profile page', function () {
+    $photo = 'https://lh3.googleusercontent.com/a/photo-of-the-teacher=s96-c';
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'google-teacher-photo',
+        'email' => 'photo@example.com',
+        'name' => 'Photo Teacher',
+        'avatar' => $photo,
+    ]));
+
+    $this->get('/auth/google/redirect/teacher');
+    $this->get('/auth/google/callback');
+
+    expect(User::where('email', 'photo@example.com')->sole()->getFilamentAvatarUrl())->toBe($photo);
+
+    $this->get(route('filament.teacher.pages.my-profile'))
+        ->assertOk()
+        // Once in the menu, once beside the name.
+        ->assertSee($photo, escape: false)
+        ->assertSee('referrerpolicy="no-referrer"', escape: false);
+});
+
+it('falls back to the initials when there is no photo', function () {
+    expect(User::factory()->admin()->create()->getFilamentAvatarUrl())->toBeNull();
+});
+
 it('logs in an existing user by google_id without creating a duplicate', function () {
     $existing = User::factory()->teacher()->googleAuthenticated()->create([
         'google_id' => 'google-teacher-2',

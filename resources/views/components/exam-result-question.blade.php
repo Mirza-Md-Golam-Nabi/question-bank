@@ -19,7 +19,6 @@
 
     $isMcq = $question->question_type === QuestionType::Mcq;
     $isAnswered = filled($answer?->student_answer);
-    $questionImageUrl = QuestionDisplay::imageUrl($question->question_image);
 @endphp
 
 <div {{ $attributes->class(['qb-result-question']) }}>
@@ -33,17 +32,14 @@
         <div class="qb-question-text">{!! $question->question_text !!}</div>
     </div>
 
-    @if ($questionImageUrl)
-        <img src="{{ $questionImageUrl }}" alt="" class="qb-question-image" loading="lazy">
-    @endif
+    <x-question-image :path="$question->question_image" />
 
     @if ($isMcq)
         <ol class="qb-question-options qb-result-options">
             @foreach ($question->options ?? [] as $index => $option)
                 @php
                     $isCorrect = (bool) ($option['is_correct'] ?? false);
-                    $isChosen = $isAnswered && $answer->student_answer === ($option['option'] ?? null);
-                    $optionImageUrl = QuestionDisplay::imageUrl($option['image'] ?? null);
+                    $isChosen = $isAnswered && $answer->student_answer === $question::answerValueOf($option);
                 @endphp
 
                 <li @class([
@@ -56,9 +52,7 @@
                     <div class="qb-question-option-content">
                         <div>{!! $option['option'] ?? '' !!}</div>
 
-                        @if ($optionImageUrl)
-                            <img src="{{ $optionImageUrl }}" alt="" class="qb-question-image" loading="lazy">
-                        @endif
+                        <x-question-image :path="$option['image'] ?? null" option />
                     </div>
 
                     {{-- Colour alone shouldn't carry the meaning. --}}

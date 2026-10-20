@@ -16,7 +16,6 @@
     $showAnswers ??= false;
     $showStimulus ??= true;
     $stimulus = $showStimulus ? QuestionBlocks::stimulusOf($question) : null;
-    $questionImageUrl = QuestionDisplay::imageUrl($question->question_image);
 @endphp
 
 <div class="qb-question-body">
@@ -28,16 +27,13 @@
 
     <div class="qb-question-text">{!! $question->question_text !!}</div>
 
-    @if ($questionImageUrl)
-        <img src="{{ $questionImageUrl }}" alt="" class="qb-question-image" loading="lazy">
-    @endif
+    <x-question-image :path="$question->question_image" />
 
     @if ($question->question_type === QuestionType::Mcq)
         <ol class="qb-question-options">
             @foreach ($question->options ?? [] as $index => $option)
                 @php
                     $isCorrect = $showAnswers && ($option['is_correct'] ?? false);
-                    $optionImageUrl = QuestionDisplay::imageUrl($option['image'] ?? null);
                 @endphp
 
                 <li @class(['qb-question-option', 'qb-question-option--correct' => $isCorrect])>
@@ -50,9 +46,7 @@
                     <div class="qb-question-option-content">
                         <div>{!! $option['option'] ?? '' !!}</div>
 
-                        @if ($optionImageUrl)
-                            <img src="{{ $optionImageUrl }}" alt="" class="qb-question-image" loading="lazy">
-                        @endif
+                        <x-question-image :path="$option['image'] ?? null" option />
                     </div>
                 </li>
             @endforeach
@@ -64,18 +58,12 @@
     @else
         <ol class="qb-question-parts">
             @foreach ($question->cqParts as $index => $part)
-                @php
-                    $partImageUrl = QuestionDisplay::imageUrl($part->part_image);
-                @endphp
-
                 <li class="qb-question-part">
                     <span class="qb-question-option-letter">{{ QuestionDisplay::letter($index) }}</span>
                     <div class="qb-question-option-content">
                         <div>{!! $part->part_text !!}</div>
 
-                        @if ($partImageUrl)
-                            <img src="{{ $partImageUrl }}" alt="" class="qb-question-image" loading="lazy">
-                        @endif
+                        <x-question-image :path="$part->part_image" />
 
                         @if ($showAnswers)
                             <x-question-explanation :text="$part->answer ?? null" :title="__('Answer')" />

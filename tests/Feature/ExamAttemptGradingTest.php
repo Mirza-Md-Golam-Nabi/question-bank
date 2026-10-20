@@ -215,3 +215,33 @@ describe('exam time limit', function () {
             ->assertSee('data-qb-answers', escape: false);
     });
 });
+
+it('grades an option that is only a figure by that figure, and shows the figures on the exam paper', function () {
+    $exam = Exam::factory()->published()->create();
+    $question = Question::factory()->for(Chapter::factory())->approved()->create([
+        'question_image' => 'questions/circuit.png',
+        'options' => [
+            ['option' => '', 'image' => 'questions/figure-a.png', 'is_correct' => true],
+            ['option' => '', 'image' => 'questions/figure-b.png', 'is_correct' => false],
+        ],
+    ]);
+    $exam->questions()->attach($question->id, ['order_index' => 1, 'marks_override' => null]);
+
+    $attempt = ExamAttempt::factory()->create(['exam_id' => $exam->id]);
+    $paper = view('components.exam-paper', ['attempt' => $attempt, 'slot' => ''])->render();
+
+    expect($paper)->toContain('questions/circuit.png')
+        ->toContain('value="questions/figure-a.png"')
+        ->toContain('value="questions/figure-b.png"');
+
+    $attempt->answers()->create(['question_id' => $question->id, 'student_answer' => 'questions/figure-a.png']);
+    $attempt->submitAndAutoGrade();
+
+    expect($attempt->answers()->sole()->is_correct)->toBeTrue();
+});
+
+it('still grades an option with text by its text', function () {
+    expect(Question::answerValueOf(['option' => '<p>৪</p>', 'image' => 'questions/x.png']))->toBe('<p>৪</p>')
+        ->and(Question::answerValueOf(['option' => '<p>&nbsp;</p>', 'image' => 'questions/x.png']))->toBe('questions/x.png')
+        ->and(Question::answerValueOf(['option' => '', 'image' => null]))->toBe('');
+});

@@ -97,6 +97,8 @@ class QuestionFormSchema
                     QuestionType::Cq => static::cqComponents(),
                     default => [],
                 }),
+
+            DuplicateQuestionCheck::field(DuplicateQuestionCheck::inChapter(...)),
         ];
     }
 
@@ -181,7 +183,7 @@ class QuestionFormSchema
      * which editor is currently active. `RichContentRenderer` is Filament's
      * own public API for turning Tiptap JSON into sanitized HTML.
      */
-    protected static function resolvePreviewHtml(mixed $questionText): ?string
+    public static function resolvePreviewHtml(mixed $questionText): ?string
     {
         if (blank($questionText)) {
             return null;

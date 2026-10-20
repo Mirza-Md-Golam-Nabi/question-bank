@@ -45,6 +45,38 @@ it('renders the class, subject, and chapter card browsers with correct counts', 
     expect($chaptersHtml)->toContain('Add chapter');
 });
 
+it('gives the subject and chapter cards a search box that matches every name of a card, but not the class cards', function () {
+    $class = AcademicClass::factory()->create(['name' => 'Class 9']);
+    $subject = Subject::factory()->create(['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান', 'short_name' => 'Phy']);
+    $classSubject = ClassSubject::create(['academic_class_id' => $class->id, 'subject_id' => $subject->id, 'order_index' => 1]);
+    Chapter::create(['class_subject_id' => $classSubject->id, 'name' => 'Motion', 'order_index' => 1]);
+
+    expect(livewire(BrowseClasses::class)->html())->not->toContain('type="search"');
+
+    expect(livewire(BrowseSubjects::class, ['class' => $class->id])->html())
+        ->toContain('type="search"')
+        ->toContain('data-browse-search="Physics পদার্থবিজ্ঞান Phy"');
+
+    expect(livewire(BrowseChapters::class, ['class' => $class->id, 'classSubject' => $classSubject->id])->html())
+        ->toContain('type="search"')
+        ->toContain('data-browse-search="Motion"');
+});
+
+it('shows a subject by its Bangla name when the app is in Bangla', function () {
+    $class = AcademicClass::factory()->create(['name' => 'Class 9']);
+    $subject = Subject::factory()->create(['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান']);
+    $classSubject = ClassSubject::create(['academic_class_id' => $class->id, 'subject_id' => $subject->id, 'order_index' => 1]);
+
+    app()->setLocale('bn');
+
+    expect(livewire(BrowseSubjects::class, ['class' => $class->id])->html())->toContain('aria-label="পদার্থবিজ্ঞান"');
+    expect(livewire(BrowseChapters::class, ['class' => $class->id, 'classSubject' => $classSubject->id])->instance()->getTitle())->toContain('পদার্থবিজ্ঞান');
+
+    app()->setLocale('en');
+
+    expect(livewire(BrowseSubjects::class, ['class' => $class->id])->html())->toContain('aria-label="Physics"');
+});
+
 it('links the chapter question list to the previous and next chapter of the same subject', function () {
     $class = AcademicClass::factory()->create();
     $classSubject = ClassSubject::create(['academic_class_id' => $class->id, 'subject_id' => Subject::factory()->create()->id, 'order_index' => 1]);

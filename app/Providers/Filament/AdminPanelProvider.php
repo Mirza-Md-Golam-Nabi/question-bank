@@ -2,7 +2,7 @@
 
 namespace App\Providers\Filament;
 
-use App\Enums\Locale;
+use App\Enums\UserRole;
 use App\Filament\Admin\Pages\Auth\Login;
 use App\Filament\Support\PanelDefaults;
 use App\Filament\Support\QuestionEditorAssets;
@@ -16,7 +16,7 @@ class AdminPanelProvider extends PanelProvider
     {
         // The rest of the platform opens in Bangla; the Admin panel in
         // English, until the admin picks a language themselves.
-        return QuestionEditorAssets::registerOn(PanelDefaults::apply($panel, 'admin', defaultLocale: Locale::En)
+        return QuestionEditorAssets::registerOn(PanelDefaults::apply($panel, 'admin', defaultLocale: UserRole::Admin->defaultLocale())
             ->default()
             ->login(Login::class)
             // No ->registration() call: public sign-up stays disabled for

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\AdminNotificationTopic;
 use App\Enums\MobileBankingProvider;
 use App\Enums\PaperSourceType;
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -25,7 +28,7 @@ use Illuminate\Database\Eloquent\Model;
     'teacher_reserve_amount', 'teacher_min_withdrawal', 'student_reserve_amount', 'student_min_withdrawal',
     'group_member_change_days', 'teacher_device_limit', 'student_device_limit',
     'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
-    'question_import_max', 'teacher_question_import_enabled', 'staff_paper_import_enabled',
+    'admin_notification_recipients', 'question_import_max', 'question_import_image_max_kb', 'question_import_images_max_mb', 'teacher_question_import_enabled', 'staff_paper_import_enabled', 'duplicate_similarity_percent',
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
     'mistake_clear_streak', 'default_negative_marks', 'paper_rates',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
@@ -58,8 +61,11 @@ class BillingSetting extends Model
         'phone_bonus_exams' => 0,
         'otp_required_for_credit' => false,
         'question_import_max' => 100,
+        'question_import_image_max_kb' => 1024,
+        'question_import_images_max_mb' => 20,
         'teacher_question_import_enabled' => true,
         'staff_paper_import_enabled' => false,
+        'duplicate_similarity_percent' => 85,
         'difficulty_min_answers' => 30,
         'difficulty_hard_max_percent' => 33,
         'difficulty_medium_max_percent' => 66,
@@ -89,15 +95,37 @@ class BillingSetting extends Model
             'phone_bonus_exams' => 'integer',
             'otp_required_for_credit' => 'boolean',
             'question_import_max' => 'integer',
+            'question_import_image_max_kb' => 'integer',
+            'question_import_images_max_mb' => 'integer',
             'teacher_question_import_enabled' => 'boolean',
             'staff_paper_import_enabled' => 'boolean',
+            'duplicate_similarity_percent' => 'integer',
             'difficulty_min_answers' => 'integer',
             'difficulty_hard_max_percent' => 'float',
             'difficulty_medium_max_percent' => 'float',
             'mistake_clear_streak' => 'integer',
             'default_negative_marks' => 'float',
             'paper_rates' => 'array',
+            'admin_notification_recipients' => 'array',
         ];
+    }
+
+    /**
+     * The Admins who get the bell notifications of this kind: the ones
+     * chosen in the settings, or every Admin when none is — still active
+     * and still an Admin.
+     *
+     * @return Collection<int, User>
+     */
+    public function adminsToNotify(AdminNotificationTopic $topic): Collection
+    {
+        $chosen = $this->admin_notification_recipients[$topic->value] ?? [];
+
+        return User::query()
+            ->admins()
+            ->where('status', UserStatus::Active)
+            ->when($chosen !== [], fn ($query) => $query->whereKey($chosen))
+            ->get();
     }
 
     /**

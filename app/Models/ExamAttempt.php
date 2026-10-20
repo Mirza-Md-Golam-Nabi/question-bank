@@ -405,10 +405,8 @@ class ExamAttempt extends Model
                 continue;
             }
 
-            $correctOption = collect($question->options)
-                ->first(fn (array $option) => (bool) ($option['is_correct'] ?? false));
-
-            $isCorrect = $correctOption && $answer->student_answer === $correctOption['option'];
+            $correctAnswer = $question->correctAnswerValue();
+            $isCorrect = $correctAnswer !== null && $answer->student_answer === $correctAnswer;
             $marks = match (true) {
                 (bool) $isCorrect => (float) ($question->pivot?->marks_override ?? $question->marks),
                 blank($answer->student_answer) => 0.0,

@@ -1,12 +1,12 @@
 @php
     /**
-     * A past paper to read, with its answers and explanations: its MCQs
-     * (when shown) and its CQs, each numbered within its kind. The paper's
-     * own title is the heading around it, so the questions don't each
-     * repeat where they came from.
+     * Questions to read, with their answers and explanations: the MCQs
+     * (a shared stimulus once above its questions) and then the CQs, each
+     * numbered within its kind — a past paper, or a teacher's exam. The
+     * window's own title says what it is.
      *
-     * @var \Illuminate\Support\Collection<int, \App\Models\BoardMcqQuestion> $mcqQuestions
-     * @var \Illuminate\Support\Collection<int, \App\Models\BoardCqQuestion> $cqQuestions
+     * @var \Illuminate\Support\Collection<int, \App\Models\Question|\App\Models\BoardMcqQuestion> $mcqQuestions
+     * @var \Illuminate\Support\Collection<int, \App\Models\Question|\App\Models\BoardCqQuestion> $cqQuestions
      */
 @endphp
 

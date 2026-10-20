@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\Auth;
 
 /**
  * "Weak chapters" on the student's dashboard: the chapters where most of
- * their mistakes are waiting to be practised, with a way straight into
+ * their mistakes are waiting to be practised — how many, and what share of
+ * the chapter's questions they have sat — with a way straight into
  * practising them. The mistakes themselves are StudentMistakeTracker's.
  */
 class StudentWeakChaptersWidget extends TableWidget
@@ -27,14 +28,15 @@ class StudentWeakChaptersWidget extends TableWidget
 
     public function table(Table $table): Table
     {
-        $practisable = fn (Builder $questions): Builder => app(StudentMistakeTracker::class)
-            ->practisableQuestions(Auth::user(), $questions);
+        $mistakes = app(StudentMistakeTracker::class);
+        $practisable = fn (Builder $questions): Builder => $mistakes->practisableQuestions(Auth::user(), $questions);
+        $sat = fn (Builder $questions): Builder => $mistakes->questionsSat(Auth::user(), $questions);
 
         return $table
             ->query(
                 Chapter::query()
                     ->whereHas('questions', $practisable)
-                    ->withCount(['questions as mistakes_count' => $practisable])
+                    ->withCount(['questions as mistakes_count' => $practisable, 'questions as sat_count' => $sat])
                     ->orderByDesc('mistakes_count')
                     ->limit(5)
             )
@@ -54,6 +56,20 @@ class StudentWeakChaptersWidget extends TableWidget
                 SubjectColumn::make('classSubject.subject'),
                 TextColumn::make('name')->label(__('Chapter')),
                 TextColumn::make('mistakes_count')->label(__('Mistakes'))->badge()->color('danger')->alignCenter(),
+                // How bad: the share of the chapter's questions sat that are
+                // still mistakes — 3 of 5 is 60%.
+                TextColumn::make('mistake_percent')
+                    ->label(__('Mistakes (%)'))
+                    ->state(fn (Chapter $record): int => StudentMistakeTracker::mistakePercent((int) $record->mistakes_count, (int) $record->sat_count))
+                    ->formatStateUsing(fn (int $state): string => "{$state}%")
+                    ->description(fn (Chapter $record): string => __(':mistakes of :sat questions', ['mistakes' => $record->mistakes_count, 'sat' => $record->sat_count]))
+                    ->badge()
+                    ->color(fn (int $state): string => match (true) {
+                        $state >= 50 => 'danger',
+                        $state >= 25 => 'warning',
+                        default => 'gray',
+                    })
+                    ->alignCenter(),
             ]);
     }
 }

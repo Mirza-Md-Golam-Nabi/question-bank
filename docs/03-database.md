@@ -30,7 +30,7 @@ boards ── board_question_papers ─┬─ board_mcq_questions
 |---|---|
 | `name`, `email` (unique) | |
 | `password` (nullable) | শুধু Admin/Super Admin-এর; Google-only role-এ `null` |
-| `google_id` (unique, nullable), `avatar` | শুধু Teacher/Staff/Student-এ |
+| `google_id` (unique, nullable), `avatar` | শুধু Teacher/Staff/Student-এ; `avatar` = Google-এর ছবির লিংক, প্রতি Google লগইনে হালনাগাদ — প্যানেলের মেনু ও প্রোফাইলে দেখায় (`User::getFilamentAvatarUrl()`), না থাকলে নামের অক্ষর |
 | `role` | `UserRole`; ডিফল্ট `student` |
 | `status` | `UserStatus`; ডিফল্ট `active` |
 | `phone`, `phone_verified_at` | প্রোফাইলে দেওয়া ফোন নম্বর |
@@ -197,3 +197,9 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 ### `billing_settings`
 
 একটাই সারি; `BillingSetting::current()` দিয়ে পড়া হয়। প্রতিটা কলামের অর্থ ও ডিফল্ট: [09-admin-settings.md](09-admin-settings.md)।
+
+## নোটিফিকেশন
+
+### `notifications`
+
+Laravel-এর নিজস্ব টেবিল — প্রতিটা প্যানেলের বেলে যা দেখায় (Filament database notifications): `id` (uuid), `type`, `notifiable_type`/`notifiable_id` (user), `data` (JSON: title, body, icon, বোতাম), `read_at`। লেখা হয় শুধু `BellNotifier` দিয়ে। → [08-billing.md](08-billing.md#বেলের-নোটিফিকেশন)

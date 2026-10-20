@@ -28,6 +28,23 @@ class TakeExamPage extends Page
     public array $answers = [];
 
     /**
+     * The browser tab names the exam being sat.
+     */
+    public function getTitle(): string
+    {
+        return $this->attempt->exam->title;
+    }
+
+    /**
+     * No page heading: the paper heads itself (`<x-exam-heading>`), exactly
+     * as on the guest's exam page.
+     */
+    public function getHeading(): string
+    {
+        return '';
+    }
+
+    /**
      * Where a student is sent for an attempt ExamAttempt::startFor() gave
      * them: into the exam while it is under way, and to its result once
      * it has been handed in — an exam is sat only once.

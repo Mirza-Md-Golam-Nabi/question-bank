@@ -44,12 +44,14 @@ final class QuestionJsonReader
     /**
      * Every question of the JSON, read and normalized — the text already
      * as stored (HTML, formulas as KaTeX embeds):
-     * `type`, `question`, `difficulty` (null when not given), and for an
-     * MCQ `options` (each `option`/`image`/`is_correct`), `marks` (null when
-     * not given) and `explanation`, for a CQ `parts` (each `part_type`,
-     * `part_order`, `part_text`, `marks` and `answer`). MCQs sharing a
-     * stimulus come as one entry: `stimulus` (its text) and `questions`
-     * (those MCQs, read the same way).
+     * `type`, `question`, `image`, `difficulty` (null when not given), and
+     * for an MCQ `options` (each `option`/`image`/`is_correct`), `marks`
+     * (null when not given) and `explanation`, for a CQ `parts` (each
+     * `part_type`, `part_order`, `part_text`, `part_image`, `marks` and
+     * `answer`). MCQs sharing a stimulus come as one entry: `stimulus` (its
+     * text), `stimulus_image` and `questions` (those MCQs, read the same
+     * way). An image is still the file name the JSON gave — which image
+     * that is, is ImportedImages' to say.
      *
      * @return array<int, array<string, mixed>>
      *
@@ -120,7 +122,10 @@ final class QuestionJsonReader
                 ? __('"answer" on a sub-question (may be left out): its answer.')
                 : null,
             __('Maths: write every formula as LaTeX between $ signs, write every backslash twice (:twice, not \frac), and keep Bangla text outside the $ signs.', ['twice' => '\\\\frac']),
-            __('Plain text only — no HTML, no Markdown, no images.'),
+            __('Images: where a question, a stimulus, a CQ sub-question or an option has a figure (a diagram, graph, circuit, or a table drawn as a picture), crop that figure into an image file of its own and give its file name in "image" — beside the text of a question, a stimulus or a sub-question; an option with a figure is written as an object, {"text": "…", "image": "…"}, its "text" "" when the figure is all of it.'),
+            __('Name the image files with English letters, digits and hyphens only, ending in .png, .jpg or .webp, every name different: q12.png for question 12, q12-c.png for its option C, q12-part2.png for its second sub-question, s3.png for the stimulus of question 3.'),
+            __('Do not describe a figure in the text or put it inside the text. Give all the image files together in one ZIP, without folders, named exactly as in the JSON.'),
+            __('Plain text only — no HTML, no Markdown.'),
         ]));
 
         return collect($rules)->map(fn (string $rule): string => "- {$rule}")->implode("\n")."\n\n".$this->sampleJson();
@@ -128,7 +133,7 @@ final class QuestionJsonReader
 
     /**
      * The example of the format: an MCQ and a CQ, or just the one kind
-     * this list takes.
+     * this list takes — with figures as image files.
      */
     public function sampleJson(): string
     {
@@ -183,6 +188,23 @@ final class QuestionJsonReader
             QuestionType::Cq => [$cq],
             default => [$mcq, $cq, $group],
         };
+
+        // Figures, named by where they stand in the sample as the guide
+        // says: an MCQ with one in its question and one as an option — or,
+        // where only CQs go, one in a sub-question.
+        if ($this->onlyType === QuestionType::Cq) {
+            $sample[0]['parts'][2]['image'] = 'q1-part3.png';
+        } else {
+            $number = count($sample) + 1;
+            $sample[] = array_filter([
+                'type' => $this->onlyType ? null : QuestionType::Mcq->value,
+                'question' => 'চিত্রের বর্তনীর তুল্যরোধ কত?',
+                'image' => "q{$number}.png",
+                'options' => ['$2\\Omega$', '$4\\Omega$', ['text' => '', 'image' => "q{$number}-c.png"], '$8\\Omega$'],
+                'answer' => 1,
+                'difficulty' => $this->withDifficulty ? Difficulty::Easy->value : null,
+            ], fn (mixed $value): bool => $value !== null);
+        }
 
         return json_encode($sample, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
@@ -239,7 +261,10 @@ final class QuestionJsonReader
                 : __('this list takes CQs only — add MCQs in the MCQ list')];
         }
 
-        $problems = $this->textProblems($item['question'] ?? null, __('the question text'));
+        $problems = [
+            ...$this->textProblems($item['question'] ?? null, __('the question text')),
+            ...$this->imageProblems($item, __('the question')),
+        ];
 
         if ($this->withDifficulty && isset($item['difficulty']) && ! $this->difficultyOf($item)) {
             $problems[] = __('"difficulty" must be one of: :values', ['values' => implode(', ', array_column(Difficulty::cases(), 'value'))]);
@@ -264,7 +289,10 @@ final class QuestionJsonReader
             return [__('this list takes CQs only — add MCQs in the MCQ list')];
         }
 
-        $problems = $this->textProblems($item['stimulus'], __('the stimulus'));
+        $problems = [
+            ...$this->textProblems($item['stimulus'], __('the stimulus')),
+            ...$this->imageProblems($item, __('the stimulus')),
+        ];
         $questions = $item['questions'] ?? null;
 
         if (! is_array($questions) || ! array_is_list($questions)
@@ -279,6 +307,7 @@ final class QuestionJsonReader
                     ? [__('only MCQs can share a stimulus')]
                     : [
                         ...$this->textProblems($question['question'] ?? null, __('the question text')),
+                        ...$this->imageProblems($question, __('the question')),
                         ...($this->withDifficulty && isset($question['difficulty']) && ! $this->difficultyOf($question)
                             ? [__('"difficulty" must be one of: :values', ['values' => implode(', ', array_column(Difficulty::cases(), 'value'))])]
                             : []),
@@ -317,7 +346,24 @@ final class QuestionJsonReader
         $problems = [];
 
         foreach ($options as $index => $option) {
-            array_push($problems, ...$this->textProblems($option, __('option :number', ['number' => $index + 1])));
+            $name = __('option :number', ['number' => $index + 1]);
+
+            // An option with a figure is an object; its text may be left
+            // empty when the figure is all there is to it.
+            if (is_array($option) && ! array_is_list($option)) {
+                $text = $option['text'] ?? '';
+                array_push($problems, ...$this->imageProblems($option, $name));
+
+                if (! is_string($text) || (trim($text) === '' && blank($option['image'] ?? null))) {
+                    $problems[] = __(':name needs its "text", or an "image"', ['name' => $name]);
+                } elseif (trim($text) !== '') {
+                    array_push($problems, ...$this->textProblems($text, $name));
+                }
+
+                continue;
+            }
+
+            array_push($problems, ...$this->textProblems($option, $name));
         }
 
         $answer = $item['answer'] ?? null;
@@ -362,6 +408,7 @@ final class QuestionJsonReader
             }
 
             array_push($problems, ...$this->textProblems($part['text'] ?? null, $name));
+            array_push($problems, ...$this->imageProblems($part, $name));
 
             // No default here: how many marks each part carries is the
             // author's call, not something the code assumes.
@@ -390,6 +437,29 @@ final class QuestionJsonReader
             fn (string $problem): string => __(':name — :problem', ['name' => $name, 'problem' => $problem]),
             QuestionImportText::problemsIn($text),
         );
+    }
+
+    /**
+     * An "image" is the file name of an image given with the JSON —
+     * nothing more (no folder, no web address), and found by that name
+     * among the images (ImportedImages). Leaving it out is fine.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<int, string>
+     */
+    private function imageProblems(array $item, string $name): array
+    {
+        $image = $item['image'] ?? null;
+
+        if ($image === null) {
+            return [];
+        }
+
+        $extensions = implode('|', ImportedImages::EXTENSIONS);
+
+        return is_string($image) && mb_strlen($image) <= 150 && preg_match("/^[^\\/\\\\:]+\\.({$extensions})$/i", trim($image))
+            ? []
+            : [__('"image" of :name must be the file name of an image given with the JSON, ending in .png, .jpg or .webp — e.g. q12.png', ['name' => $name])];
     }
 
     /**
@@ -449,6 +519,7 @@ final class QuestionJsonReader
         if ($this->isGroup($item)) {
             return [
                 'stimulus' => QuestionImportText::toHtml($item['stimulus']),
+                'stimulus_image' => $this->imageOf($item),
                 'questions' => array_map(
                     fn (array $question): array => $this->normalize(['type' => QuestionType::Mcq->value, ...$question]),
                     $item['questions'],
@@ -462,6 +533,7 @@ final class QuestionJsonReader
         $question = [
             'type' => $type,
             'question' => QuestionImportText::toHtml($item['question']),
+            'image' => $this->imageOf($item),
             'difficulty' => $this->withDifficulty ? $this->difficultyOf($item) : null,
         ];
 
@@ -473,6 +545,7 @@ final class QuestionJsonReader
                         'part_type' => $partType,
                         'part_order' => $partType->order(),
                         'part_text' => QuestionImportText::toHtml($item['parts'][$index]['text']),
+                        'part_image' => $this->imageOf($item['parts'][$index]),
                         'marks' => $item['parts'][$index]['marks'],
                         'answer' => $this->withCqAnswers ? $html($item['parts'][$index]['answer'] ?? null) : null,
                     ])
@@ -483,15 +556,26 @@ final class QuestionJsonReader
         return [
             ...$question,
             'options' => collect($item['options'])
-                ->map(fn (string $option, int $index): array => [
-                    'option' => QuestionImportText::toHtml($option),
-                    'image' => null,
+                ->map(fn (string|array $option, int $index): array => [
+                    // An option that is only its figure has no text.
+                    'option' => $html(is_array($option) ? (string) ($option['text'] ?? '') : $option) ?? '',
+                    'image' => is_array($option) ? $this->imageOf($option) : null,
                     'is_correct' => $index + 1 === (int) $item['answer'],
                 ])
                 ->all(),
             'marks' => $item['marks'] ?? null,
             'explanation' => $html($item['explanation'] ?? null),
         ];
+    }
+
+    /**
+     * The file name of an acceptable item's image, as given.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function imageOf(array $item): ?string
+    {
+        return filled($item['image'] ?? null) ? trim($item['image']) : null;
     }
 
     /**

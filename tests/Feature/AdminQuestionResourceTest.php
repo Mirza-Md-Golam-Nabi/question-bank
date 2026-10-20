@@ -498,13 +498,14 @@ describe('remembered topic', function () {
 
     it('forgets the remembered topic once a question is saved without one, or the topic is deleted', function () {
         livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
-        livewire(CreateQuestion::class)->fillForm([...$this->questionFormData, 'topic_id' => null])->call('create')->assertHasNoFormErrors();
+        // Each a question of its own — the same one twice would be refused as a duplicate.
+        livewire(CreateQuestion::class)->fillForm([...$this->questionFormData, 'topic_id' => null, 'question_text' => '<p>The second question</p>'])->call('create')->assertHasNoFormErrors();
 
         Livewire::withQueryParams(['chapter' => $this->chapter->id]);
         livewire(CreateQuestion::class)->assertFormSet(['topic_id' => null]);
 
         Livewire::withQueryParams([]);
-        livewire(CreateQuestion::class)->fillForm($this->questionFormData)->call('create')->assertHasNoFormErrors();
+        livewire(CreateQuestion::class)->fillForm([...$this->questionFormData, 'question_text' => '<p>The third question</p>'])->call('create')->assertHasNoFormErrors();
         $this->topic->delete();
 
         Livewire::withQueryParams(['chapter' => $this->chapter->id]);

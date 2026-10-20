@@ -35,6 +35,11 @@ class PastPaperJsonImporter
     public const ERROR_KEY = QuestionJsonReader::ERROR_KEY;
 
     /**
+     * Where the images of imported past-paper questions are kept.
+     */
+    public const IMAGE_DIRECTORY = 'board-questions';
+
+    /**
      * The JSON as the paper's questions it describes — built but not saved,
      * which is also what the preview shows.
      *
@@ -42,44 +47,57 @@ class PastPaperJsonImporter
      *
      * @throws ValidationException listing every problem found
      */
-    public function parse(string $json, BoardQuestionPaper $paper, QuestionType $type): Collection
+    public function parse(string $json, BoardQuestionPaper $paper, QuestionType $type, ?ImportedImages $images = null): Collection
     {
         return ImportedQuestions::build(
             self::reader($type)->read($json),
             fn (array $item): Model => $this->build($item, $paper),
-            fn (string $text): BoardMcqStimulus => new BoardMcqStimulus([
+            fn (string $text, ?string $image): BoardMcqStimulus => new BoardMcqStimulus([
                 'board_question_paper_id' => $paper->id,
                 'text' => $text,
+                'image' => $image,
                 'editor_mode' => EditorMode::CkEditor,
             ]),
+            $images ?? ImportedImages::none(),
         );
     }
 
     /**
-     * Saves the questions at the end of the paper's list. A question the
-     * list already has — or that is in the JSON twice — is left out rather
-     * than added again.
+     * Which of the built questions duplicate one already on this list of
+     * the paper, or one earlier in the JSON (see
+     * ImportedQuestions::duplicates()).
      *
-     * @return array{added: int, skipped: int}
+     * @param  Collection<int, Model>  $questions  What parse() built.
+     * @return array<int, DuplicateMatch>
+     */
+    public function duplicates(Collection $questions, BoardQuestionPaper $paper, QuestionType $type): array
+    {
+        return ImportedQuestions::duplicates($questions, $paper->duplicateCandidates($type), DuplicateQuestionFinder::make());
+    }
+
+    /**
+     * Saves the questions at the end of the paper's list. One the list
+     * already has as it is is left out; a possible duplicate only added
+     * when the user accepted it.
+     *
+     * @param  array<int, int>  $accepted  The possible duplicates to add anyway, by the place of their (unit's first) question.
+     * @return array{added: int, skipped: int, possible_duplicates: int}
      *
      * @throws ValidationException
      */
-    public function import(string $json, BoardQuestionPaper $paper, QuestionType $type): array
+    public function import(string $json, BoardQuestionPaper $paper, QuestionType $type, array $accepted = [], ?ImportedImages $images = null): array
     {
         Gate::authorize('import', $paper);
 
-        $questions = $this->parse($json, $paper, $type);
+        $images ??= ImportedImages::none();
+        $questions = $this->parse($json, $paper, $type, $images);
+        $matches = $this->duplicates($questions, $paper, $type);
         $list = $type === QuestionType::Mcq ? $paper->mcqQuestions() : $paper->cqQuestions();
 
-        $alreadyThere = (clone $list)
-            ->whereIn('question_text', $questions->pluck('question_text'))
-            ->pluck('question_text')
-            ->flip();
-
-        $added = DB::transaction(function () use ($questions, $alreadyThere, $list): int {
+        $result = DB::transaction(function () use ($questions, $matches, $accepted, $list, $images): array {
             $nextOrder = (int) (clone $list)->max('order_index');
 
-            return ImportedQuestions::save($questions, $alreadyThere, function (Model $question) use (&$nextOrder): void {
+            return ImportedQuestions::save($questions, $matches, $accepted, function (Model $question) use (&$nextOrder): void {
                 $parts = $question->relationLoaded('cqParts') ? $question->cqParts : collect();
                 $question->unsetRelation('cqParts');
                 $question->order_index = ++$nextOrder;
@@ -88,20 +106,20 @@ class PastPaperJsonImporter
                 if ($question instanceof BoardCqQuestion) {
                     $question->parts()->saveMany($parts);
                 }
-            });
+            }, fn (Model $model) => $images->publish($model, self::IMAGE_DIRECTORY));
         });
 
+        $images->discard();
         $paper->markEditedBy(Auth::user());
 
         Log::info('Past paper questions imported from JSON.', [
             'imported_by' => Auth::id(),
             'board_question_paper_id' => $paper->id,
             'type' => $type->value,
-            'added' => $added,
-            'skipped' => $questions->count() - $added,
+            ...$result,
         ]);
 
-        return ['added' => $added, 'skipped' => $questions->count() - $added];
+        return $result;
     }
 
     /**
@@ -124,6 +142,7 @@ class PastPaperJsonImporter
             // The formulas are CKEditor's kind of content, so that is the
             // editor the question opens in when it is edited later.
             'editor_mode' => EditorMode::CkEditor,
+            'question_image' => $item['image'],
         ];
 
         if ($item['type'] === QuestionType::Cq) {

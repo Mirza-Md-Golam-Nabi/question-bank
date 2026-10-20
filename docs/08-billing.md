@@ -103,6 +103,25 @@
 - **Gateway এলে** শুধু `approve` ডাকার পথটা বদলাবে (Admin-এর জায়গায় callback)।
 - প্রতিটা ধাপ log হয়।
 
+### বেলের নোটিফিকেশন
+
+প্রতিটা ধাপ সত্যিই ঘটলে (ফেরত `true`, transaction শেষ) বেলে জানানো হয় — তাই দুইবার ক্লিক বা দুইবার callback-এ একবারই। ফ্রি ট্রায়ালে কিছু না।
+
+| কখন | কাকে | কী |
+|---|---|---|
+| `request` (pending) | Admin-রা | "অমুক (Teacher) অমুক plan কিনতে চান" — টাকা, মাধ্যম, নম্বর, transaction ID; বোতামে Payments পেজ (pending ফিল্টার + ক্রেতার নাম) |
+| `request` (pending) | ক্রেতা | "আপনার পেমেন্ট পৌঁছেছে, যাচাই চলছে" |
+| `request` (পুরোটা wallet credit-এ) | Admin-রা | "অমুক অমুক plan কিনেছেন — wallet credit-এ, চালু" |
+| `approve` | ক্রেতা | "আপনার plan চালু, … পর্যন্ত" |
+| `reject` | ক্রেতা | কারণ (Admin-এর note, না থাকলে সাধারণ কথা) + wallet credit ফেরতের কথা |
+| `refund` | ক্রেতা | plan শেষ, টাকা ফেরত + wallet credit ফেরতের কথা |
+
+- **কোন Admin-রা:** Admin সেটিংসের "Admin-দের নোটিফিকেশন" অংশে প্রতিটা ধরনের জন্য বাছা যায় (`admin_notification_recipients`); কাউকে না বাছলে সব সক্রিয় Admin ও Super Admin।
+- **ভাষা:** প্রতিটা নোটিফিকেশন প্রাপকের প্যানেলের ভাষায় লেখা হয় (Admin ইংরেজি, Teacher/Student বাংলা — `UserRole::defaultLocale()`), কারণ লেখাটা সেভ হয়ে থাকে। লিংক path হিসেবে সেভ, তাই ডোমেইন বদলালেও চলে।
+- **সাথে সাথে পাঠানো** (`notifyNow`) — queue worker ছাড়াই পৌঁছায়।
+- বেল চার প্যানেলেই (`PanelDefaults`), প্রতি ৬০ সেকেন্ডে নতুনটা খোঁজে।
+- কোড: পাঠানোর একমাত্র পথ `App\Services\BellNotifier` (`toUser()`, `toAdmins()`); কেনার লেখাগুলো `App\Services\PurchaseNotifications`; Admin-এর ধরনের তালিকা `App\Enums\AdminNotificationTopic` (নতুন ধরন = একটা case)। টেস্ট: `PurchaseNotificationsTest`।
+
 Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `SubscriptionResource`, `SubscriptionPlanResource`।
 
 ## Referral

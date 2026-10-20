@@ -3,15 +3,18 @@
 namespace App\Filament\Support\RelationManagers;
 
 use App\Enums\QuestionType;
+use App\Filament\Support\DuplicateQuestionCheck;
 use App\Filament\Support\EditorModePreference;
 use App\Filament\Support\QuestionJsonImportAction;
 use App\Models\BoardQuestionPaper;
+use App\Services\DuplicateMatch;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
@@ -84,7 +87,10 @@ abstract class PaperQuestionsRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        return $schema->components($this->formComponents());
+        return $schema->components([
+            ...$this->formComponents(),
+            DuplicateQuestionCheck::field(fn (Get $get, ?Model $record): ?DuplicateMatch => DuplicateQuestionCheck::onPaper($this->paper(), $this->questionType(), $get, $record)),
+        ]);
     }
 
     public function isReadOnly(): bool

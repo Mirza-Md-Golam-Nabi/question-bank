@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Enums\QuestionStatus;
+use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\Concerns\HasApprovalStatus;
 use App\Observers\BoardQuestionPaperObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -86,6 +88,20 @@ class BoardQuestionPaper extends Model
     public function cqQuestions(): HasMany
     {
         return $this->hasMany(BoardCqQuestion::class)->orderBy('order_index')->orderBy('id');
+    }
+
+    /**
+     * What a question of one of this paper's lists is checked against for
+     * duplicates (DuplicateQuestionFinder): that list, with what the check
+     * reads.
+     *
+     * @return Collection<int, BoardMcqQuestion|BoardCqQuestion>
+     */
+    public function duplicateCandidates(QuestionType $type): Collection
+    {
+        return $type === QuestionType::Mcq
+            ? $this->mcqQuestions()->get()
+            : $this->cqQuestions()->with('cqParts')->get();
     }
 
     /**

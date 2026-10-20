@@ -7,9 +7,11 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasAvatar;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,7 +23,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'phone', 'password', 'google_id', 'avatar', 'role', 'status', 'academic_class_id'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable implements FilamentUser, HasAvatar
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
@@ -48,6 +50,23 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->role->panelId() === $panel->getId()
             && $this->status !== UserStatus::PermanentSuspend;
+    }
+
+    /**
+     * The Admins and the Super Admin.
+     */
+    public function scopeAdmins(Builder $query): Builder
+    {
+        return $query->whereIn('role', array_filter(UserRole::cases(), fn (UserRole $role): bool => $role->isAdmin()));
+    }
+
+    /**
+     * The Google profile photo, saved at each Google sign-in — what every
+     * panel's user menu shows. Without one (an Admin), Filament's initials.
+     */
+    public function getFilamentAvatarUrl(): ?string
+    {
+        return $this->avatar ?: null;
     }
 
     public function isSuspended(): bool

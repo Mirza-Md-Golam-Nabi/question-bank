@@ -416,6 +416,7 @@ livewire(ListUsers::class)
 4.1. **MCQ-তে ঐচ্ছিক ব্যাখ্যা** (`explanation`; প্রশ্নভাণ্ডার ও প্রশ্নপত্র দুটোতেই, CQ-তে না)। দেখায় **শুধু যেখানে সঠিক উত্তর দেখায়** — self-practice-এর ফলাফল, Teacher-এর পরীক্ষায় উত্তর প্রকাশের পর (`Exam::showsAnswersToStudents()`), প্রিন্টের "উত্তরসহ" কপি; পরীক্ষা চলার সময় কখনো না।
 5. **উদ্দীপকভিত্তিক MCQ** (অভিন্ন তথ্যভিত্তিক): একটা উদ্দীপক (লেখা/ছবি) আর তার নিচে ২–৬টা MCQ। প্রতিটা MCQ আগের মতোই পূর্ণ প্রশ্ন (নিজের গ্রেডিং, difficulty, সংস্করণ), শুধু `stimulus_id` + `stimulus_order` জানে — প্রশ্নভাণ্ডারে `question_stimuli`, প্রশ্নপত্রে `board_mcq_stimuli`। গ্রুপ একসাথে approve/reject হয় (`Question::approve()`), approved গ্রুপ এডিট করলে পুরো গ্রুপের নতুন সংস্করণ (`StimulusGroupService`); গ্রুপের প্রশ্ন একা এডিট হয় না। Teacher গ্রুপের যেকোনো কয়টা প্রশ্ন নিতে পারেন; Auto-Generate-এ একটা প্রশ্ন উঠলে উদ্দীপকসহ শুধু সেটাই আসে। "নিচের উদ্দীপকটি পড়ে ৫ ও ৬ নম্বর প্রশ্নের উত্তর দাও" কখনো লেখায় থাকে না — প্রতিবার ক্রম দেখে বসে, আর গ্রুপের প্রশ্ন সবসময় পাশাপাশি (এলোমেলো করার সময়ও এক ব্লক) — সব শুধু `QuestionBlocks`-এ। Staff প্রতিটা MCQ-র জন্য আলাদা প্রশ্ন হিসেবে টাকা পান।
 6. `academic_classes`/`subjects`/`class_subjects`/`chapters` — সবগুলো Admin-only reference data (`created_by` নেই, Teacher/Staff শুধু select করবে, নিজে তৈরি করতে পারবে না)।
+7. **ডুপ্লিকেট প্রশ্ন:** নতুন প্রশ্ন মেলানো হয় একই অধ্যায়ের (প্রশ্নপত্রে একই পেপারের) সেই প্রশ্নগুলোর সাথে যা user দেখতে পান। হুবহু একই (লেখা + অপশনের সেট, যতিচিহ্ন/ফাঁকা/অঙ্কের রূপ বাদে) কখনো যোগ হয় না; লেখা ও অপশন দুটোই Admin-এর % (`BillingSetting.duplicate_similarity_percent`) মিললে "সম্ভাব্য ডুপ্লিকেট" — নিজে থেকে বাদ না, যিনি যোগ করছেন তিনি বাছেন (JSON-এ টিক/"Accept all", ফর্মে "তবুও সেভ করুন"); Admin approve-এর সময় দেখেন। সংখ্যা, সূত্র বা না-বাচক শব্দ আলাদা হলে কখনো ডুপ্লিকেট না। বিচার শুধু `DuplicateQuestionFinder`-এ।
 
 ### ৪. Versioning (Approved প্রশ্ন এডিট)
 - একই `questions` টেবিলে `parent_id`, `version`, `is_latest` কলাম দিয়ে versioning।
@@ -632,7 +633,9 @@ CLAUDE.md
 | প্রশ্ন তৈরি/এডিট পেজ (সব প্যানেল) | `Support\Pages\Questions\CreateQuestionPage`, `EditQuestionPage` |
 | উদ্দীপকভিত্তিক MCQ: সাজানো, নম্বর, "… নম্বর প্রশ্নের উত্তর দাও" শিরোনাম, পরীক্ষায় এক ব্লকে এলোমেলো | `Support\QuestionBlocks` (`units()`, `arrange()`, `blocks()`, `heading()`); দেখানো `<x-question-stimulus>` |
 | উদ্দীপক + তার MCQ লেখার ফর্ম ও বাটন (প্রশ্নভাণ্ডার ও প্রশ্নপত্র) | `Support\StimulusGroupForm`; প্রশ্নভাণ্ডারের বাটন `Support\StimulusGroupActions`, সেভ ও সংস্করণ `App\Services\StimulusGroupService`; প্রশ্নপত্রে `PaperMcqQuestionsRelationManager`; গ্রুপের আকার `QuestionStimulus::MIN_QUESTIONS`/`MAX_QUESTIONS` |
-| JSON-এর প্রশ্ন বানানো ও সেভ (উদ্দীপক আগে, ডুপ্লিকেট বাদ) — দুই importer-এর অভিন্ন অংশ | `App\Services\ImportedQuestions` |
+| JSON-এর প্রশ্ন বানানো ও সেভ (উদ্দীপক আগে, ডুপ্লিকেট বাদ, ছবির নাম যাচাই) — দুই importer-এর অভিন্ন অংশ | `App\Services\ImportedQuestions` |
+| JSON-এর সাথে দেওয়া ছবি (ZIP/ফাইল খোলা, যাচাই, সীমা, অস্থায়ী রাখা, সেভের সময় কপি, না-নেওয়া ছবির তালিকা) | `App\Services\ImportedImages` (একমাত্র জায়গা); সীমা `BillingSetting.question_import_image_max_kb` / `question_import_images_max_mb` |
+| ডুপ্লিকেট প্রশ্ন: হুবহু/সম্ভাব্য বিচার; ফর্মের "তবুও সেভ করুন"; কার সাথে মেলানো হবে; দেখানো | `App\Services\DuplicateQuestionFinder` (+ `DuplicateMatch`); ফর্ম ও approve `Support\DuplicateQuestionCheck`; অধ্যায়ের প্রশ্ন `Question::scopeDuplicateCandidatesIn()`, পেপারের `BoardQuestionPaper::duplicateCandidates()`; `<x-question-duplicate>` |
 | প্রশ্ন লেখার ফর্মের অংশ (এডিটর বাছাই + লেখা + ছবি + preview, MCQ অপশন ও ব্যাখ্যা, CQ অংশ) — প্রশ্নভাণ্ডার ও বিগত সালের প্রশ্নপত্র দুটোতেই | `Support\QuestionFormSchema::textImageAndPreview()`, `editorModeRadio()`, `mcqComponents()`, `cqComponents()`; পেপারের জন্য `Support\PaperQuestionForms` |
 | অপশন/CQ অংশ ফর্ম ↔ ডেটাবেজে রূপান্তর | `Support\QuestionFormData`; এডিটর পছন্দ মনে রাখা `EditorModePreference::rememberFromForm()` |
 | Admin কি না | `UserRole::isAdmin()` |
@@ -644,6 +647,7 @@ CLAUDE.md
 | সাধারণ (Filament-টেবিল নয় এমন) টেবিল | `<x-data-table :columns>` — স্টাইল `qb-data-table` (question-display.css) |
 | রেফারেল পুরস্কারের তালিকা | `<x-referral-rewards-table>`, `User::recentReferralRewards()` |
 | Service কিছু আটকালে লাল notification (try/catch লিখবেন না) | `Support\Concerns\NotifiesValidationFailures::rescueWithNotification()` |
+| বেলে নোটিফিকেশন পাঠানো (কাকে, প্রাপকের ভাষায়, queue ছাড়া) — নতুন যেকোনো নোটিফিকেশনও এখান দিয়ে | `App\Services\BellNotifier` (`toUser()`, `toAdmins()`); কোন Admin-রা পাবেন `AdminNotificationTopic` + `BillingSetting::adminsToNotify()`; কেনার লেখা `App\Services\PurchaseNotifications`; প্যানেলের ভাষা `UserRole::defaultLocale()`; Admin-রা `User::scopeAdmins()` |
 | MCQ অপশনের ফিল্ড + "একটাই সঠিক উত্তর" নিয়ম | `Support\McqOptionsSchema` |
 | প্রশ্নের ফর্ম / টেবিল / View | `Support\QuestionFormSchema`, `QuestionsTable`, `QuestionInfolist` |
 | JSON পেস্ট করে একসাথে অনেক প্রশ্ন যোগ — অধ্যায়ে (Teacher/Admin; Staff না) ও বিগত সালের প্রশ্নপত্রে (Admin; Staff শুধু Admin চালু করলে — `BillingSetting.staff_paper_import_enabled`) | JSON পড়া, যাচাই ও format/sample-এর একমাত্র জায়গা `App\Services\QuestionJsonReader` (+ `QuestionImportText`, গণিত `$...$` → KaTeX embed); প্রশ্ন বানায় `QuestionJsonImporter` (অধ্যায়) ও `PastPaperJsonImporter` (প্রশ্নপত্র); বাটন ও পপআপ `Support\QuestionJsonImportAction` (`make()`, `forPastPaper()`); অনুমতি `QuestionPolicy::import()`, `BoardQuestionPaperPolicy::import()`; একবারের সীমা `BillingSetting.question_import_max` (দুই জায়গাতেই) |
@@ -654,7 +658,8 @@ CLAUDE.md
 | টেবিলের edit/delete/bulk-delete অ্যাকশন | `Support\TableActions` |
 | ফর্মে "কোন user" সিলেক্ট | `Support\UserSelect` |
 | নাম + ক্রমসহ আইটেম (class/chapter/topic) যোগ-এডিট-ডিলিট | `Support\Concerns\ManagesOrderedItems` |
-| Browse পেজ (class/subject/chapter) ও কার্ড | `Support\Pages\Questions\Browse*Page`, `<x-browse.grid>`, `<x-browse.card>`, `<x-browse.meta>`, `<x-browse.edit-delete-menu>` |
+| Browse পেজ (class/subject/chapter) ও কার্ড; ব্রাউজারে কার্ড খোঁজা | `Support\Pages\Questions\Browse*Page`, `<x-browse.grid>` (`searchable`), `<x-browse.card>` (`search`), `<x-browse.meta>`, `<x-browse.edit-delete-menu>` |
+| বিষয়ের নাম চলতি ভাষায় | `Subject::display_name` (সংক্ষিপ্ত `short_label`) |
 | কার্ডের রঙের palette | `Support\CardPalette` |
 | Dashboard-এর stat কার্ড, "Recent questions" | `Support\Widgets\DashboardStat`, `RecentQuestionsWidget` |
 | Self-practice পেজ (নিজের শ্রেণির বিষয় + শুরু) | `Support\Pages\SelfPracticeExamPage` |
@@ -672,6 +677,9 @@ CLAUDE.md
 | শেয়ার-লিংকের exam খোঁজা, লিংক সচল কি না | `Exam::findPublishedByShareToken()`, `isAcceptingAttempts()` |
 | একটা শ্রেণির subject-এর approved প্রশ্ন | `Question::scopeOfClassSubject()`, `approvedOptionsForClassSubject()` |
 | পড়ার জন্য প্রশ্ন দেখানো (অপশন/CQ অংশ) | `filament.support.questions.question-body`, `Support\QuestionDisplay` |
+| প্রশ্ন/উদ্দীপক/অপশন/CQ অংশের ছবি (সব জায়গায়, সীমিত আকারে) | `<x-question-image :path>` (`option` দিলে ছোট) |
+| পড়ার জন্য প্রশ্নের তালিকা (MCQ উদ্দীপকসহ, তারপর CQ, উত্তর ও ব্যাখ্যাসহ) — প্রশ্নপত্র পড়া, Teacher-এর পরীক্ষা দেখা | `filament.support.questions.question-list`; Teacher-এর বাটন `ExamsTable::viewQuestionsAction()` |
+| MCQ-র উত্তর কী হিসেবে জমা হয় ও কোনটা সঠিক (শুধু-ছবির অপশনও) — খাতা, গ্রেডিং, ফলাফল | `Models\Concerns\HasMcqOptions` (`answerValueOf()`, `correctAnswerValue()`) |
 | পরীক্ষার খাতা (শিরোনাম + নাম + ঘড়ি + প্রশ্ন + সতর্কবার্তা) — Guest ও লগইন করা student হুবহু একই দেখে | `<x-exam-paper>`, `<x-exam-heading>`, `<x-exam-participant>`, `<x-exam-timer>`, `<x-exam-submit-warning>`, `resources/js/exam-timer.js` |
 | ফলাফল | `<x-exam-result>`, `<x-exam-result-question>` |
 | পরীক্ষার ফলাফল-তালিকা ও পজিশন (Teacher) | `App\Services\ExamResultSheet` (র‍্যাংকিং-এর একমাত্র জায়গা), `teacher.partials.result-sheet-table` |

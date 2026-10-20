@@ -27,6 +27,7 @@ class StimulusGroupActions
             Action::make('createStimulusGroup'),
             creating: true,
             imageDirectory: 'questions',
+            duplicates: DuplicateQuestionCheck::inChapterGroup(...),
             groupFields: static::groupFields($chapter->id),
             questionFields: static::questionFields(),
         )
@@ -49,6 +50,7 @@ class StimulusGroupActions
             Action::make('editStimulusGroup'),
             creating: false,
             imageDirectory: 'questions',
+            duplicates: DuplicateQuestionCheck::inChapterGroup(...),
             groupFields: static::groupFields(),
             questionFields: static::questionFields(),
         )

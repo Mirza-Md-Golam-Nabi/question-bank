@@ -50,6 +50,7 @@ class TeacherRecentExamsWidget extends TableWidget
             // The same two buttons as on the exams list, side by side:
             // straight to the results, and copy the share link.
             ->recordActions([
+                ExamsTable::viewQuestionsAction(),
                 ExamsTable::resultsAction(),
                 ExamsTable::copyShareLinkAction(),
             ]);

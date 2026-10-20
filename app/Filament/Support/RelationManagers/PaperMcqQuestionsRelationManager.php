@@ -3,13 +3,16 @@
 namespace App\Filament\Support\RelationManagers;
 
 use App\Enums\QuestionType;
+use App\Filament\Support\DuplicateQuestionCheck;
 use App\Filament\Support\PaperQuestionForms;
 use App\Filament\Support\QuestionFormData;
 use App\Filament\Support\StimulusGroupForm;
 use App\Models\BoardMcqQuestion;
 use App\Models\BoardMcqStimulus;
+use App\Services\DuplicateMatch;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -59,6 +62,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 Action::make('createStimulusGroup'),
                 creating: true,
                 imageDirectory: 'board-mcq',
+                duplicates: fn (Get $get, ?Model $record): ?DuplicateMatch => DuplicateQuestionCheck::onPaperGroup($this->paper(), $get, $record),
             )
                 ->color('gray')
                 ->visible(fn (): bool => ! $this->isReadOnly())
@@ -73,6 +77,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 Action::make('editStimulusGroup'),
                 creating: false,
                 imageDirectory: 'board-mcq',
+                duplicates: fn (Get $get, ?Model $record): ?DuplicateMatch => DuplicateQuestionCheck::onPaperGroup($this->paper(), $get, $record),
             )
                 ->iconButton()
                 ->tooltip(__('Edit stimulus'))

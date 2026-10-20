@@ -10,7 +10,7 @@ use App\Models\Question;
 use App\Models\QuestionCqPart;
 use App\Models\QuestionStimulus;
 use App\Models\Topic;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -36,14 +36,19 @@ class QuestionJsonImporter
     public const ERROR_KEY = QuestionJsonReader::ERROR_KEY;
 
     /**
+     * Where the images of imported questions are kept.
+     */
+    public const IMAGE_DIRECTORY = 'questions';
+
+    /**
      * The JSON as the questions it describes — built but not saved, which is
-     * also what the preview shows.
+     * also what the preview shows — with the images given with it.
      *
      * @return Collection<int, Question>
      *
      * @throws ValidationException listing every problem found
      */
-    public function parse(string $json, Chapter $chapter, int|string|null $topicId, Difficulty $defaultDifficulty): Collection
+    public function parse(string $json, Chapter $chapter, int|string|null $topicId, Difficulty $defaultDifficulty, ?ImportedImages $images = null): Collection
     {
         $items = self::reader()->read($json);
 
@@ -54,54 +59,68 @@ class QuestionJsonImporter
         return ImportedQuestions::build(
             $items,
             fn (array $item): Question => $this->build($item, $chapter, $topicId, $defaultDifficulty),
-            fn (string $text): QuestionStimulus => new QuestionStimulus([
+            fn (string $text, ?string $image): QuestionStimulus => new QuestionStimulus([
                 'chapter_id' => $chapter->id,
                 'text' => $text,
+                'image' => $image,
                 'editor_mode' => EditorMode::CkEditor,
                 'created_by' => Auth::id(),
             ]),
+            $images ?? ImportedImages::none(),
         );
     }
 
     /**
-     * Saves the questions of the JSON as the signed-in user's own. A
-     * question that user can already see in this chapter — or that is in
-     * the JSON twice — is left out rather than added again (a stimulus's
-     * questions only when all of them are).
+     * Which of the built questions duplicate a question the signed-in user
+     * can already see in this chapter, or one earlier in the JSON (see
+     * ImportedQuestions::duplicates()).
      *
-     * @return array{added: int, skipped: int}
+     * @param  Collection<int, Question>  $questions  What parse() built.
+     * @return array<int, DuplicateMatch>
+     */
+    public function duplicates(Collection $questions, Chapter $chapter): array
+    {
+        return ImportedQuestions::duplicates(
+            $questions,
+            Question::query()->duplicateCandidatesIn($chapter->id, Auth::user())->get(),
+            DuplicateQuestionFinder::make(),
+        );
+    }
+
+    /**
+     * Saves the questions of the JSON as the signed-in user's own. One
+     * already there as it is is left out; a possible duplicate only added
+     * when the user accepted it — a stimulus's questions always together.
+     *
+     * @param  array<int, int>  $accepted  The possible duplicates to add anyway, by the place of their (unit's first) question.
+     * @return array{added: int, skipped: int, possible_duplicates: int}
      *
      * @throws ValidationException
      */
-    public function import(string $json, Chapter $chapter, int|string|null $topicId, Difficulty $defaultDifficulty): array
+    public function import(string $json, Chapter $chapter, int|string|null $topicId, Difficulty $defaultDifficulty, array $accepted = [], ?ImportedImages $images = null): array
     {
         Gate::authorize('import', Question::class);
 
-        $questions = $this->parse($json, $chapter, $topicId, $defaultDifficulty);
-        $author = Auth::user();
+        $images ??= ImportedImages::none();
+        $questions = $this->parse($json, $chapter, $topicId, $defaultDifficulty, $images);
+        $matches = $this->duplicates($questions, $chapter);
 
-        $alreadyThere = Question::query()
-            ->where('chapter_id', $chapter->id)
-            ->where(fn (Builder $query) => $query->visibleTo($author))
-            ->whereIn('question_text', $questions->pluck('question_text'))
-            ->pluck('question_text')
-            ->flip();
-
-        $added = DB::transaction(fn (): int => ImportedQuestions::save($questions, $alreadyThere, function (Question $question): void {
+        $result = DB::transaction(fn (): array => ImportedQuestions::save($questions, $matches, $accepted, function (Question $question): void {
             $parts = $question->cqParts;
             $question->unsetRelation('cqParts');
             $question->save();
             $question->cqParts()->saveMany($parts);
-        }));
+        }, fn (Model $model) => $images->publish($model, self::IMAGE_DIRECTORY)));
+
+        $images->discard();
 
         Log::info('Questions imported from JSON.', [
-            'imported_by' => $author->id,
+            'imported_by' => Auth::id(),
             'chapter_id' => $chapter->id,
-            'added' => $added,
-            'skipped' => $questions->count() - $added,
+            ...$result,
         ]);
 
-        return ['added' => $added, 'skipped' => $questions->count() - $added];
+        return $result;
     }
 
     /**
@@ -142,6 +161,7 @@ class QuestionJsonImporter
             // The formulas are CKEditor's kind of content, so that is the
             // editor the question opens in when it is edited later.
             'editor_mode' => EditorMode::CkEditor,
+            'question_image' => $item['image'],
             'difficulty' => $item['difficulty'] ?? $defaultDifficulty,
         ]);
 

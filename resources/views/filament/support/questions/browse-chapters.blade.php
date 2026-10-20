@@ -4,6 +4,7 @@
 
 <x-filament-panels::page>
     <x-browse.grid
+        searchable
         :back-url="$this->getResource()::getUrl('subjects', ['class' => $this->class->id])"
         :back-label="__('Back to :name', ['name' => $this->class->name])"
         :is-empty="$chapters->isEmpty()"

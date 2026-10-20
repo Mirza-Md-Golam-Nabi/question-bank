@@ -118,6 +118,38 @@ class StudentMistakeTracker
     }
 
     /**
+     * The questions a student has had on a paper that fed their mistakes
+     * list (answered or left blank — a blank is a mistake too): what their
+     * mistakes in a chapter are a share of. Read like practisableQuestions():
+     * the current approved MCQ of each, matched across versions.
+     *
+     * @param  Builder<Question>|null  $questions
+     * @return Builder<Question>
+     */
+    public function questionsSat(User $student, ?Builder $questions = null): Builder
+    {
+        return ($questions ?? Question::query())
+            ->approvedPool()
+            ->where('questions.question_type', QuestionType::Mcq)
+            ->whereExists(fn (QueryBuilder $sat) => $sat
+                ->from('exam_attempts as attempt')
+                ->join('exam_questions as on_paper', 'on_paper.exam_id', '=', 'attempt.exam_id')
+                ->join('questions as asked', 'asked.id', '=', 'on_paper.question_id')
+                ->where('attempt.student_id', $student->id)
+                ->whereNotNull('attempt.statistics_recorded_at')
+                ->whereRaw('coalesce(asked.parent_id, asked.id) = coalesce(questions.parent_id, questions.id)'));
+    }
+
+    /**
+     * How large a share of the questions sat the mistakes are, in whole
+     * percent: 3 mistakes of 5 questions is 60.
+     */
+    public static function mistakePercent(int $mistakes, int $sat): int
+    {
+        return $sat > 0 ? (int) min(100, round($mistakes / $sat * 100)) : 0;
+    }
+
+    /**
      * How many practisable mistakes the student has in each subject of a
      * class — what the practice page offers to choose from.
      *

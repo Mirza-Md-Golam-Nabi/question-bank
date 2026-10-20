@@ -41,7 +41,7 @@ class BrowseTopics extends Page
 
     public function getTitle(): string|Htmlable
     {
-        return "{$this->class->name} · {$this->classSubject->subject->name} · {$this->chapter->name} — ".__('Topics');
+        return "{$this->class->name} · {$this->classSubject->subject->display_name} · {$this->chapter->name} — ".__('Topics');
     }
 
     protected function getHeaderActions(): array

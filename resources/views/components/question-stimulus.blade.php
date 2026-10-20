@@ -9,9 +9,6 @@
      * @var \App\Models\QuestionStimulus|\App\Models\BoardMcqStimulus $stimulus
      * @var string|null $heading  Null where the questions aren't numbered (a question card).
      */
-    use App\Filament\Support\QuestionDisplay;
-
-    $imageUrl = QuestionDisplay::imageUrl($stimulus->image);
 @endphp
 
 <div {{ $attributes->class('qb-question-stimulus') }}>
@@ -21,7 +18,5 @@
 
     <div class="qb-question-text">{!! $stimulus->text !!}</div>
 
-    @if ($imageUrl)
-        <img src="{{ $imageUrl }}" alt="" class="qb-question-image" loading="lazy">
-    @endif
+    <x-question-image :path="$stimulus->image" />
 </div>

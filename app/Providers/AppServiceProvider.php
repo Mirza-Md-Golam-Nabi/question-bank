@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Http\Responses\LogoutResponse;
+use App\Services\ImportedImages;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
 use Filament\Actions\Action;
@@ -35,6 +36,18 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->translateFilamentLabels();
         $this->registerLanguageSwitcher();
+        $this->allowImportImageUploads();
+    }
+
+    /**
+     * Livewire takes uploads of up to 12 MB on its own; a ZIP of a JSON
+     * import's images may be bigger. This is only the technical ceiling —
+     * how much an import may really carry is the Admin's setting, checked
+     * by ImportedImages.
+     */
+    protected function allowImportImageUploads(): void
+    {
+        config(['livewire.temporary_file_upload.rules' => ['required', 'file', 'max:'.ImportedImages::UPLOAD_CEILING_KB]]);
     }
 
     /**

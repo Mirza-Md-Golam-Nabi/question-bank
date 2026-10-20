@@ -16,8 +16,9 @@ use Filament\Schemas\Components\Section;
 /**
  * Read-only display for the "View" row action on every panel's Questions
  * table — shows the resolved chain (class/subject/chapter/topic), which
- * editor authored the question, the rendered question text/image, and the
- * MCQ options or CQ parts depending on question_type.
+ * editor authored the question, the shared stimulus of a group's question,
+ * the rendered question text/image, and the MCQ options with the
+ * explanation, or the CQ parts, depending on question_type.
  */
 class QuestionInfolist
 {
@@ -46,6 +47,18 @@ class QuestionInfolist
                     ->color(fn (EditorMode $state) => $state === EditorMode::CkEditor ? 'warning' : 'info'),
             ]),
 
+            // The stimulus a question of a group shares with the others.
+            TextEntry::make('stimulus.text')
+                ->label(__('Stimulus'))
+                ->html()
+                ->visible(fn (Question $record) => $record->stimulus_id !== null)
+                ->columnSpanFull(),
+
+            ImageEntry::make('stimulus.image')
+                ->hiddenLabel()
+                ->visible(fn (Question $record) => filled($record->stimulus?->image))
+                ->columnSpanFull(),
+
             TextEntry::make('question_text')
                 ->label(fn (Question $record) => $record->question_type === QuestionType::Cq ? __('Stimulus') : __('Question text'))
                 ->html()
@@ -71,6 +84,12 @@ class QuestionInfolist
                                 ->color('success'),
                         ])
                         ->grid(4)
+                        ->columnSpanFull(),
+
+                    TextEntry::make('explanation')
+                        ->label(__('Explanation'))
+                        ->html()
+                        ->placeholder(__('No explanation'))
                         ->columnSpanFull(),
                 ]),
 

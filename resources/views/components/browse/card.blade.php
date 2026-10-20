@@ -5,6 +5,7 @@
     'icon',
     'href' => null,
     'menu' => null,
+    'search' => null,
 ])
 
 @php
@@ -15,11 +16,18 @@
      *
      * Cards cycle through the app's shared palette; `paletteOffset` just
      * starts each level of the browser on a different colour.
+     *
+     * `search` is what the grid's search box matches the card on (all its
+     * names) — the title when not given.
      */
     $gradient = \App\Filament\Support\CardPalette::gradient($index, $paletteOffset);
 @endphp
 
-<div class="group relative flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-gray-900">
+<div
+    data-browse-search="{{ $search ?? $title }}"
+    x-show="matches($el.dataset.browseSearch)"
+    class="group relative flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-gray-900"
+>
     @if ($href)
         <a href="{{ $href }}" wire:navigate class="absolute inset-0 z-0" aria-label="{{ $title }}"></a>
     @endif

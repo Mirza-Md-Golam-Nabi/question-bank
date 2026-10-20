@@ -3,15 +3,18 @@
 use App\Enums\ExamDeliveryMode;
 use App\Filament\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Resources\Questions\Pages\EditQuestion;
+use App\Filament\Resources\Questions\Pages\ListQuestions;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
 use App\Models\Question;
+use App\Models\QuestionStimulus;
 use App\Models\User;
 use App\Services\SelfPracticeExamService;
 use App\Services\StimulusGroupService;
 use App\Services\TeacherExamBuilder;
 use Database\Seeders\RoleSeeder;
+use Filament\Actions\Testing\TestAction;
 
 use function Pest\Livewire\livewire;
 
@@ -120,6 +123,22 @@ describe('writing it', function () {
         expect($revised->questions->first()->explanation)->toBe('<p>সংশোধিত ব্যাখ্যা।</p>')
             ->and($stimulus->questions->first()->fresh()->explanation)->toBe('<p>প্রথমটির ব্যাখ্যা।</p>');
     });
+});
+
+it('shows the explanation, and a group question\'s stimulus, in the "View question" window', function () {
+    $this->actingAs($this->admin);
+    $stimulus = QuestionStimulus::factory()->create(['chapter_id' => $this->chapter->id, 'text' => '<p>একটি বর্তনী।</p>']);
+    $explained = ($this->explained)(['stimulus_id' => $stimulus->id, 'stimulus_order' => 1]);
+    $plain = ($this->explained)(['explanation' => null, 'question_text' => '<p>Another question?</p>']);
+
+    livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+        ->mountAction(TestAction::make('view')->table($explained))
+        ->assertMountedActionModalSee(['Because two and two make four.', 'একটি বর্তনী।']);
+
+    livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+        ->mountAction(TestAction::make('view')->table($plain))
+        ->assertMountedActionModalSee('No explanation')
+        ->assertMountedActionModalDontSee('একটি বর্তনী।');
 });
 
 describe('showing it only beside the correct answer', function () {

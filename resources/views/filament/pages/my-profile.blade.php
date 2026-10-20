@@ -7,8 +7,15 @@
     @endphp
 
     <x-filament::section :heading="__('My details')">
-        <p class="text-sm"><span class="text-gray-500">{{ __('Name') }}:</span> {{ $user->name }}</p>
-        <p class="mb-4 text-sm"><span class="text-gray-500">{{ __('Email') }}:</span> {{ $user->email }}</p>
+        <div class="mb-4 flex items-center gap-4">
+            {{-- The Google photo, or the initials Filament makes from the name. --}}
+            <x-filament-panels::avatar.user :user="$user" size="w-16 h-16" referrerpolicy="no-referrer" />
+
+            <div>
+                <p class="text-sm"><span class="text-gray-500">{{ __('Name') }}:</span> {{ $user->name }}</p>
+                <p class="text-sm"><span class="text-gray-500">{{ __('Email') }}:</span> {{ $user->email }}</p>
+            </div>
+        </div>
 
         @if ($studentReferral)
             <div class="mb-4 rounded-lg border border-gray-200 p-3 text-sm dark:border-white/10">

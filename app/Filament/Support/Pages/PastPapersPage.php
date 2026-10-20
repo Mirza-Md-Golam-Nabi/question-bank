@@ -145,7 +145,7 @@ abstract class PastPapersPage extends Page implements HasTable
             ->modalWidth(Width::FiveExtraLarge)
             ->modalSubmitAction(false)
             ->modalCancelActionLabel(__('Close'))
-            ->modalContent(fn (BoardQuestionPaper $record): View => view('filament.pages.partials.past-paper', [
+            ->modalContent(fn (BoardQuestionPaper $record): View => view('filament.support.questions.question-list', [
                 'mcqQuestions' => $withMcqs ? $record->mcqQuestions : collect(),
                 'cqQuestions' => $record->cqQuestions()->with('cqParts')->get(),
             ]));

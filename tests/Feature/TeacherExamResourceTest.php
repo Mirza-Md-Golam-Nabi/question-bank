@@ -97,6 +97,24 @@ it('offers a copy-share-link icon only for an exam that has a share link', funct
     expect($draft->shareUrl())->toBeNull();
 });
 
+it('shows an online exam\'s questions, with the right answer and explanation, from the eye button', function () {
+    $exam = Exam::factory()->published()->create(['created_by' => $this->teacher->id, 'delivery_mode' => ExamDeliveryMode::Online]);
+    $question = Question::factory()->for(Chapter::factory())->approved()->create([
+        'question_text' => '<p>Which is a vector?</p>',
+        'options' => [
+            ['option' => '<p>Velocity</p>', 'image' => null, 'is_correct' => true],
+            ['option' => '<p>Speed</p>', 'image' => null, 'is_correct' => false],
+        ],
+        'explanation' => '<p>It has a direction.</p>',
+    ]);
+    $exam->questions()->attach($question->id, ['order_index' => 1, 'marks_override' => null]);
+
+    livewire(ListExams::class)
+        ->assertTableActionVisible('viewQuestions', $exam)
+        ->mountTableAction('viewQuestions', $exam)
+        ->assertMountedActionModalSee(['Which is a vector?', 'Velocity', 'It has a direction.']);
+});
+
 describe('exam end time', function () {
     beforeEach(function () {
         $this->freezeTime();

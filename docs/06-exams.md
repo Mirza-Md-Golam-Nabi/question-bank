@@ -62,6 +62,7 @@ CQ কখনো অনলাইনে নেওয়া হয় না, ক�
 | Publish | status `published` করে; প্রথমবার ৩২ অক্ষরের `share_token` তৈরি হয় |
 | Copy share link | লিংক কপি |
 | Set end time | `link_expires_at` — এর পর লিংক নতুন attempt নেয় না |
+| View questions (চোখের আইকন) | পরীক্ষার সব প্রশ্ন একটা জানালায় — ছবি, উদ্দীপক, সঠিক উত্তর ও ব্যাখ্যাসহ; যেকোনো ধরনের পরীক্ষায় (অনলাইন পরীক্ষার প্রিন্ট নেই বলে এটাই দেখার পথ); Dashboard-এর "সাম্প্রতিক পরীক্ষা"-তেও। লেখা `filament.support.questions.question-list` (বিগত সালের প্রশ্নপত্র পড়ার জানালাও এটাই) |
 | Results | ফলাফল-তালিকা |
 | Release answers / Schedule answers / Hide answers | উত্তর প্রকাশ (নিচে) |
 | Print | প্রিন্টের পেজ |
@@ -101,7 +102,7 @@ Guest ও লগইন করা student হুবহু একই খাতা 
 
 `ExamAttempt::submitAndAutoGrade()`:
 
-1. প্রতিটা MCQ উত্তর সঠিক অপশনের সাথে মিলিয়ে `is_correct` ও `obtained_marks` বসে। **নেগেটিভ মার্কিং** থাকলে (`exams.negative_marks`) ভুল উত্তরে ততটা কাটা যায় (`obtained_marks` ঋণাত্মক); ফাঁকা উত্তরে কিছু কাটে না।
+1. প্রতিটা MCQ উত্তর সঠিক অপশনের সাথে মিলিয়ে `is_correct` ও `obtained_marks` বসে। উত্তর হিসেবে জমা থাকে অপশনের লেখা; শুধু-ছবির অপশনে (লেখা নেই) তার ছবির পথ — এই নিয়ম এক জায়গায় (`Concerns\HasMcqOptions::answerValueOf()`, `correctAnswerValue()`), খাতা, গ্রেডিং ও ফলাফল সবাই সেটাই পড়ে। **নেগেটিভ মার্কিং** থাকলে (`exams.negative_marks`) ভুল উত্তরে ততটা কাটা যায় (`obtained_marks` ঋণাত্মক); ফাঁকা উত্তরে কিছু কাটে না।
 2. `total_score` = প্রাপ্ত নম্বরের যোগফল, কখনো ০-এর নিচে না; status `submitted`।
 3. `QuestionDifficultyTracker` — প্রশ্নের difficulty-র গণনা (শুধু Teacher-এর পরীক্ষা)।
 4. `recordStatistics()` — student-এর ভুলের তালিকা আর Teacher-এর পরিসংখ্যান।

@@ -2,10 +2,13 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\AdminNotificationTopic;
 use App\Enums\PaperSourceType;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\BillingSetting;
+use App\Models\User;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -160,6 +163,23 @@ class BillingSettings extends Page
                             ->columnSpan(2),
                     ]),
 
+                // Which Admins hear of what, one line per kind of
+                // notification (AdminNotificationTopic).
+                Section::make(__('Notifications for Admins'))
+                    ->description(__('Who among the Admins gets each kind of notification in their bell. Nobody chosen: every Admin.'))
+                    ->schema(collect(AdminNotificationTopic::cases())
+                        ->map(fn (AdminNotificationTopic $topic): Select => Select::make("admin_notification_recipients.{$topic->value}")
+                            ->label($topic->getLabel())
+                            ->helperText($topic->getDescription())
+                            ->multiple()
+                            ->options(fn (): array => User::query()
+                                ->admins()
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->placeholder(__('Every Admin')))
+                        ->all()),
+
                 Section::make(__('Question bank'))
                     ->columns(3)
                     ->schema([
@@ -175,6 +195,18 @@ class BillingSettings extends Page
                             ->label(__('Most questions in one JSON import'))
                             ->helperText(__('How many questions can be added at once by pasting JSON — to a chapter or to a past paper.'))
                             ->integer()->minValue(1)->maxValue(1000)->required(),
+                        TextInput::make('question_import_image_max_kb')
+                            ->label(__('Largest image in a JSON import (KB)'))
+                            ->helperText(__('Each image given with the JSON — one by one or inside a ZIP. A larger one is listed as not taken.'))
+                            ->integer()->minValue(50)->maxValue(10240)->required(),
+                        TextInput::make('question_import_images_max_mb')
+                            ->label(__('All images of one JSON import together (MB)'))
+                            ->helperText(__('What the images add up to (a ZIP counts by what is inside it).'))
+                            ->integer()->minValue(1)->maxValue(50)->required(),
+                        TextInput::make('duplicate_similarity_percent')
+                            ->label(__('Possible duplicate from (%)'))
+                            ->helperText(__('A new question this alike to one already in the chapter (or the past paper) — its text and its options each — is shown as a possible duplicate, for whoever adds it to decide. An identical one is never added.'))
+                            ->integer()->minValue(50)->maxValue(99)->required(),
                     ]),
 
                 // One amount per kind of paper, paid when an Admin approves a

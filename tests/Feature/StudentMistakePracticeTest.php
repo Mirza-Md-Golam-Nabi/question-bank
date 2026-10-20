@@ -323,6 +323,27 @@ it('shows the chapters with the most mistakes on the student\'s dashboard', func
         ->assertSee('Practise my mistakes');
 });
 
+it('shows how large a share of a chapter\'s questions sat are still mistakes — 3 of 5 is 60%', function () {
+    $this->actingAs($this->student);
+    Filament::setCurrentPanel(Filament::getPanel('student'));
+    $questions = collect(range(1, 5))->map(fn () => ($this->mcq)());
+
+    // Two right, two wrong, one left blank: three mistakes of five.
+    ($this->sit)(($this->examOf)($questions->all()), [
+        $questions[0]->id => 'right',
+        $questions[1]->id => 'right',
+        $questions[2]->id => 'wrong',
+        $questions[3]->id => 'wrong',
+    ]);
+
+    livewire(StudentWeakChaptersWidget::class)
+        ->assertSeeInOrder(['Motion', '3', '60%', '3 of 5 questions']);
+
+    expect(StudentMistakeTracker::mistakePercent(3, 5))->toBe(60)
+        ->and(StudentMistakeTracker::mistakePercent(1, 3))->toBe(33)
+        ->and(StudentMistakeTracker::mistakePercent(0, 0))->toBe(0);
+});
+
 it('hands in a paper in the same number of queries however long the mistakes list gets', function () {
     $queries = [];
     BillingSetting::current();
