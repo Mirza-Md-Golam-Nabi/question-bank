@@ -44,7 +44,7 @@ class StaffPayoutResource extends Resource
                 TextColumn::make('status')->badge(),
                 TextColumn::make('reference_note'),
                 TextColumn::make('paidBy.name')->label(__('Paid by')),
-                TextColumn::make('paid_at')->dateTime(),
+                TextColumn::make('paid_at')->localDateTime(),
             ])
             ->recordActions([
                 DeleteAction::make(),

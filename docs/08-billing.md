@@ -95,13 +95,21 @@
 | `request` | ক্রেতা | পেমেন্ট `pending`। Wallet credit **সাথে সাথে কাটা হয়**, যাতে যাচাই চলাকালীন দুইবার খরচ না হয়। একসাথে একটাই pending পেমেন্ট থাকতে পারে। Credit-এ পুরো দাম মিটে গেলে যাচাইয়ের কিছু থাকে না, subscription সাথে সাথে শুরু। |
 | `approve` | Admin | পেমেন্ট `success`; subscription শুরু; refund-এর সময়সীমা বসে; referrer-এর reward রেকর্ড হয়। |
 | `reject` | Admin | টাকা আসেনি: পেমেন্ট `rejected`; কাটা wallet credit ফেরত। |
-| `refund` | Admin | টাকা ফেরত দেওয়া হয়েছে (সিস্টেমের বাইরে): subscription এখনই শেষ; wallet credit ফেরত; referrer-এর reward বাতিল। **শুধু refund-এর সময়সীমার ভেতরে।** |
+| `refund` | Admin | টাকা ফেরত দেওয়া হয়েছে (সিস্টেমের বাইরে): subscription এখনই শেষ; wallet credit ফেরত; referrer-এর reward বাতিল। **শুধু refund-এর সময়সীমার ভেতরে, আর subscription একেবারে ব্যবহার না হলে** (নিচে)। |
 
 - **Idempotency:** প্রতিটা ধাপ একটা database transaction, যেটা আগে পেমেন্ট lock করে তার status আবার দেখে। দুইবার ক্লিক বা (ভবিষ্যতে) gateway-র callback দুইবার এলে দ্বিতীয়বার কিছু হয় না। একই transaction id দুইবার জমা দেওয়াও যায় না (unique)।
 - **মেয়াদ জোড়া লাগে:** একই plan-এর সক্রিয় subscription থাকলে নতুনটার মেয়াদ আগেরটার শেষ থেকে গোনা হয়।
 - **OTP:** Admin চালু করলে wallet credit খরচের সময় ফোনে কোড চাওয়া হয় (`OtpService`)। SMS provider যুক্ত না হওয়া পর্যন্ত এটা বন্ধ রাখার কথা।
 - **Gateway এলে** শুধু `approve` ডাকার পথটা বদলাবে (Admin-এর জায়গায় callback)।
 - প্রতিটা ধাপ log হয়।
+
+### Refund-এর নীতি: ব্যবহার না করলে পুরো টাকা, ব্যবহার করলে কিছু না
+
+- Refund হয় শুধু দুই শর্ত একসাথে মিললে (`Payment::isRefundable()`): Admin-এর সময়সীমার ভেতরে (`refund_window_days`), আর ওই subscription-এ **কিছুই গোনা হয়নি**। আংশিক refund নেই।
+- "ব্যবহার" = ওই subscription-এ গোনা যেকোনো exam (`exams.subscription_id`) — Teacher-এর তৈরি পরীক্ষা, self-practice (তিন মোডই), বা বিগত সালের প্রশ্নপত্র (নিজে বসা বা পরীক্ষা হিসেবে নেওয়া)। Group plan-এ সদস্যদের ব্যবহারও ধরা হয়। তিন ভাগের সংজ্ঞা `Subscription::usageCounts()`-এ; একটার হিসাব `usage()`, পুরো তালিকার `withCount(Subscription::usageCounts('subscriptionExams'))` (এক query-তে), `hasBeenUsed()`।
+- Payments টেবিলের **"ব্যবহার"** কলামে প্রতিটা পেমেন্টের subscription-এর এই তিন সংখ্যা সবসময় দেখায় — refund-এর সময় পার হলেও।
+- Refund-এর শেষ সময় approve-এর মুহূর্তে তখনকার সেটিং দিয়ে বসে; পরে সেটিং বদলালে পুরনো পেমেন্টে বদলায় না।
+- সময়সীমার ভেতরে Admin-এর Refund বোতাম সবসময় থাকে; জানালায় দেখায় "এই subscription-এ এখন পর্যন্ত: তৈরি করা পরীক্ষা / Self-practice / বিগত সালের প্রশ্ন"-এর সংখ্যা। কিছু ব্যবহার হয়ে থাকলে লাল লেখায় কারণ দেখায় আর নিশ্চিত করার বোতাম থাকে না; service-ও (`refund()`) আবার যাচাই করে আটকায়।
 
 ### বেলের নোটিফিকেশন
 

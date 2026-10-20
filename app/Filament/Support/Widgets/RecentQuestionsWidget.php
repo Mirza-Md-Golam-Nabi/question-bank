@@ -44,7 +44,7 @@ abstract class RecentQuestionsWidget extends TableWidget
                     ->badge()
                     ->color(fn (QuestionStatus $state) => $state->getColor())
                     ->description(fn (Question $record) => $record->status === QuestionStatus::Rejected ? $record->rejection_reason : null),
-                TextColumn::make('created_at')->dateTime('d M, h:i A')->label(__('Submitted')),
+                TextColumn::make('created_at')->localDateTime('d M, h:i A')->label(__('Submitted')),
             ]);
     }
 }

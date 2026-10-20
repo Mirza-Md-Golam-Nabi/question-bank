@@ -56,13 +56,13 @@ class WalletTransactionResource extends Resource
         return $table
             ->defaultSort('id', 'desc')
             ->columns([
-                TextColumn::make('created_at')->label(__('Date'))->dateTime(),
+                TextColumn::make('created_at')->label(__('Date'))->localDateTime(),
                 TextColumn::make('user.name')->searchable(),
                 TextColumn::make('type')->badge(),
                 TextColumn::make('amount')->money('BDT'),
                 TextColumn::make('payment.user.name')->label(__('Payment by'))->placeholder('—'),
                 TextColumn::make('payment.gateway_transaction_id')->label(__('Txn ID'))->placeholder('—'),
-                TextColumn::make('expires_at')->label(__('Expires'))->date()->placeholder('—'),
+                TextColumn::make('expires_at')->label(__('Expires'))->localDate()->placeholder('—'),
             ])
             ->filters([
                 SelectFilter::make('type')->options(WalletTransactionType::class),

@@ -6,6 +6,7 @@ use App\Enums\MobileBankingProvider;
 use App\Enums\UserRole;
 use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\NavigationGroup;
 use App\Models\ReferralReward;
 use App\Models\StudentReferral;
 use App\Models\Withdrawal;
@@ -43,6 +44,10 @@ abstract class ReferralsAndCommissionPage extends Page implements HasTable
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
 
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Account;
+
+    protected static ?int $navigationSort = 3;
+
     protected static ?string $title = 'Referrals & commission';
 
     /**
@@ -66,7 +71,7 @@ abstract class ReferralsAndCommissionPage extends Page implements HasTable
                     // Never a referred student's full email or phone.
                     ->description(fn (StudentReferral $record): string => $record->student->maskedEmail()),
                 TextColumn::make('source')->label(__('How'))->badge(),
-                TextColumn::make('starts_at')->label(__('Since'))->date('M j, Y'),
+                TextColumn::make('starts_at')->label(__('Since'))->localDate('M j, Y'),
                 TextColumn::make('ends_at')->label(__('Days left'))
                     ->state(fn (StudentReferral $record): int => $record->daysLeft())
                     ->sortable(query: fn ($query, string $direction) => $query->orderBy('ends_at', $direction)),

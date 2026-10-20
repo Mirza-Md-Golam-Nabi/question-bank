@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\ShowsPlanSummary;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\NavigationGroup;
 use App\Models\AcademicClass;
 use App\Models\BillingSetting;
 use App\Models\Payment;
@@ -48,6 +49,10 @@ abstract class MySubscriptionPage extends Page
     use TranslatesPageLabels;
 
     protected string $view = 'filament.pages.my-subscription';
+
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Account;
+
+    protected static ?int $navigationSort = 2;
 
     /**
      * The plans on sale, kept for the rest of the request once read (not

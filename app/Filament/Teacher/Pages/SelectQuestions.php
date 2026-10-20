@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Renderless;
 use Livewire\WithPagination;
 
 /**
@@ -415,6 +416,67 @@ class SelectQuestions extends Page
     #[Computed]
     public function questions(): ?LengthAwarePaginator
     {
+        return $this->filteredQuestions()
+            ?->with(['topic:id,name', 'cqParts', 'stimulus'])
+            // 'mcq' sorts after 'cq', so descending lists MCQ first.
+            ->orderByDesc('question_type')
+            // The questions of one stimulus side by side, where the first
+            // of them would stand, in their own order.
+            ->orderByRaw('coalesce((select min(grouped.id) from questions as grouped where grouped.stimulus_id = questions.stimulus_id), questions.id)')
+            ->orderBy('questions.stimulus_order')
+            ->orderBy('questions.id')
+            ->paginate(self::QUESTIONS_PER_PAGE);
+    }
+
+    /**
+     * "Select at random": up to the asked-for number of each type, picked
+     * at random from everything the filters list (every page, not just the
+     * one on screen), leaving out what is already selected. Only the
+     * browser's selection changes — the ids are checked again on save.
+     *
+     * @param  array<int, mixed>  $selectedIds
+     * @param  array<string, mixed>  $wanted  How many more of each type: ['mcq' => 5, 'cq' => 2]
+     * @return list<array{id: int, chapter: int, chapterName: string, type: string, marks: float}>
+     */
+    #[Renderless]
+    public function randomQuestions(array $selectedIds, array $wanted): array
+    {
+        $chapter = $this->chapter;
+
+        if (! $chapter) {
+            return [];
+        }
+
+        $selectedIds = array_map('intval', array_slice($selectedIds, 0, TeacherExamBuilder::MAX_QUESTIONS));
+
+        return collect([self::TYPE_MCQ, self::TYPE_CQ])
+            ->flatMap(fn (string $type) => $this->filteredQuestions()
+                ->where('question_type', $type)
+                ->whereNotIn('questions.id', $selectedIds)
+                // Random even when "most missed" sorts the list.
+                ->reorder()
+                ->inRandomOrder()
+                ->limit(min(max((int) ($wanted[$type] ?? 0), 0), TeacherExamBuilder::MAX_QUESTIONS))
+                ->get(['questions.id', 'questions.chapter_id', 'questions.question_type', 'questions.marks']))
+            ->map(fn (Question $question): array => [
+                'id' => $question->id,
+                'chapter' => $question->chapter_id,
+                'chapterName' => $chapter->name,
+                'type' => $question->question_type->value,
+                'marks' => (float) $question->marks,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The chapter's questions the teacher may use, narrowed by the page's
+     * filters — what the list shows and what "Select at random" picks from.
+     *
+     * @return Builder<Question>|null
+     */
+    private function filteredQuestions(): ?Builder
+    {
         if (! $this->chapter) {
             return null;
         }
@@ -437,16 +499,7 @@ class SelectQuestions extends Page
                 ->where('topic_id', $topicId)
                 // With both types shown, the topic narrows MCQ and leaves
                 // every CQ of the chapter in.
-                ->when($type === self::TYPE_BOTH, fn (Builder $query) => $query->orWhere('question_type', QuestionType::Cq))))
-            ->with(['topic:id,name', 'cqParts', 'stimulus'])
-            // 'mcq' sorts after 'cq', so descending lists MCQ first.
-            ->orderByDesc('question_type')
-            // The questions of one stimulus side by side, where the first
-            // of them would stand, in their own order.
-            ->orderByRaw('coalesce((select min(grouped.id) from questions as grouped where grouped.stimulus_id = questions.stimulus_id), questions.id)')
-            ->orderBy('questions.stimulus_order')
-            ->orderBy('questions.id')
-            ->paginate(self::QUESTIONS_PER_PAGE);
+                ->when($type === self::TYPE_BOTH, fn (Builder $query) => $query->orWhere('question_type', QuestionType::Cq))));
     }
 
     /**

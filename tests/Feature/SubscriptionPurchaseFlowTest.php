@@ -6,9 +6,13 @@ use App\Filament\Pages\BillingSettings;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Teacher\Pages\MySubscription as TeacherMySubscription;
 use App\Models\BillingSetting;
+use App\Models\BoardQuestionPaper;
+use App\Models\Exam;
 use App\Models\Payment;
+use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\SubscriptionPurchaseService;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -100,6 +104,52 @@ it('offers no approve action on a payment that is already approved', function ()
     livewire(ManagePayments::class)
         ->assertActionHidden(TestAction::make('approve')->table($payment))
         ->assertActionVisible(TestAction::make('refund')->table($payment));
+});
+
+it('shows the admin what the subscription has been used for before a refund', function () {
+    $subscription = Subscription::factory()->create();
+    $payment = Payment::factory()->refundable()->create(['subscription_id' => $subscription->id, 'user_id' => $subscription->user_id]);
+    Exam::factory()->count(2)->selfPractice()->create(['subscription_id' => $subscription->id]);
+    Exam::factory()->create(['subscription_id' => $subscription->id]);
+    Exam::factory()->selfPractice()->create(['subscription_id' => $subscription->id, 'board_question_paper_id' => BoardQuestionPaper::factory()]);
+    Exam::factory()->selfPractice()->create();
+    $this->actingAs(User::factory()->admin()->create());
+
+    expect($subscription->usage())->toBe(['teacher_exams' => 1, 'self_practice' => 2, 'past_papers' => 1]);
+
+    livewire(ManagePayments::class)
+        ->mountAction(TestAction::make('refund')->table($payment))
+        ->assertMountedActionModalSee(['Self-practice exams', 'This subscription has been used, so it cannot be refunded.']);
+
+    expect(app(SubscriptionPurchaseService::class)->refund($payment, User::factory()->admin()->create()))->toBeFalse();
+    expect($payment->refresh()->status)->toBe(PaymentStatus::Success);
+});
+
+it('shows each payment\'s use in the payments list, also past its refund period', function () {
+    $subscription = Subscription::factory()->create();
+    $payment = Payment::factory()->create(['subscription_id' => $subscription->id, 'user_id' => $subscription->user_id, 'refundable_until' => now()->subDay()]);
+    Exam::factory()->count(3)->create(['subscription_id' => $subscription->id]);
+    Exam::factory()->selfPractice()->create(['subscription_id' => $subscription->id]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    livewire(ManagePayments::class)
+        ->assertActionHidden(TestAction::make('refund')->table($payment))
+        ->assertTableColumnStateSet('usage', 'Exams 3 · Self-practice 1 · Past papers 0', $payment);
+});
+
+it('refunds a subscription nobody has used, showing nothing used', function () {
+    $subscription = Subscription::factory()->create();
+    $payment = Payment::factory()->refundable()->create(['subscription_id' => $subscription->id, 'user_id' => $subscription->user_id]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    livewire(ManagePayments::class)
+        ->mountAction(TestAction::make('refund')->table($payment))
+        ->assertMountedActionModalSee('Used on this subscription so far')
+        ->assertMountedActionModalDontSee('This subscription has been used, so it cannot be refunded.')
+        ->callMountedAction()
+        ->assertNotified();
+
+    expect($payment->refresh()->status)->toBe(PaymentStatus::Refunded);
 });
 
 it('offers no refund action once the refund period has passed', function () {

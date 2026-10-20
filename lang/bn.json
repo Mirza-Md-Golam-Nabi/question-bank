@@ -713,6 +713,8 @@
     "Yours — awaiting approval": "আপনার — অনুমোদনের অপেক্ষায়",
     "Select all on this page": "এই পাতার সব বাছুন",
     "Unselect all on this page": "এই পাতার সব বাদ দিন",
+    "Select at random": "এলোমেলোভাবে বাছুন",
+    "No more questions here to pick at random.": "এলোমেলোভাবে বাছার মতো আর কোনো প্রশ্ন এখানে নেই।",
     "Teachers can add questions from JSON": "Teacher-রা JSON দিয়ে প্রশ্ন যোগ করতে পারবে",
     "When off, only an Admin sees the \"Add from JSON\" button.": "বন্ধ থাকলে \"JSON দিয়ে যোগ করুন\" বাটনটা শুধু Admin দেখবে।",
     "Set from the answers of :count students: :percent% got it right.": ":count জন student-এর উত্তর থেকে নির্ধারিত: :percent% সঠিক করেছে।",
@@ -1117,5 +1119,12 @@
     "The :credit of wallet credit was given back.": "wallet-এর :credit ক্রেডিট ফেরত দেওয়া হয়েছে।",
     "View questions": "প্রশ্নগুলো দেখুন",
     "Mistakes (%)": "ভুল (%)",
-    ":mistakes of :sat questions": ":sat প্রশ্নে :mistakes ভুল"
+    ":mistakes of :sat questions": ":sat প্রশ্নে :mistakes ভুল",
+    "Used on this subscription so far": "এই subscription-এ এখন পর্যন্ত",
+    "Count": "সংখ্যা",
+    "Exams made": "তৈরি করা পরীক্ষা",
+    "Self-practice exams": "Self-practice পরীক্ষা",
+    "Used": "ব্যবহার",
+    "Exams :exams · Self-practice :practice · Past papers :papers": "পরীক্ষা :exams · Self-practice :practice · প্রশ্নপত্র :papers",
+    "This subscription has been used, so it cannot be refunded.": "এই subscription ব্যবহার করা হয়েছে, তাই টাকা ফেরত দেওয়া যাবে না।"
 }

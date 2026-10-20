@@ -2,16 +2,19 @@
 
 namespace App\Providers;
 
+use App\Enums\Locale;
 use App\Http\Responses\LogoutResponse;
 use App\Services\ImportedImages;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse as LogoutResponseContract;
 use Filament\Forms\Components\Field;
 use Filament\Infolists\Components\Entry;
 use Filament\Support\Facades\FilamentView;
 use Filament\Tables\Columns\Column;
+use Filament\Tables\Columns\TextColumn;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\ServiceProvider;
@@ -37,6 +40,27 @@ class AppServiceProvider extends ServiceProvider
         $this->translateFilamentLabels();
         $this->registerLanguageSwitcher();
         $this->allowImportImageUploads();
+        $this->registerLocalDateColumns();
+    }
+
+    /**
+     * `->localDate()` / `->localDateTime()` on a table column: Filament's
+     * date()/dateTime(), with the digits in the viewer's language too — in
+     * Bangla "অক্টো ২০, ২০২৬ ২৩:২১", not "অক্টো 20, 2026 23:21". Every date
+     * column uses these instead of date()/dateTime().
+     */
+    protected function registerLocalDateColumns(): void
+    {
+        $inLocalDigits = function (TextColumn $column): TextColumn {
+            $format = Closure::bind(fn (): ?Closure => $this->formatStateUsing, $column, TextColumn::class)();
+
+            return $column->formatStateUsing(fn (TextColumn $column, mixed $state): ?string => blank($state)
+                ? null
+                : Locale::current()->writeDigits((string) $column->evaluate($format, ['state' => $state])));
+        };
+
+        TextColumn::macro('localDate', fn (?string $format = null): TextColumn => $inLocalDigits($this->date($format)));
+        TextColumn::macro('localDateTime', fn (?string $format = null): TextColumn => $inLocalDigits($this->dateTime($format)));
     }
 
     /**

@@ -54,7 +54,7 @@ class QuestionRateResource extends Resource
             ->columns([
                 TextColumn::make('subject.name')->label(__('Subject'))->placeholder(__('Default')),
                 TextColumn::make('rate_amount')->money('BDT'),
-                TextColumn::make('effective_from')->date(),
+                TextColumn::make('effective_from')->localDate(),
             ])
             ->recordActions(TableActions::editAndDelete())
             ->toolbarActions(TableActions::bulkDelete());

@@ -4,6 +4,7 @@ namespace App\Filament\Support\Pages;
 
 use App\Enums\UserRole;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\NavigationGroup;
 use App\Models\AcademicClass;
 use App\Models\BillingSetting;
 use App\Models\StudentReferral;
@@ -34,6 +35,14 @@ abstract class MyProfilePage extends Page
     use TranslatesPageLabels;
 
     protected string $view = 'filament.pages.my-profile';
+
+    /**
+     * First in the "Account" menu group, before the panel's subscription
+     * and referral pages.
+     */
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Account;
+
+    protected static ?int $navigationSort = 1;
 
     /**
      * @var array<string, mixed>|null

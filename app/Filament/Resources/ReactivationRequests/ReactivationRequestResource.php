@@ -66,7 +66,7 @@ class ReactivationRequestResource extends Resource
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('created_at')->label(__('Date'))->dateTime()->sortable(),
+                TextColumn::make('created_at')->label(__('Date'))->localDateTime()->sortable(),
                 TextColumn::make('user.name')->searchable(),
                 TextColumn::make('user.role')->label(__('Role'))->badge(),
                 TextColumn::make('message')->wrap(),

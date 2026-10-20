@@ -79,6 +79,15 @@ class Payment extends Model
         return $this->belongsTo(StudentReferral::class);
     }
 
+    /**
+     * The exams counted against the subscription this payment bought — so
+     * a list of payments can count each one's use in its own query.
+     */
+    public function subscriptionExams(): HasMany
+    {
+        return $this->hasMany(Exam::class, 'subscription_id', 'subscription_id');
+    }
+
     public function reviewedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
@@ -140,9 +149,19 @@ class Payment extends Model
      * reward it earned has matured and may already have been spent or paid
      * out, so there is no undoing it.
      */
-    public function isRefundable(): bool
+    public function isWithinRefundPeriod(): bool
     {
         return $this->isSuccessful() && $this->refundable_until?->isFuture() === true;
+    }
+
+    /**
+     * Money comes back only for a subscription nothing has been done with —
+     * inside the refund period, and with no exam, self-practice or past
+     * paper counted against it (by the buyer or a group member).
+     */
+    public function isRefundable(): bool
+    {
+        return $this->isWithinRefundPeriod() && ! $this->subscription?->hasBeenUsed();
     }
 
     public function referralReward(): HasOne

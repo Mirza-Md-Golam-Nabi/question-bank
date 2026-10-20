@@ -163,6 +163,36 @@ it('offers to select every question of the page at once, handing the browser tha
         ->and($handedOver[0])->toMatchArray(['chapter' => $this->chapter->id, 'type' => 'mcq', 'marks' => 2]);
 });
 
+it('picks questions at random from every page of the list, leaving out what is already selected', function () {
+    $mcqs = Question::factory()->approved()->for($this->chapter)->count(25)->create(['marks' => 1]);
+    $cqs = Question::factory()->cq()->approved()->for($this->chapter)->count(3)->create();
+    $othersPending = Question::factory()->for($this->chapter)->create();
+    $otherChapter = ($this->question)(chapter: Chapter::factory()->create(['class_subject_id' => $this->classSubject->id]));
+    $alreadySelected = $mcqs->take(20)->pluck('id')->all();
+
+    $page = livewire(SelectQuestions::class)->set('data', ($this->filters)());
+    $picked = collect($page->instance()->randomQuestions($alreadySelected, ['mcq' => 10, 'cq' => 2]));
+
+    // Only five MCQs are left once the first page is selected — all from the second page.
+    expect($picked->where('type', 'mcq')->pluck('id')->sort()->values()->all())->toBe($mcqs->skip(20)->pluck('id')->values()->all());
+    expect($picked->where('type', 'cq'))->toHaveCount(2)
+        ->and($cqs->pluck('id')->all())->toContain(...$picked->where('type', 'cq')->pluck('id')->all());
+    expect($picked->pluck('id'))->not->toContain($othersPending->id, $otherChapter->id);
+    expect($picked->firstWhere('type', 'mcq'))->toMatchArray(['chapter' => $this->chapter->id, 'chapterName' => $this->chapter->name, 'marks' => 1.0]);
+});
+
+it('picks at random only what the filters list', function () {
+    $topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Cells', 'order_index' => 1]);
+    $inTopic = ($this->question)(['topic_id' => $topic->id]);
+    ($this->question)();
+    Question::factory()->cq()->approved()->for($this->chapter)->create();
+
+    $online = livewire(SelectQuestions::class)->set('data', ($this->filters)(['exam_mode' => ExamDeliveryMode::Online->value, 'topic_id' => $topic->id]));
+
+    expect(array_column($online->instance()->randomQuestions([], ['mcq' => 5, 'cq' => 5]), 'id'))->toBe([$inTopic->id]);
+    expect(livewire(SelectQuestions::class)->instance()->randomQuestions([], ['mcq' => 5]))->toBe([]);
+});
+
 it('reviews only the ids that are still selectable and tells the browser which survived', function () {
     $kept = ($this->question)();
     $pending = Question::factory()->for($this->chapter)->create();

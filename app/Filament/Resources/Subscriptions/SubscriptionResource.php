@@ -56,8 +56,8 @@ class SubscriptionResource extends Resource
                 TextColumn::make('user.name')->searchable(),
                 TextColumn::make('plan.name'),
                 TextColumn::make('status')->badge(),
-                TextColumn::make('starts_at')->dateTime(),
-                TextColumn::make('ends_at')->dateTime()->placeholder('—'),
+                TextColumn::make('starts_at')->localDateTime(),
+                TextColumn::make('ends_at')->localDateTime()->placeholder('—'),
             ])
             ->filters([
                 SelectFilter::make('status')->options(SubscriptionStatus::class),

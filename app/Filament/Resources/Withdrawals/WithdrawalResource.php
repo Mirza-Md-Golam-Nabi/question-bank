@@ -68,7 +68,7 @@ class WithdrawalResource extends Resource
                         ? __('Someone this user referred paid from this number — check it is not their own second account.')
                         : null),
                 TextColumn::make('status')->badge(),
-                TextColumn::make('created_at')->label(__('Requested'))->dateTime(),
+                TextColumn::make('created_at')->label(__('Requested'))->localDateTime(),
                 TextColumn::make('transaction_id')->label(__('Transaction ID'))->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('note')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('processedBy.name')->label(__('Handled by'))->placeholder('—')->toggleable(isToggledHiddenByDefault: true),

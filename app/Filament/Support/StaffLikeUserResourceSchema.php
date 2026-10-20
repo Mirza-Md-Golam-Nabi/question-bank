@@ -43,7 +43,7 @@ class StaffLikeUserResourceSchema
             TextColumn::make('name')->searchable()->sortable(),
             TextColumn::make('email')->searchable(),
             TextColumn::make('status')->badge(),
-            TextColumn::make('created_at')->dateTime()->sortable(),
+            TextColumn::make('created_at')->localDateTime()->sortable(),
         ];
     }
 

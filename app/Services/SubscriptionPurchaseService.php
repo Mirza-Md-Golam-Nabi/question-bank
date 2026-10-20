@@ -260,8 +260,10 @@ class SubscriptionPurchaseService
      * now, wallet credit put towards it is returned, and the reward it
      * earned the referrer is cancelled.
      *
-     * Only possible inside the payment's refund period. False once that
-     * has passed: the reward has matured by then and can't be taken back.
+     * Only possible inside the payment's refund period, and only for a
+     * subscription nothing has been done with (`Payment::isRefundable()`).
+     * False otherwise: past the period the reward has matured and can't be
+     * taken back, and a used subscription has been paid for.
      */
     public function refund(Payment $payment, User $reviewer, ?string $note = null): bool
     {

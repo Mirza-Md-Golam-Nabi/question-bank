@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Payments;
 
+use App\Enums\Locale;
 use App\Enums\PaymentStatus;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Models\Payment;
+use App\Models\Subscription;
 use App\Services\SubscriptionPurchaseService;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -43,7 +45,9 @@ class PaymentResource extends Resource
             ->with(['user', 'referrer', 'plan'])
             // The "same number as referrer" flag for every row, in this
             // one query rather than a lookup per row.
-            ->withExists(['itself as same_number_as_referrer' => fn (Builder $query) => $query->sharingPayerNumberWithReferrer()]);
+            ->withExists(['itself as same_number_as_referrer' => fn (Builder $query) => $query->sharingPayerNumberWithReferrer()])
+            // What each subscription has been used for, likewise.
+            ->withCount(Subscription::usageCounts('subscriptionExams'));
     }
 
     public static function canCreate(): bool
@@ -66,7 +70,7 @@ class PaymentResource extends Resource
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('created_at')->label(__('Date'))->dateTime()->sortable(),
+                TextColumn::make('created_at')->label(__('Date'))->localDateTime()->sortable(),
                 TextColumn::make('user.name')->searchable(),
                 TextColumn::make('plan.name')->label(__('Plan'))->placeholder('—'),
                 TextColumn::make('amount')->label(__('Paid'))->money('BDT'),
@@ -82,7 +86,11 @@ class PaymentResource extends Resource
                     ->color('warning')
                     ->tooltip(__('Paid from a number the referrer also uses — check that this is a real new customer.')),
                 TextColumn::make('status')->badge(),
-                TextColumn::make('refundable_until')->label(__('Refundable until'))->dateTime()->placeholder('—')->toggleable(),
+                TextColumn::make('usage')
+                    ->label(__('Used'))
+                    ->state(fn (Payment $record): ?string => $record->subscription_id ? self::describeUsage(Subscription::usageFrom($record)) : null)
+                    ->placeholder('—'),
+                TextColumn::make('refundable_until')->label(__('Refundable until'))->localDateTime()->placeholder('—')->toggleable(),
                 TextColumn::make('review_note')->label(__('Note'))->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
@@ -115,11 +123,18 @@ class PaymentResource extends Resource
                     ->label(__('Refund'))
                     ->color('warning')
                     ->icon(Heroicon::OutlinedArrowUturnLeft)
-                    // Gone once the refund period has passed.
-                    ->visible(fn (Payment $record): bool => $record->isRefundable())
+                    // Gone once the refund period has passed. Inside it the
+                    // window always opens, so the Admin sees what the buyer
+                    // has used — and, if anything, why there is no refund.
+                    ->visible(fn (Payment $record): bool => $record->isWithinRefundPeriod())
                     ->requiresConfirmation()
                     ->modalDescription(__("Send the money back yourself first. This ends the subscription, returns any wallet credit used, and takes back the referrer's reward. It cannot be undone."))
-                    ->schema([self::noteField(__('Reason / refund reference'))])
+                    ->modalContent(fn (Payment $record) => view('filament.resources.payments.refund-usage', [
+                        'usage' => $record->subscription?->usage() ?? ['teacher_exams' => 0, 'self_practice' => 0, 'past_papers' => 0],
+                        'used' => ! $record->isRefundable(),
+                    ]))
+                    ->modalSubmitAction(fn (Payment $record, Action $action): Action|false => $record->isRefundable() ? $action : false)
+                    ->schema(fn (Payment $record): array => $record->isRefundable() ? [self::noteField(__('Reason / refund reference'))] : [])
                     ->action(fn (Payment $record, array $data) => self::notifyOutcome(
                         app(SubscriptionPurchaseService::class)->refund($record, auth()->user(), $data['review_note'] ?? null),
                         __('Payment refunded.'),
@@ -132,6 +147,18 @@ class PaymentResource extends Resource
         return [
             'index' => ManagePayments::route('/'),
         ];
+    }
+
+    /**
+     * @param  array{teacher_exams: int, self_practice: int, past_papers: int}  $usage
+     */
+    private static function describeUsage(array $usage): string
+    {
+        return Locale::current()->writeDigits(__('Exams :exams · Self-practice :practice · Past papers :papers', [
+            'exams' => $usage['teacher_exams'],
+            'practice' => $usage['self_practice'],
+            'papers' => $usage['past_papers'],
+        ]));
     }
 
     private static function noteField(string $label): TextInput

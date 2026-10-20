@@ -1,8 +1,10 @@
 <?php
 
+use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Resources\Subjects\Pages\ManageSubjects;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Http\Middleware\SetLocale;
+use App\Models\Payment;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\File;
@@ -85,6 +87,17 @@ it('renders a panel in bangla once the language is switched', function () {
         ->assertSee('নাম (বাংলা)')
         ->assertSee('সংক্ষিপ্ত নাম')
         ->assertSee(route('locale.switch', ['locale' => 'en']), false);
+});
+
+it('writes the dates of a table wholly in the viewer\'s language', function () {
+    $payment = Payment::factory()->create(['refundable_until' => '2026-10-23 23:21:07']);
+    $this->actingAs(User::factory()->admin()->create());
+
+    app()->setLocale('bn');
+    livewire(ManagePayments::class)->assertTableColumnFormattedStateSet('refundable_until', 'অক্টো ২৩, ২০২৬ ২৩:২১:০৭', $payment);
+
+    app()->setLocale('en');
+    livewire(ManagePayments::class)->assertTableColumnFormattedStateSet('refundable_until', 'Oct 23, 2026 23:21:07', $payment);
 });
 
 it('translates field labels derived from the field name', function () {

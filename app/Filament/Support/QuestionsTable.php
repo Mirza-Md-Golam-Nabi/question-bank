@@ -45,7 +45,7 @@ class QuestionsTable
                 TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor()),
                 TextColumn::make('version')->label(__('v'))->toggleable(),
                 TextColumn::make('creator.name')->label(__('Created by')),
-                TextColumn::make('created_at')->dateTime()->sortable(),
+                TextColumn::make('created_at')->localDateTime()->sortable(),
             ])
             ->filters([
                 SelectFilter::make('status')->options(QuestionStatus::class),

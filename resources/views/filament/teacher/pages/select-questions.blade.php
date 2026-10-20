@@ -99,38 +99,61 @@
                                 ])->values();
                             @endphp
 
-                            <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div id="qb-question-list" class="flex scroll-mt-24 flex-wrap items-center justify-between gap-3">
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
                                     {{ trans_choice(':count Question|:count Questions', $questions->total()) }}
                                     &middot; {{ $this->chapter->name }}
                                 </p>
 
-                                {{-- Works on the questions of this page only, in the browser —
-                                     and stops at the number of questions asked for. --}}
-                                <div x-data="{ page: @js($pageItems) }" wire:key="select-all-{{ $questions->currentPage() }}-{{ $pageItems->pluck('id')->implode('-') }}">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    {{-- Picks from every page of the list (one request), up to
+                                         the number of questions still asked for. --}}
                                     <x-filament::button
                                         size="sm"
                                         color="gray"
-                                        icon="heroicon-m-check-circle"
-                                        x-show="! allSelected(page)"
-                                        x-bind:disabled="! canSelectAny(page)"
-                                        x-on:click="selectAll(page)"
+                                        icon="heroicon-m-sparkles"
+                                        x-bind:disabled="picking || ! canPickAtRandom()"
+                                        x-on:click="pickAtRandom()"
                                     >
-                                        {{ __('Select all on this page') }}
+                                        {{ __('Select at random') }}
                                     </x-filament::button>
 
-                                    <x-filament::button
-                                        size="sm"
-                                        color="gray"
-                                        icon="heroicon-m-x-circle"
-                                        x-cloak
-                                        x-show="allSelected(page)"
-                                        x-on:click="unselectAll(page)"
-                                    >
-                                        {{ __('Unselect all on this page') }}
-                                    </x-filament::button>
+                                    {{-- Works on the questions of this page only, in the browser —
+                                         and stops at the number of questions asked for. --}}
+                                    <div x-data="{ page: @js($pageItems) }" wire:key="select-all-{{ $questions->currentPage() }}-{{ $pageItems->pluck('id')->implode('-') }}">
+                                        <x-filament::button
+                                            size="sm"
+                                            color="gray"
+                                            icon="heroicon-m-check-circle"
+                                            x-show="! allSelected(page)"
+                                            x-bind:disabled="! canSelectAny(page)"
+                                            x-on:click="selectAll(page)"
+                                        >
+                                            {{ __('Select all on this page') }}
+                                        </x-filament::button>
+
+                                        <x-filament::button
+                                            size="sm"
+                                            color="gray"
+                                            icon="heroicon-m-x-circle"
+                                            x-cloak
+                                            x-show="allSelected(page)"
+                                            x-on:click="unselectAll(page)"
+                                        >
+                                            {{ __('Unselect all on this page') }}
+                                        </x-filament::button>
+                                    </div>
                                 </div>
                             </div>
+
+                            <p
+                                x-show="pickedNone"
+                                x-cloak
+                                x-transition.opacity
+                                class="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700 dark:bg-danger-500/10 dark:text-danger-400"
+                            >
+                                {{ __('No more questions here to pick at random.') }}
+                            </p>
 
                             <p
                                 x-show="needsTarget()"
@@ -166,7 +189,11 @@
                                 </label>
                             @endforeach
 
-                            <x-filament::pagination :paginator="$questions" />
+                            {{-- Another page opens at the top of its questions, not
+                                 where the last one was scrolled to. --}}
+                            <div x-on:click="$event.target.closest('button, a') && document.getElementById('qb-question-list')?.scrollIntoView({ block: 'start' })">
+                                <x-filament::pagination :paginator="$questions" />
+                            </div>
                         @endif
                     </div>
 
@@ -327,6 +354,9 @@
                 // A change waiting for the teacher's permission: { kind, value }
                 pending: null,
                 panelOpen: false,
+                // "Select at random" is waiting for the server / found nothing left.
+                picking: false,
+                pickedNone: false,
 
                 init() {
                     this.load();
@@ -515,6 +545,36 @@
 
                 canSelectAny(questions) {
                     return questions.some((question) => ! this.has(question.id) && this.canSelect(question.id, question.type));
+                },
+
+                // How many more of each listed type the numbers asked for allow.
+                stillWanted() {
+                    return Object.fromEntries(['mcq', 'cq'].map((type) => [type, this.showsType(type) ? this.remaining(type) : 0]));
+                },
+
+                canPickAtRandom() {
+                    return Object.values(this.stillWanted()).some((count) => count > 0);
+                },
+
+                // The server picks at random from every page of the list; the
+                // picks are then ticked like "select all", within the targets.
+                async pickAtRandom() {
+                    this.picking = true;
+                    this.pickedNone = false;
+
+                    try {
+                        const questions = await this.$wire.randomQuestions(this.ids(), this.stillWanted());
+
+                        this.selectAll(questions);
+
+                        // A short note, so it never outlives the list it was about.
+                        if (questions.length === 0) {
+                            this.pickedNone = true;
+                            setTimeout(() => (this.pickedNone = false), 4000);
+                        }
+                    } finally {
+                        this.picking = false;
+                    }
                 },
 
                 remove(id) {

@@ -452,6 +452,7 @@ livewire(ListUsers::class)
 - লিমিট চেক করার সময় আলাদা counter টেবিল না রেখে সরাসরি query দিয়ে গণনা (দিন/মাসের তারিখ-সীমা) — সরল ও accurate। Self-practice-এর সব মোড `exam_type='self_practice'` হওয়ায় একই কাউন্টে ধরা হবে।
 - **Guest-রা exam attempt দেওয়ার সময় কোনো subscription চেক লাগবে না** — এটা Teacher-এর subscription-এর আওতায় আগেই কভার হয়ে গেছে (exam publish করার সময়েই চেক হয়েছে)।
 - Payment gateway callback-এ **idempotency** মাথায় রাখতে হবে — দুইবার callback এলে যেন ডাবল subscription active না হয়।
+- **Refund:** শুধু Admin-এর সময়সীমার ভেতরে, আর সেই subscription-এ কিছুই ব্যবহার না হলে (কোনো exam/self-practice/প্রশ্নপত্র গোনা হয়নি — group সদস্যদেরসহ) — তখন পুরো টাকা; ব্যবহার হলে refund নেই, আংশিক refund নেই। নিয়ম শুধু `Payment::isRefundable()`-এ, ব্যবহারের হিসাব `Subscription::usage()`; Admin refund-এর জানালায় সংখ্যাগুলো দেখেন।
 - **Referral ও কমিশন:** একজন student একবারে **একজনেরই** referral-এ থাকে, Admin-এর দিন পর্যন্ত (ডিফল্ট ৯০, সেট হওয়ার দিন থেকে), তারপর নিজে থেকে শেষ। Teacher-এর পরীক্ষার লিংক খুললে সাথে সাথে লক; নিজে লেখা কোড Admin-এর সময় পর্যন্ত (ডিফল্ট ১ দিন) বদলানো যায়, সেই সময়ের মধ্যে পরীক্ষার লিংক সেটা বদলে লক করে। নিয়ম শুধু `StudentReferralService`-এ; ছাড়/reward `ReferralService`-এ। কেনার মুহূর্তের referrer payment-এ লেখা থাকে (`payments.referrer_id`) — reward ও রিপোর্ট সেখান থেকে, user-এর এখনকার referrer থেকে না।
 - **Teacher ও Student কমিশন পায় শুধু নিজের পেইড subscription চালু থাকলে** (ট্রায়াল/ফ্রি plan-এ না), শুধু নগদে দেওয়া অংশের ওপর, refund-এর সময় পার হলে পাকা; শতাংশ দুটোই Admin-এর সেটিং, কোডে কোনো হার নেই। কমিশন wallet-এ মেয়াদ ছাড়া জমে; role অনুযায়ী Admin-এর reserve সবসময় থাকে — শুধু নিজের subscription-এ খরচ হয়, তোলা যায় না; বাকিটা request করে তোলা যায় (`WithdrawalService` একমাত্র জায়গা, নম্বর `encrypted`, প্রতিটা ধাপ log)। Staff-এর reward payout-এর সাথে নগদে।
 
@@ -684,6 +685,7 @@ CLAUDE.md
 | ফলাফল | `<x-exam-result>`, `<x-exam-result-question>` |
 | পরীক্ষার ফলাফল-তালিকা ও পজিশন (Teacher) | `App\Services\ExamResultSheet` (র‍্যাংকিং-এর একমাত্র জায়গা), `teacher.partials.result-sheet-table` |
 | Guest-এর নাম + ফোন/ইমেইল ফিল্ড | `<x-guest-identity-fields>` |
+| টেবিলে তারিখ/সময় (অঙ্কসহ পুরোটা দর্শকের ভাষায় — বাংলায় "অক্টো ২০, ২০২৬") — `date()`/`dateTime()` না | `TextColumn`-এ `->localDate()` / `->localDateTime()` (`AppServiceProvider`); অঙ্ক বদলানো `Locale::current()->writeDigits()` |
 | ভাষা বদলানোর বাটন (সব জায়গায়) | `<x-language-switcher variant="light|dark|panel">` |
 | গণিতের সূত্র রেন্ডার (দুই JS bundle-এই) | `resources/js/katex-embeds.js` |
 

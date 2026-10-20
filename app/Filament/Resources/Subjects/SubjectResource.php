@@ -51,7 +51,7 @@ class SubjectResource extends Resource
                 TextColumn::make('name_bn')->label(__('Name (Bangla)'))->searchable()->sortable(),
                 TextColumn::make('short_name')->label(__('Short name'))->badge()->searchable()->sortable(),
                 TextColumn::make('class_subjects_count')->label(__('Classes'))->counts('classSubjects'),
-                TextColumn::make('created_at')->dateTime()->sortable(),
+                TextColumn::make('created_at')->localDateTime()->sortable(),
             ])
             ->recordActions(TableActions::editAndDelete(iconButtons: true))
             ->toolbarActions(TableActions::bulkDelete());
