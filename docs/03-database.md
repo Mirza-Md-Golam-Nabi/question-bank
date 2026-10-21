@@ -140,7 +140,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | `difficulty_counted_at` | difficulty-র গণনায় তোলা হয়েছে (শুধু Teacher-এর পরীক্ষা) |
 | `statistics_recorded_at` | ভুলের তালিকা ও Teacher-এর পরিসংখ্যানে তোলা হয়েছে |
 
-শেষ দুটো কলাম নিশ্চিত করে একই খাতা দুইবার গোনা না হয়।
+শেষ দুটো কলাম নিশ্চিত করে একই খাতা দুইবার গোনা না হয়। Index (`student_id`, `submitted_at`): student-এর পারফরম্যান্স বিশ্লেষণ নতুন থেকে পুরনো খাতা পড়ে ([11-performance-analytics.md](11-performance-analytics.md))।
 
 ### `attempt_answers`
 

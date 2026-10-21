@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -38,6 +39,20 @@ class Subject extends Model
         return Attribute::get(
             fn (): string => filled($this->short_name) ? $this->short_name : $this->display_name,
         );
+    }
+
+    /**
+     * Subjects whose English, Bangla or short name contains the search —
+     * whichever of the three the person typed.
+     */
+    public function scopeMatching(Builder $query, string $search): Builder
+    {
+        $like = '%'.trim($search).'%';
+
+        return $query->where(fn (Builder $names) => $names
+            ->where('name', 'like', $like)
+            ->orWhere('name_bn', 'like', $like)
+            ->orWhere('short_name', 'like', $like));
     }
 
     public function classSubjects(): HasMany

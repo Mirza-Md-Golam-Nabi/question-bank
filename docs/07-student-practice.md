@@ -11,19 +11,21 @@ Student নিজের জন্য পরীক্ষা বানায়; �
 | মোড | পেজ | প্রশ্ন আসে কোথা থেকে |
 |---|---|---|
 | `auto` | Auto-Generate Practice Exam | বিষয় (ঐচ্ছিকভাবে chapter ও difficulty) আর সংখ্যা দিলে সিস্টেম approved pool থেকে এলোমেলো বাছে |
-| `manual` | Build Your Own Practice Exam | Student নিজে approved pool থেকে খুঁজে বাছে |
+| `manual` | Build Your Own Practice Exam | Student নিজে approved pool থেকে বাছে, Teacher-এর "প্রশ্ন বাছাই"-এর মতোই (নিচে) |
 | `mistakes` | Practise my mistakes | Student-এর নিজের ভুলের তালিকা থেকে (নিচে) |
 
 Auto ও Manual দুটোই বাধ্যতামূলক (নিয়ম ৯); কোনোটা বাদ দেওয়া যাবে না।
 
 **সবগুলোর জন্য অভিন্ন:**
 - শুধু approved pool-এর প্রশ্ন। Pending বা rejected প্রশ্ন, বা বোর্ড প্রশ্নপত্রের কিছু, কখনো আসে না।
-- সব মোডই **Student-এর নিজের শ্রেণি থেকে** (প্রোফাইলের `academic_class_id`); বিষয়ের তালিকায় শুধু সেই শ্রেণির বিষয়। শ্রেণি না দেওয়া থাকলে পেজ প্রোফাইলে পাঠায়।
+- সব মোডই **Student-এর নিজের শ্রেণি থেকে** (প্রোফাইলের `academic_class_id`); বিষয়ের তালিকায় শুধু সেই শ্রেণির বিষয়। শ্রেণি না দেওয়া থাকলে পেজ প্রোফাইলে পাঠায়। বিষয় খোঁজা যায় ইংরেজি, বাংলা বা সংক্ষিপ্ত নাম — যেটাই লেখা হোক (`Subject::scopeMatching()`, তালিকা `ClassSubject::subjectOptionsFor()`)।
 - তিন মোডই **একই plan-এর সীমায়** (দিনে/মাসে) গোনা হয়, আর plan যে difficulty দেয় শুধু সেগুলো আসে (যেমন ফ্রি = শুধু সহজ)। যাচাই `SelfPracticeExamService`-এ, `SubscriptionLimitService::authorize()` দিয়ে — [08-billing.md](08-billing.md)। Difficulty-র তালিকা ও Manual মোডের প্রশ্ন খোঁজাও plan অনুযায়ী ছাঁকা।
+- **সময়** পরীক্ষায় আসলে যতগুলো প্রশ্ন আছে তা থেকে: প্রশ্নপ্রতি Admin-এর মিনিট, Admin-এর গুণিতকে ওপরে তোলা (ডিফল্টে ১০টা → ১০ মিনিট, ১১–১৫টা → ১৫)। ২০টা চেয়ে ১২টা পেলে সময় ১২টার। `BillingSetting::practiceMinutesFor()` — [09-admin-settings.md](09-admin-settings.md)।
 - Auto মোডে এলোমেলো বাছাই আগে শুধু id-র ওপর হয়, তারপর বাছা প্রশ্নগুলো লোড হয় — পুরো বিষয়ের প্রশ্ন একসাথে পড়া হয় না।
-- Manual মোডে প্রশ্ন খোঁজা সার্ভারে হয়, একবারে অল্প ক'টা ফল; পুরো ভাণ্ডার ব্রাউজারে পাঠানো হয় না।
+- **Manual মোড** Teacher-এর "প্রশ্ন বাছাই"-এর একই picker (`Support\Pages\QuestionPickerPage`, কোড ডুপ্লিকেট না — [06-exams.md](06-exams.md)): বিষয় → অধ্যায় → টপিক (টপিক না বাছলে পুরো অধ্যায়), "কয়টা MCQ" লক্ষ্য, টিক দেওয়া ব্রাউজারেই (`localStorage`, সার্ভারে অনুরোধ ছাড়া), যত খুশি অধ্যায় থেকে, "এই পাতার সব বাছুন" ও "এলোমেলোভাবে বাছুন", অন্য পাতায় গেলে তালিকার শুরুতে, তারপর ফাইনাল ভিউ ও **"পরীক্ষা শুরু করুন"**। লক্ষ্যের কম বাছলেও শুরু করা যায়, বেশি না। Teacher-এর থেকে পার্থক্য: শ্রেণি নিজের (ঘর নেই), শুধু approved pool-এর MCQ, পরীক্ষার ধরন নেই (সবসময় অনলাইন, প্রিন্ট নেই), **বাছার সময় সঠিক উত্তর দেখায় না**, নাম/সময় জিজ্ঞেস করে না (সময় নিয়মে)। ব্রাউজারের id আবার যাচাই হয় `SelfPracticeExamService::selectableQuestions()`-এ; একটাও না টিকলে পরীক্ষা হয় না।
+- Self-practice-এ শুধু MCQ আসে (তিন মোডেই) — পরীক্ষা অনলাইনে, আর CQ অনলাইনে হয় না।
 
-কোড: `App\Services\SelfPracticeExamService`, `App\Filament\Support\Pages\SelfPracticeExamPage` (তিন পেজের base), `App\Filament\Student\Pages\GeneratePracticeExam`, `BuildPracticeExam`, `PractiseMistakes`।
+কোড: `App\Services\SelfPracticeExamService`, `App\Filament\Support\Pages\SelfPracticeExamPage` (Auto ও ভুলের অনুশীলনের base), `App\Filament\Support\Pages\QuestionPickerPage` (Manual-এর base, Teacher-এর সাথে অভিন্ন), `App\Filament\Student\Pages\GeneratePracticeExam`, `BuildPracticeExam`, `PractiseMistakes`।
 
 ## বিগত সালের প্রশ্নপত্র
 
@@ -80,10 +82,12 @@ Auto ও Manual দুটোই বাধ্যতামূলক (নিয়�
 
 **ভুল (%):** ওই অধ্যায়ের যতগুলো প্রশ্ন student জমা-দেওয়া পরীক্ষায় পেয়েছে (উত্তর দিক বা ফাঁকা রাখুক — ফাঁকাও ভুল), তার কত শতাংশ এখনো ভুলের তালিকায় — ৫টায় ৩টা হলে ৬০%, নিচে "৫ প্রশ্নে ৩ ভুল"। রঙ: ৫০%+ লাল, ২৫%+ হলুদ, নইলে ধূসর। ভুল পরপর ঠিক করে তালিকা থেকে বাদ গেলে শতাংশও কমে। হিসাব `StudentMistakeTracker::questionsSat()` (ভাগের প্রশ্নগুলো, সংস্করণ মিলিয়ে) ও `mistakePercent()`-এ। লক থাকা ভুল ভাগফলে আসে না, কিন্তু সেই প্রশ্ন ভাজকে থাকে।
 
+পেইড plan-এ এর ওপরে পুরো পারফরম্যান্স বিশ্লেষণ থাকে (স্কোরের ট্রেন্ড, বিষয় ও কঠিনতা অনুযায়ী হার): [11-performance-analytics.md](11-performance-analytics.md)। "দুর্বল অধ্যায়" ফ্রি-ই থাকে।
+
 ## পুরনো খাতা
 
 যে খাতাগুলো এই ফিচারের আগে জমা পড়েছিল, migration চলার সময় সেগুলো পুরনো থেকে নতুন ক্রমে একই পথে হিসাবে তোলা হয় (`ExamAttempt::recordUnrecordedStatistics()`)। এটা আবার চালালে কিছু দুইবার গোনা হয় না।
 
 ## টেস্ট
 
-`StudentMistakePracticeTest` (তালিকার নিয়ম, লক, সংস্করণ, পেজ, widget, লিমিট, query-সংখ্যা), `StudentExamFlowTest`, `SubscriptionLimitServiceTest`।
+`StudentMistakePracticeTest` (তালিকার নিয়ম, লক, সংস্করণ, পেজ, widget, লিমিট, query-সংখ্যা), `StudentQuestionPickerTest` (Manual মোডের picker), `StudentExamFlowTest`, `SubscriptionLimitServiceTest`।

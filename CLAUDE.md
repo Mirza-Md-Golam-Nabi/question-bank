@@ -443,7 +443,7 @@ livewire(ListUsers::class)
 
 ### ৭. Subscription / Freemium
 > **Teacher exam তৈরি/publish/print করার আগে, ও Student self-practice exam জেনারেট করার আগে (সব মোডে) — user-এর plan-এ সেই কাজটা আছে কিনা সার্ভারে চেক করতে হবে। Plan না থাকলে কিছুই না।**
-- **দামের তালিকা পুরোপুরি ডায়নামিক** — কোডে কোনো plan/দাম নেই। Admin প্রতিটা plan-এ মেয়াদ (দিন/মাস/বছর/নির্দিষ্ট তারিখ পর্যন্ত) আর **শর্ত** যোগ-বিয়োগ করেন: শ্রেণি, বিষয় (দুটোই ক্রেতা কেনার সময় বাছতে পারে; বাছাই করা বিষয় plan-এর সব শ্রেণিতে পড়ানো হতে হয় — `PlanConditions::pickableSubjectIds()`), difficulty, সুবিধা (অনলাইন পরীক্ষা / প্রিন্ট / বিগত সালের প্রশ্ন), দিনে ও মাসে পরীক্ষা, আর বিগত সালের প্রশ্নের শর্ত — ধরন, উৎস, কত বছরের পুরনো, "প্রতি N দিনে X টা" (চলমান গণনা; self-practice/পরীক্ষার সীমা থেকে আলাদা; অর্থ `PastPaperAccess`-এ, যাচাই ও গণনা `SubscriptionLimitService::authorizePastPaper()`-এ)। যে বিষয়ে শর্ত নেই সেখানে সীমা নেই। শর্তের অর্থ শুধু `PlanConditions`-এ।
+- **দামের তালিকা পুরোপুরি ডায়নামিক** — কোডে কোনো plan/দাম নেই। Admin প্রতিটা plan-এ মেয়াদ (দিন/মাস/বছর/নির্দিষ্ট তারিখ পর্যন্ত) আর **শর্ত** যোগ-বিয়োগ করেন: শ্রেণি, বিষয় (দুটোই ক্রেতা কেনার সময় বাছতে পারে; বাছাই করা বিষয় plan-এর সব শ্রেণিতে পড়ানো হতে হয় — `PlanConditions::pickableSubjectIds()`), difficulty, সুবিধা (অনলাইন পরীক্ষা / প্রিন্ট / বিগত সালের প্রশ্ন / পারফরম্যান্স বিশ্লেষণ — নিয়ম ১১), দিনে ও মাসে পরীক্ষা, আর বিগত সালের প্রশ্নের শর্ত — ধরন, উৎস, কত বছরের পুরনো, "প্রতি N দিনে X টা" (চলমান গণনা; self-practice/পরীক্ষার সীমা থেকে আলাদা; অর্থ `PastPaperAccess`-এ, যাচাই ও গণনা `SubscriptionLimitService::authorizePastPaper()`-এ)। যে বিষয়ে শর্ত নেই সেখানে সীমা নেই। শর্তের অর্থ শুধু `PlanConditions`-এ।
 - একজন user-এর অধিকার = তার সব সক্রিয় subscription + role-এর ফ্রি plan মিলিয়ে; যাচাই ও "কোন plan-এ গোনা হবে" শুধু `SubscriptionLimitService`-এ (`authorize()`, `allows()`)। প্রতিটা exam যে subscription-এ অনুমতি পেল তার সীমাতেই গোনা হয় (`exams.subscription_id`; ফাঁকা = ফ্রি plan)।
 - Subscription কেনার মুহূর্তে plan-এর শর্তের কপি ও ক্রেতার বাছাই রেখে দেয় — পরে plan বদলালে কেনা জিনিস বদলায় না।
 - Teacher-এর ট্রায়াল একাউন্টপ্রতি একবারই। Student-এর প্রোফাইলে শ্রেণি থাকে; self-practice সবসময় নিজের শ্রেণি থেকে।
@@ -468,7 +468,7 @@ livewire(ListUsers::class)
 > **Student self-practice exam বানাতে পারবে দুইভাবে: Auto-Generate (সিস্টেম subject/difficulty/সংখ্যা অনুযায়ী random প্রশ্ন বেছে দেবে) এবং Manual Selection (Student নিজে approved pool থেকে প্রশ্ন বেছে নেবে)। দুটোই থাকতে হবে, একটা বাদ দেওয়া যাবে না।**
 - `exams.generation_mode` ফিল্ড (`manual`/`auto`) দিয়ে আলাদা করা হবে, দুটোই `exam_type='self_practice'`।
 - Auto মোডের random selection query সবসময় `status='approved' AND is_latest=true` ফিল্টার সহ (approval rule এখানেও প্রযোজ্য)।
-- Manual মোডের UI Teacher-এর exam builder-এর মতোই (searchable multi-select), শুধু Student Panel-এর নিজস্ব সংস্করণ।
+- Manual মোড Teacher-এর "প্রশ্ন বাছাই"-এর **একই picker** (`Support\Pages\QuestionPickerPage`): নিজের শ্রেণির বিষয় → অধ্যায় → টপিক (টপিক না বাছলে পুরো অধ্যায়), যত খুশি অধ্যায় থেকে, লক্ষ্য সংখ্যা পর্যন্ত (কম বাছলেও শুরু করা যায়), ফাইনাল ভিউ থেকে "পরীক্ষা শুরু করুন"। Student-এর পরীক্ষা সবসময় অনলাইন — শুধু MCQ, প্রিন্ট নেই; বাছার সময় সঠিক উত্তর দেখায় না। যাচাই `SelfPracticeExamService::selectableQuestions()`-এ।
 - দুই মোডের exam-ই plan-এর একই সীমায় (দিনে/মাসে) গোনা হবে, আলাদা limit না; plan যে difficulty দেয় শুধু সেগুলো।
 
 ### ১০. Teacher প্রশ্ন বাছাই (Select Questions) → Exam
@@ -484,6 +484,15 @@ livewire(ListUsers::class)
 9. **Exam এডিটও এই পেজ দিয়েই হয়** (`?exam=`; `TeacherExamBuilder::update()`), তৈরি করার মতো একই যাচাইসহ, আর লিমিটে আবার গোনা হয় না। **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`canBeEdited()`) — নইলে তার নম্বর/পজিশন আর প্রশ্নপত্রের সাথে মিলবে না। তখন একমাত্র পথ **"পরীক্ষা বাতিল"** (`Exam::cancel()`): ওই exam-এর সব attempt ও উত্তর স্থায়ীভাবে মুছে exam-কে draft-এ ফেরায় (লিংক বন্ধ থাকে, যাতে এডিটের মাঝে কেউ শুরু না করে); পরে একই লিংকে আবার publish করা যায়। এটা ফেরানো যায় না, তাই confirmation ও log বাধ্যতামূলক।
 10. **নেগেটিভ মার্কিং ও আসন-সীমা:** অনলাইন পরীক্ষায় Teacher সেভের সময় নেগেটিভ মার্কিং চালু করতে পারেন (`exams.negative_marks`, শুরুর মান Admin-এর); ভুলে কাটে, ফাঁকায় না, মোট ০-এর নিচে না — গ্রেডিং শুধু `ExamAttempt::submitAndAutoGrade()`-এ। Plan-এ "প্রতি পরীক্ষায় অংশগ্রহণকারী" থাকলে সেভের সময় `exams.max_participants`-এ কপি হয়; পূর্ণ হলে নতুন কেউ ঢোকে না (`ExamAttempt::enter()`), আগে শুরু করা কেউ ফিরতে পারে।
 8. **PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে** (প্রিন্ট-উপযোগী পেজ, "শুধু প্রশ্ন" ও "উত্তরসহ" দুই রূপে) — সার্ভারে PDF বানানো হয় না, কারণ বাংলা যুক্তাক্ষর/গণিতের সূত্র ভাঙে আর সার্ভারে চাপ পড়ে।
+
+### ১১. পারফরম্যান্স বিশ্লেষণ (Student ও Teacher)
+> **বিশ্লেষণ দেখায় শুধু পেইড plan-এ যার "পারফরম্যান্স বিশ্লেষণ" সুবিধা আছে (`PlanFeature::Analytics`) — role-এর ফ্রি plan কখনো না; যাচাই শুধু `SubscriptionLimitService::allowsAnalytics()`-এ, পুরো একাউন্টের জন্য (শ্রেণি/বিষয়ে বাঁধা না)। Plan না থাকলে লক করা preview (বানানো সংখ্যা, কারো ডেটা পড়া হয় না)। আগের ফ্রি জিনিস ("দুর্বল অধ্যায়", ভুলের অনুশীলন, ফলাফল) ফ্রিই।**
+
+1. **স্কোর** = `total_score / total_marks`; স্কোরের ট্রেন্ড ও মাসের গড় থেকে "আমার ভুলগুলো অনুশীলন" বাদ (আগের ভুল দিয়ে বানানো, কম স্কোর অবনতি না)।
+2. **প্রশ্নভিত্তিক হার** (বিষয়, অধ্যায়, কঠিনতা, কভারেজ) — প্রতিটা MCQ-এর **সর্বশেষ উত্তর**টাই, সংস্করণ মিলিয়ে; ফাঁকা = সঠিক না; সব ধরনের খাতা আসে। Admin-এর ন্যূনতম প্রশ্নের কম হলে শতাংশ না, "আরও ডেটা দরকার"। বিগত সালের পেপার স্কোর ও বিষয়ে আসে, অধ্যায়/কঠিনতা/কভারেজে কখনো না (নিয়ম ৫.৪)।
+3. **উত্তর ফাঁস:** Student-এর নিজের হিসাবে Teacher-এর পরীক্ষার স্কোর সাথে সাথে, কিন্তু প্রশ্নভিত্তিক হিসাবে শুধু উত্তর প্রকাশের পর (`Exam::whereShowsAnswersToStudents()` — `showsAnswersToStudents()`-এর SQL রূপ, একমাত্র জায়গা)।
+4. **Teacher শুধু নিজের পরীক্ষার ডেটা দেখেন** — student-এর self-practice বা অন্য Teacher-এর পরীক্ষা কখনো না; শুধু সেই student-এর বিস্তারিত, যে তাঁর কোনো পরীক্ষা দিয়েছে (`TeacherClassPerformance::hasStudent()`)। ক্লাসের হিসাবে (ট্রেন্ড, দুর্বল অধ্যায়) Guest গোনা হয়; student-ভিত্তিক হিসাবে (তালিকা, "মনোযোগ দরকার", বিস্তারিত) শুধু লগইন করা student — Guest-এর পরিচয় নির্ভরযোগ্যভাবে জোড়া লাগানো যায় না।
+5. হিসাব শুধু `StudentPerformance` (কার খাতা — `PerformanceScope`) ও `TeacherClassPerformance`-এ; সংখ্যাগুলো `BillingSetting.performance_*`।
 
 ## Roles & Permissions (সংক্ষেপে)
 
@@ -664,9 +673,14 @@ CLAUDE.md
 | কার্ডের রঙের palette | `Support\CardPalette` |
 | Dashboard-এর stat কার্ড, "Recent questions" | `Support\Widgets\DashboardStat`, `RecentQuestionsWidget` |
 | Self-practice পেজ (নিজের শ্রেণির বিষয় + শুরু) | `Support\Pages\SelfPracticeExamPage` |
+| প্রশ্ন বাছাইয়ের picker (Teacher-এর "প্রশ্ন বাছাই" ও Student-এর "নিজের প্র্যাকটিস পরীক্ষা বানান"): ফিল্টার, তালিকা, ব্রাউজারে টিক, এলোমেলো, ফাইনাল ভিউ | `Support\Pages\QuestionPickerPage` + `filament.support.pages.question-picker` (partial `question-picker/selection-summary`, `question-picker/question-card`); প্যানেলের পেজে শুধু কোন প্রশ্ন, কোন শ্রেণি, প্রিন্ট আছে কি না আর শেষ ধাপ |
 | Plan-এর শর্ত পড়া, কে কী পারে, কোন plan-এ গোনা হবে | `App\Services\PlanConditions`, `PlanGrant`, `SubscriptionLimitService` (`authorize()`, `allows()`, `allowedDifficultiesFor()`, `constrainToAccessible()`) |
 | "আমার plan" (প্রতিটা plan, তার শর্ত ও আজ/এই মাসের ব্যবহার) | `<x-plan-usage>`, `Support\Concerns\ShowsPlanSummary` |
 | টেস্টে কাউকে শর্তহীন plan দেওয়া | `subscribeToEverything()` (`tests/Pest.php`) |
+| পারফরম্যান্স বিশ্লেষণ: কে দেখে, Student-এর হিসাব, ক্লাসের হিসাব, একটা দলের হার | `SubscriptionLimitService::allowsAnalytics()`; `App\Services\StudentPerformance` + `PerformanceScope` (`ownView()`, `teacherView()`) + `App\Enums\PerformanceSource`; `App\Services\TeacherClassPerformance`; `App\Services\PerformanceRate` |
+| বিশ্লেষণের widget (দুই প্যানেলের অভিন্ন), লক করা preview, ফিল্টারওয়ালা dashboard | `Support\Widgets\Performance\*` (`Concerns\ReadsStudentPerformance`, `NeedsAnalyticsPlan`), `AnalyticsLockedWidget`; `Support\Pages\FilteredDashboard` |
+| খাতার স্কোর %-এ, জমা পড়া খাতার status (raw SQL-এ) | `ExamAttempt::SCORE_PERCENT_SQL`, `ExamAttempt::submittedStatusValues()` |
+| "Class 10 · Physics" লেবেল | `ClassSubject::label()` |
 | Student কার referral-এ, কত দিন (শুরু/বদল/লক) | `App\Services\StudentReferralService`, `Models\StudentReferral` |
 | Teacher/Student-এর কমিশন তোলা (reserve, request, paid/reject) | `App\Services\WithdrawalService`; পেজ `Support\Pages\ReferralsAndCommissionPage` (দুই প্যানেলে), Admin `WithdrawalResource` |
 | Referrer-কে student-এর ঢাকা email দেখানো | `User::maskedEmail()` |
@@ -675,6 +689,7 @@ CLAUDE.md
 | পরীক্ষা পূর্ণ কি না | `Exam::isFull()`; ভুল উত্তরে কত কাটা যায় `Exam::marksLostPerWrongAnswer()` |
 | Staff-এর প্রশ্ন breakdown পেজ | `Support\Pages\QuestionStatusBreakdownPage` |
 | approve/reject-এর status বদল | `Models\Concerns\HasApprovalStatus` |
+| Admin-এর প্রশ্ন রিভিউ: সারির, একসাথে অনেক (ডুপ্লিকেট বাদ), "দেখুন" জানালা থেকে ও পরের pending প্রশ্ন | `Support\QuestionReviewActions` |
 | শেয়ার-লিংকের exam খোঁজা, লিংক সচল কি না | `Exam::findPublishedByShareToken()`, `isAcceptingAttempts()` |
 | একটা শ্রেণির subject-এর approved প্রশ্ন | `Question::scopeOfClassSubject()`, `approvedOptionsForClassSubject()` |
 | পড়ার জন্য প্রশ্ন দেখানো (অপশন/CQ অংশ) | `filament.support.questions.question-body`, `Support\QuestionDisplay` |

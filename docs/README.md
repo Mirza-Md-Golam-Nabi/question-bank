@@ -16,6 +16,7 @@
 | [08-billing.md](08-billing.md) | Plan ও তার শর্ত, লিমিট, পেমেন্ট, referral, wallet, refund, Staff earning ও payout |
 | [09-admin-settings.md](09-admin-settings.md) | Admin-এর প্রতিটা সেটিং: কী করে, ডিফল্ট কত, কোথায় প্রভাব ফেলে |
 | [10-testing-and-deploy.md](10-testing-and-deploy.md) | টেস্ট, ব্রাউজারে যাচাই, deploy, জানা ফাঁদগুলো |
+| [11-performance-analytics.md](11-performance-analytics.md) | Student ও Teacher-এর পারফরম্যান্স বিশ্লেষণ: কে দেখে, হিসাবের নিয়ম, dashboard |
 | [CHANGELOG.md](CHANGELOG.md) | তারিখ ধরে কী বদলেছে |
 
 ## অন্য ডকুমেন্টের সাথে সম্পর্ক

@@ -20,12 +20,12 @@ CQ কখনো অনলাইনে নেওয়া হয় না, ক�
 
 ## প্রশ্ন বাছাই পেজ (Teacher)
 
-`App\Filament\Teacher\Pages\SelectQuestions` — পরীক্ষা তৈরি ও এডিট দুটোই এখান থেকে।
+`App\Filament\Teacher\Pages\SelectQuestions` — পরীক্ষা তৈরি ও এডিট দুটোই এখান থেকে। পেজটা শেয়ার করা picker `Support\Pages\QuestionPickerPage`-এর ওপর; Student-এর "নিজের প্র্যাকটিস পরীক্ষা বানান" একই picker ব্যবহার করে ([07-student-practice.md](07-student-practice.md))। Teacher-এর পেজে থাকে শুধু তার নিজের অংশ: কোন প্রশ্ন (approved pool + নিজের pending, ছাত্রদের ভুলের সংখ্যাসহ), plan-এর শ্রেণি/বিষয়, পরীক্ষার ধরন ও প্রশ্নের ধরন, এডিট (`?exam=`) আর "পরীক্ষা হিসেবে সেভ"।
 
 1. পরীক্ষার ধরন (delivery mode) বাছা।
 2. Class → Subject → Chapter → Topic ফিল্টার। **এক পরীক্ষা = এক class + subject**; chapter যত খুশি মেশানো যায়। Class বা subject বদলাতে গেলে আগের বাছাই মুছে ফেলার অনুমতি চায়।
 3. MCQ ও CQ-র জন্য আলাদা লক্ষ্য সংখ্যা Teacher নিজে দেয়; লক্ষ্য পূরণ হলে আর বাছা যায় না। সিস্টেমের নিজস্ব কোনো ব্যবসায়িক সীমা নেই, শুধু একটা কারিগরি সুরক্ষা-সীমা (`TeacherExamBuilder::MAX_QUESTIONS`)।
-4. প্রশ্নের তালিকা (প্রতি পাতায় ২০টা) থেকে টিক। "এই পাতার সব বাছুন" বাটন পাতার প্রশ্নগুলো লক্ষ্য পর্যন্ত বাছে। **"এলোমেলোভাবে বাছুন"** ফিল্টারের সব পাতা মিলিয়ে (শুধু চোখের সামনের পাতা না) এলোমেলো প্রশ্ন বাছে — প্রতিটা ধরনের যতগুলো লক্ষ্য পূরণে বাকি, আগে বাছা প্রশ্ন বাদে; একটাই সার্ভার অনুরোধ (`SelectQuestions::randomQuestions()`, তালিকার একই query `filteredQuestions()` থেকে), ফল ব্রাউজারের বাছাইয়ে যোগ হয়, সেভের সময় আবার যাচাই। অন্য পাতায় গেলে পেজ তালিকার শুরুতে চলে যায়।
+4. প্রশ্নের তালিকা (প্রতি পাতায় ২০টা) থেকে টিক। "এই পাতার সব বাছুন" বাটন পাতার প্রশ্নগুলো লক্ষ্য পর্যন্ত বাছে। **"এলোমেলোভাবে বাছুন"** ফিল্টারের সব পাতা মিলিয়ে (শুধু চোখের সামনের পাতা না) এলোমেলো প্রশ্ন বাছে — প্রতিটা ধরনের যতগুলো লক্ষ্য পূরণে বাকি, আগে বাছা প্রশ্ন বাদে; একটাই সার্ভার অনুরোধ (`QuestionPickerPage::randomQuestions()`, তালিকার একই query `filteredQuestions()` থেকে), ফল ব্রাউজারের বাছাইয়ে যোগ হয়, সেভের সময় আবার যাচাই। অন্য পাতায় গেলে পেজ তালিকার শুরুতে চলে যায়।
 5. "Final view": বাছাই chapter ধরে একসাথে দেখা।
 6. শিরোনাম ও সময় দিয়ে "Save as exam"।
 
@@ -134,7 +134,7 @@ Self-practice-এ উত্তর সাথে সাথে দেখায়�
 | কী | কোথায় |
 |---|---|
 | তৈরি/এডিটের যাচাই | `app/Services/TeacherExamBuilder.php` |
-| পেজ | `app/Filament/Teacher/Pages/SelectQuestions.php`, `resources/views/filament/teacher/pages/select-questions.blade.php` |
+| পেজ | `app/Filament/Teacher/Pages/SelectQuestions.php` (base `app/Filament/Support/Pages/QuestionPickerPage.php`), `resources/views/filament/support/pages/question-picker.blade.php`, সেভের পরের অংশ `resources/views/filament/teacher/pages/partials/exam-saved.blade.php` |
 | তালিকা ও কাজ | `app/Filament/Teacher/Resources/Exams/` |
 | Model | `app/Models/Exam.php`, `ExamAttempt.php`, `AttemptAnswer.php` |
 | অনুমতি | `app/Policies/ExamPolicy.php` |

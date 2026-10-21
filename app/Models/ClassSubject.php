@@ -53,13 +53,14 @@ class ClassSubject extends Pivot
     /**
      * The subjects taught in a class as select options — the subject's name
      * in the active language, keyed by class_subject id — every one, or only
-     * the given class_subjects. The one place a subject picker gets its list
-     * from.
+     * the given class_subjects, or only those whose name matches a search
+     * (in English, Bangla or short — Subject::scopeMatching()). The one place
+     * a subject picker gets its list from.
      *
      * @param  array<int, int>|null  $onlyIds
      * @return array<int, string>
      */
-    public static function subjectOptionsFor(int|string|null $academicClassId, ?array $onlyIds = null): array
+    public static function subjectOptionsFor(int|string|null $academicClassId, ?array $onlyIds = null, ?string $search = null): array
     {
         if (blank($academicClassId)) {
             return [];
@@ -68,11 +69,21 @@ class ClassSubject extends Pivot
         return self::query()
             ->where('academic_class_id', $academicClassId)
             ->when($onlyIds !== null, fn ($query) => $query->whereKey($onlyIds))
+            ->when(filled($search), fn ($query) => $query->whereHas('subject', fn ($subjects) => $subjects->matching($search)))
             ->with('subject')
             ->ordered()
             ->get()
             ->mapWithKeys(fn (self $classSubject): array => [$classSubject->id => $classSubject->subject->display_name])
             ->all();
+    }
+
+    /**
+     * "Class 10 · Physics" — the class and the subject in the active
+     * language, wherever one class + subject is named on its own.
+     */
+    public function label(): string
+    {
+        return "{$this->academicClass?->name} · {$this->subject?->display_name}";
     }
 
     public function academicClass(): BelongsTo
@@ -83,6 +94,12 @@ class ClassSubject extends Pivot
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function exams(): HasMany
+    {
+        // Explicit FK, for the same reason as chapters() below.
+        return $this->hasMany(Exam::class, 'class_subject_id');
     }
 
     public function chapters(): HasMany

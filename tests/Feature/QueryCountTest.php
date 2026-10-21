@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ExamType;
 use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Staff\Pages\MonthlyEarnings;
@@ -7,6 +8,12 @@ use App\Filament\Staff\Pages\MyEarnings;
 use App\Filament\Staff\Widgets\StaffEarningsTrendChartWidget;
 use App\Filament\Staff\Widgets\StaffQuestionRatesWidget;
 use App\Filament\Staff\Widgets\StaffStatsOverviewWidget;
+use App\Filament\Support\Widgets\Performance\ChapterPerformanceWidget;
+use App\Filament\Support\Widgets\Performance\PerformanceStatsWidget;
+use App\Filament\Support\Widgets\Performance\SubjectPerformanceWidget;
+use App\Filament\Teacher\Widgets\TeacherClassWeakChaptersWidget;
+use App\Filament\Teacher\Widgets\TeacherStudentsNeedingAttentionWidget;
+use App\Filament\Teacher\Widgets\TeacherStudentsPerformanceWidget;
 use App\Models\BillingSetting;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
@@ -213,4 +220,60 @@ it('shows a staff member\'s earnings pages in the same number of queries however
     }
 
     expect($queries[12])->toBe($queries[2]);
+});
+
+it('lists a teacher\'s students and their class figures in the same number of queries however many students there are', function () {
+    $teacher = User::factory()->teacher()->create();
+    subscribeToEverything($teacher);
+    $this->actingAs($teacher);
+    Filament::setCurrentPanel(Filament::getPanel('teacher'));
+    $queries = [];
+
+    foreach ([2, 9] as $studentCount) {
+        [$exam, $answers] = ($this->examWith)(3);
+        $exam->update(['created_by' => $teacher->id]);
+        $exam->recalculateTotalMarks();
+
+        foreach (User::factory()->student()->count($studentCount)->create() as $student) {
+            $attempt = ExamAttempt::factory()->create(['exam_id' => $exam->id, 'student_id' => $student->id]);
+            $attempt->recordAnswers($answers);
+            $attempt->submitAndAutoGrade();
+        }
+
+        $queries[$studentCount] = ($this->queriesRunBy)(function (): void {
+            livewire(TeacherStudentsPerformanceWidget::class)->assertOk();
+            livewire(TeacherStudentsNeedingAttentionWidget::class)->assertOk();
+            livewire(TeacherClassWeakChaptersWidget::class)->assertOk();
+        });
+    }
+
+    expect($queries[9])->toBe($queries[2]);
+});
+
+it('shows a student\'s subjects and chapters in the same number of queries however many there are', function () {
+    $student = User::factory()->student()->create();
+    subscribeToEverything($student);
+    $this->actingAs($student);
+    Filament::setCurrentPanel(Filament::getPanel('student'));
+    $queries = [];
+
+    foreach ([2, 6] as $subjectCount) {
+        foreach (range(1, $subjectCount) as $index) {
+            [$exam, $answers] = ($this->examWith)(2);
+            $exam->update(['created_by' => $student->id, 'exam_type' => ExamType::SelfPractice]);
+            $exam->recalculateTotalMarks();
+
+            $attempt = ExamAttempt::factory()->create(['exam_id' => $exam->id, 'student_id' => $student->id]);
+            $attempt->recordAnswers($answers);
+            $attempt->submitAndAutoGrade();
+        }
+
+        $queries[$subjectCount] = ($this->queriesRunBy)(function (): void {
+            livewire(SubjectPerformanceWidget::class)->assertOk();
+            livewire(ChapterPerformanceWidget::class)->assertOk();
+            livewire(PerformanceStatsWidget::class)->assertOk();
+        });
+    }
+
+    expect($queries[6])->toBe($queries[2]);
 });

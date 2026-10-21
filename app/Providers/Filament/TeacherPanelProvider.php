@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Support\PanelDefaults;
 use App\Filament\Support\QuestionEditorAssets;
 use App\Filament\Teacher\Pages\Auth\Login;
+use App\Filament\Teacher\Pages\Dashboard;
 use App\Http\Controllers\TeacherExamPrintController;
 use App\Http\Controllers\TeacherExamResultsPrintController;
 use Filament\Panel;
@@ -16,7 +17,7 @@ class TeacherPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return QuestionEditorAssets::registerOn(PanelDefaults::apply($panel, 'teacher')
+        return QuestionEditorAssets::registerOn(PanelDefaults::apply($panel, 'teacher', dashboard: Dashboard::class)
             ->login(Login::class)
             ->colors([
                 'primary' => Color::Blue,

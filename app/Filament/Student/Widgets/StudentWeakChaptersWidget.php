@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class StudentWeakChaptersWidget extends TableWidget
 {
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 5;
 
     protected int|string|array $columnSpan = 'full';
 

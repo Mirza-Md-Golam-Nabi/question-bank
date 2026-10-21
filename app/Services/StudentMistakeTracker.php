@@ -6,6 +6,7 @@ use App\Enums\Difficulty;
 use App\Enums\QuestionType;
 use App\Models\BillingSetting;
 use App\Models\ClassSubject;
+use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Question;
 use App\Models\User;
@@ -114,7 +115,7 @@ class StudentMistakeTracker
                     ->orWhereExists(fn (QueryBuilder $exam) => $exam
                         ->from('exams')
                         ->whereColumn('exams.id', 'mistake.locked_by_exam_id')
-                        ->where(fn (QueryBuilder $released) => self::answersAreOut($released)))));
+                        ->where(fn (QueryBuilder $released) => Exam::whereShowsAnswersToStudents($released)))));
     }
 
     /**
@@ -187,17 +188,6 @@ class StudentMistakeTracker
             ->whereKey($ids->random(min($count, $ids->count())))
             ->get()
             ->shuffle();
-    }
-
-    /**
-     * The one statement of "this exam's answers can be seen", in SQL — the
-     * same rule as Exam::showsAnswersToStudents() for a teacher's exam.
-     */
-    private static function answersAreOut(QueryBuilder $exams): QueryBuilder
-    {
-        return $exams
-            ->whereNotNull('exams.answers_released_at')
-            ->orWhere('exams.answers_release_at', '<=', now());
     }
 
     /**

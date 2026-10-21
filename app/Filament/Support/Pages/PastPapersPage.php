@@ -87,7 +87,7 @@ abstract class PastPapersPage extends Page implements HasTable
                 TextColumn::make('classSubject.subject.name')
                     ->label(__('Class · Subject'))
                     ->state(fn (BoardQuestionPaper $record): ?string => $record->classSubject
-                        ? "{$record->classSubject->academicClass->name} · {$record->classSubject->subject->display_name}"
+                        ? $record->classSubject->label()
                         : null)
                     ->placeholder('—'),
                 TextColumn::make('mcq_questions_count')

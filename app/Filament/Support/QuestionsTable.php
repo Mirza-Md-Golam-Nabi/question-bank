@@ -4,7 +4,6 @@ namespace App\Filament\Support;
 
 use App\Enums\QuestionStatus;
 use App\Models\Question;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -13,20 +12,18 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
-use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use Illuminate\Contracts\View\View;
 
 /**
  * Columns, filters, and row actions shared by every panel's QuestionResource
- * table. Approve/Reject only render when the viewing user's QuestionPolicy
- * allows it (Admin/Super Admin), so the same table definition is safe to
- * reuse in the Teacher and Staff panels without ever exposing those actions
- * there.
+ * table. The review actions (QuestionReviewActions — approve, reject, many
+ * at once, and from the View window) only render when the viewing user's
+ * QuestionPolicy allows it (Admin/Super Admin), so the same table
+ * definition is safe to reuse in the Teacher and Staff panels without ever
+ * exposing them there.
  */
 class QuestionsTable
 {
@@ -52,11 +49,9 @@ class QuestionsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
-                self::approveAction(),
-                self::rejectAction(),
-                ViewAction::make()
-                    ->schema(QuestionInfolist::components())
-                    ->iconButton(),
+                QuestionReviewActions::approve(),
+                QuestionReviewActions::reject(),
+                QuestionReviewActions::view(),
                 // A question under a shared stimulus is edited with its whole
                 // group, so the group always changes as one.
                 EditAction::make()->iconButton()->hidden(fn (Question $record): bool => $record->isInStimulusGroup()),
@@ -67,6 +62,8 @@ class QuestionsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    QuestionReviewActions::approveSelected(),
+                    QuestionReviewActions::rejectSelected(),
                     // Each selected question is checked on its own, so an
                     // approved one among them is left alone.
                     DeleteBulkAction::make()->authorizeIndividualRecords('delete'),
@@ -74,36 +71,5 @@ class QuestionsTable
                     ForceDeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    protected static function approveAction(): Action
-    {
-        return Action::make('approve')
-            ->label(__('Approve'))
-            ->color('success')
-            ->icon('heroicon-o-check-circle')
-            ->visible(fn (Question $record) => $record->status !== QuestionStatus::Approved && auth()->user()->can('approve', $record))
-            ->requiresConfirmation()
-            // Whether it looks like a question already in the chapter — seen
-            // before the question goes into the pool (and a Staff member is paid).
-            ->modalContent(fn (Question $record): View => view('filament.support.questions.duplicate-warnings', [
-                'matches' => DuplicateQuestionCheck::forApproval($record),
-            ]))
-            ->action(fn (Question $record) => $record->approve(auth()->user()));
-    }
-
-    protected static function rejectAction(): Action
-    {
-        return Action::make('reject')
-            ->label(__('Reject'))
-            ->color('danger')
-            ->icon('heroicon-o-x-circle')
-            ->visible(fn (Question $record) => $record->status !== QuestionStatus::Rejected && auth()->user()->can('reject', $record))
-            ->schema([
-                Textarea::make('rejection_reason')
-                    ->label(__('Reason'))
-                    ->required(),
-            ])
-            ->action(fn (Question $record, array $data) => $record->reject(auth()->user(), $data['rejection_reason']));
     }
 }

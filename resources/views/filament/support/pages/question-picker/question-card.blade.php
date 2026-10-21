@@ -1,10 +1,12 @@
 @php
     /**
      * What a question card shows in the question picker — its type, topic,
-     * difficulty and marks, then the question itself with its answer. The
-     * same in the selectable list and in the final view.
+     * difficulty and marks, then the question itself, with its answer where
+     * the page shows answers while picking (not to a student about to sit
+     * it). The same in the selectable list and in the final view.
      *
      * @var \App\Models\Question $question
+     * @var bool $showAnswers
      */
     use App\Enums\QuestionStatus;
     use App\Enums\QuestionType;
@@ -42,5 +44,5 @@
         </span>
     </div>
 
-    @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => true])
+    @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => $showAnswers])
 </div>

@@ -40,6 +40,12 @@ abstract class SelfPracticeExamPage extends Page
     public function mount(): void
     {
         $this->form->fill();
+
+        // Opened from a subject on the dashboard (`?subject=`): that subject
+        // picked already, if it is one of the student's class.
+        if ($classSubject = $this->classSubject(request()->query('subject'))) {
+            $this->data['class_subject_id'] = $classSubject->id;
+        }
     }
 
     /**
@@ -154,6 +160,9 @@ abstract class SelfPracticeExamPage extends Page
             ->label(__('Subject'))
             ->options(fn (): array => $this->subjectOptions())
             ->searchable()
+            // Found by whichever name is typed — English, Bangla or short —
+            // not only by the one shown.
+            ->getSearchResultsUsing(fn (string $search): array => ClassSubject::subjectOptionsFor(Auth::user()->academic_class_id, search: $search))
             ->live()
             ->required()
             ->afterStateUpdated($afterStateUpdated);

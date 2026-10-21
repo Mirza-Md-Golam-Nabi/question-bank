@@ -32,6 +32,29 @@ class ExamAttempt extends Model
     use HasFactory;
 
     /**
+     * The statuses of a handed-in paper — what scopeSubmitted() matches, for
+     * queries over the raw table too.
+     */
+    public const SUBMITTED_STATUSES = [ExamAttemptStatus::Submitted, ExamAttemptStatus::AutoSubmitted];
+
+    /**
+     * A handed-in paper's score as a share of its exam's total marks, in
+     * SQL over `exam_attempts as attempt` joined to `exams` (whose total
+     * marks must be above 0) — how every performance figure reads a score.
+     */
+    public const SCORE_PERCENT_SQL = '100.0 * attempt.total_score / exams.total_marks';
+
+    /**
+     * SUBMITTED_STATUSES as stored, for queries over the raw table.
+     *
+     * @return array<int, string>
+     */
+    public static function submittedStatusValues(): array
+    {
+        return array_map(fn (ExamAttemptStatus $status): string => $status->value, self::SUBMITTED_STATUSES);
+    }
+
+    /**
      * How long after the deadline answers are still accepted.
      */
     public const ANSWER_GRACE_SECONDS = 30;
@@ -115,7 +138,7 @@ class ExamAttempt extends Model
      */
     public function scopeSubmitted(Builder $query): Builder
     {
-        return $query->whereIn('status', [ExamAttemptStatus::Submitted, ExamAttemptStatus::AutoSubmitted]);
+        return $query->whereIn($query->qualifyColumn('status'), self::SUBMITTED_STATUSES);
     }
 
     public function isInProgress(): bool

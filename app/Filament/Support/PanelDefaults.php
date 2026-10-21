@@ -29,8 +29,9 @@ class PanelDefaults
     /**
      * @param  string  $id  The panel's id, which is also its URL path (`admin` → `/admin`).
      * @param  Locale|null  $defaultLocale  The language the panel opens in until the visitor picks one; null for the application's own default (Bangla).
+     * @param  class-string<Dashboard>  $dashboard  The panel's own dashboard, when it has filters of its own.
      */
-    public static function apply(Panel $panel, string $id, ?Locale $defaultLocale = null): Panel
+    public static function apply(Panel $panel, string $id, ?Locale $defaultLocale = null, string $dashboard = Dashboard::class): Panel
     {
         return $panel
             // The id has to come first: Filament looks up the panel's
@@ -54,7 +55,7 @@ class PanelDefaults
                 ])
                 ->all())
             ->pages([
-                Dashboard::class,
+                $dashboard,
             ])
             ->middleware([
                 EncryptCookies::class,

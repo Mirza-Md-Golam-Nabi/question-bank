@@ -6,6 +6,7 @@ use App\Filament\Student\Pages\ExamResultPage;
 use App\Filament\Student\Pages\GeneratePracticeExam;
 use App\Filament\Student\Pages\JoinExam;
 use App\Filament\Student\Pages\TakeExamPage;
+use App\Models\BillingSetting;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Exam;
@@ -56,17 +57,54 @@ it('auto-generates a practice exam from the approved pool and starts an attempt'
     expect(ExamAttempt::where('exam_id', $exam->id)->where('student_id', $this->student->id)->exists())->toBeTrue();
 });
 
+it('times a practice exam by its questions, rounded up to five minutes by default', function (int $questions, int $minutes) {
+    expect(BillingSetting::current()->practiceMinutesFor($questions))->toBe($minutes);
+})->with([
+    [1, 5], [5, 5], [6, 10], [10, 10], [11, 15], [15, 15], [16, 20], [20, 20], [43, 45],
+]);
+
+it('times a practice exam by the Admin\'s minutes per question and rounding', function () {
+    BillingSetting::current()->fill(['practice_minutes_per_question' => 1.5, 'practice_minutes_step' => 10])->save();
+
+    // 12 questions × 1.5 = 18 minutes, rounded up to 20.
+    expect(BillingSetting::current()->practiceMinutesFor(12))->toBe(20)
+        ->and(BillingSetting::current()->practiceMinutesFor(1))->toBe(10);
+});
+
+it('gives a practice exam the time of the questions actually on it', function () {
+    $chapter = Chapter::factory()->create(['class_subject_id' => $this->classSubject->id]);
+    Question::factory()->approved()->for($chapter)->count(12)->create();
+
+    // Twenty asked for, twelve in the subject: timed for twelve.
+    livewire(GeneratePracticeExam::class)
+        ->fillForm(['class_subject_id' => $this->classSubject->id, 'question_count' => 20])
+        ->call('start');
+
+    $exam = Exam::where('created_by', $this->student->id)->sole();
+
+    expect($exam->questions)->toHaveCount(12)
+        ->and($exam->duration_minutes)->toBe(15);
+});
+
+it('finds a subject by its English, Bangla or short name', function () {
+    $this->classSubject->subject->update(['name' => 'Information Technology', 'name_bn' => 'তথ্য প্রযুক্তি', 'short_name' => 'ICT']);
+    ClassSubject::factory()->create(['academic_class_id' => $this->classSubject->academic_class_id]);
+
+    foreach (['information', 'প্রযুক্তি', 'ict'] as $search) {
+        livewire(GeneratePracticeExam::class)
+            ->assertFormFieldExists('class_subject_id', fn ($field): bool => array_keys($field->getSearchResults($search)) === [$this->classSubject->id]);
+    }
+});
+
 it('builds a manual practice exam from student-picked questions', function () {
     $classSubject = $this->classSubject;
     $chapter = Chapter::factory()->create(['class_subject_id' => $classSubject->id]);
     $questions = Question::factory()->approved()->for($chapter)->count(2)->create();
 
     livewire(BuildPracticeExam::class)
-        ->fillForm([
-            'class_subject_id' => $classSubject->id,
-            'question_ids' => $questions->pluck('id')->all(),
-        ])
-        ->call('start');
+        ->fillForm(['class_subject_id' => $classSubject->id])
+        ->call('finish', $questions->pluck('id')->all())
+        ->assertRedirect();
 
     $exam = Exam::where('created_by', $this->student->id)->first();
     expect($exam->generation_mode->value)->toBe('manual');
@@ -88,8 +126,9 @@ it('counts auto and manual self-practice exams together against the same limit',
     expect(Exam::where('created_by', $this->student->id)->count())->toBe(3);
 
     livewire(BuildPracticeExam::class)
-        ->fillForm(['class_subject_id' => $classSubject->id, 'question_ids' => [$questions->first()->id]])
-        ->call('start');
+        ->fillForm(['class_subject_id' => $classSubject->id])
+        ->call('finish', [$questions->first()->id])
+        ->assertNotified(__('The exam could not be started'));
 
     // still 3 — the 4th attempt was blocked by the monthly limit
     expect(Exam::where('created_by', $this->student->id)->count())->toBe(3);

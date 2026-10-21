@@ -30,7 +30,8 @@ use Illuminate\Database\Eloquent\Model;
     'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
     'admin_notification_recipients', 'question_import_max', 'question_import_image_max_kb', 'question_import_images_max_mb', 'teacher_question_import_enabled', 'staff_paper_import_enabled', 'duplicate_similarity_percent',
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
-    'mistake_clear_streak', 'default_negative_marks', 'paper_rates',
+    'mistake_clear_streak', 'practice_minutes_per_question', 'practice_minutes_step', 'default_negative_marks', 'paper_rates',
+    'performance_min_questions', 'performance_trend_exams', 'performance_falling_exams', 'performance_inactive_days',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
 ])]
 class BillingSetting extends Model
@@ -70,7 +71,13 @@ class BillingSetting extends Model
         'difficulty_hard_max_percent' => 33,
         'difficulty_medium_max_percent' => 66,
         'mistake_clear_streak' => 2,
+        'practice_minutes_per_question' => 1,
+        'practice_minutes_step' => 5,
         'default_negative_marks' => 0.25,
+        'performance_min_questions' => 5,
+        'performance_trend_exams' => 10,
+        'performance_falling_exams' => 3,
+        'performance_inactive_days' => 14,
     ];
 
     protected function casts(): array
@@ -104,7 +111,13 @@ class BillingSetting extends Model
             'difficulty_hard_max_percent' => 'float',
             'difficulty_medium_max_percent' => 'float',
             'mistake_clear_streak' => 'integer',
+            'practice_minutes_per_question' => 'float',
+            'practice_minutes_step' => 'integer',
             'default_negative_marks' => 'float',
+            'performance_min_questions' => 'integer',
+            'performance_trend_exams' => 'integer',
+            'performance_falling_exams' => 'integer',
+            'performance_inactive_days' => 'integer',
             'paper_rates' => 'array',
             'admin_notification_recipients' => 'array',
         ];
@@ -126,6 +139,19 @@ class BillingSetting extends Model
             ->where('status', UserStatus::Active)
             ->when($chosen !== [], fn ($query) => $query->whereKey($chosen))
             ->get();
+    }
+
+    /**
+     * How long a self-practice exam of this many questions runs: the
+     * Admin's minutes per question, rounded up to the Admin's step — with a
+     * minute per question and a step of 5, 10 questions are 10 minutes and
+     * 11–15 are 15. Never less than one step.
+     */
+    public function practiceMinutesFor(int $questionCount): int
+    {
+        $step = max(1, $this->practice_minutes_step);
+
+        return max($step, (int) (ceil($questionCount * $this->practice_minutes_per_question / $step) * $step));
     }
 
     /**

@@ -1,27 +1,35 @@
 @php
-    use App\Filament\Teacher\Pages\SelectQuestions;
+    /**
+     * The question picker of every panel (QuestionPickerPage): the Teacher's
+     * "Select questions" and the Student's own practice exam. What differs
+     * between them comes from the page — which questions, whether CQ and
+     * printing exist, and what the final button does.
+     */
+    use App\Enums\ExamDeliveryMode;
+    use App\Filament\Support\Pages\QuestionPickerPage;
 
-    $questions = $this->step === SelectQuestions::STEP_SELECT ? $this->questions : null;
+    $questions = $this->step === QuestionPickerPage::STEP_SELECT ? $this->questions : null;
     $deliveryMode = $this->deliveryMode();
+    $blockedNotice = $this->blockedNotice();
 @endphp
 
 <x-filament-panels::page>
-    @unless ($this->hasAnyPlan())
-        <x-filament::section icon="heroicon-o-lock-closed" icon-color="warning" :heading="__('You need a plan to build exams')">
-            <p class="text-sm">{{ __('Your plan does not cover any class or subject yet. Start your free trial or buy a plan to build exams.') }}</p>
+    @if ($blockedNotice)
+        <x-filament::section icon="heroicon-o-lock-closed" icon-color="warning" :heading="$blockedNotice['heading']">
+            <p class="text-sm">{{ $blockedNotice['message'] }}</p>
 
-            <x-filament::button tag="a" :href="$this->subscriptionUrl()" class="mt-3">
-                {{ __('See plans') }}
+            <x-filament::button tag="a" :href="$blockedNotice['url']" class="mt-3">
+                {{ $blockedNotice['button'] }}
             </x-filament::button>
         </x-filament::section>
-    @endunless
+    @endif
 
     {{--
         The selection lives in the browser only (CLAUDE.md rule 10): this
         Alpine component keeps the ticked question ids in localStorage and
         does all the counting itself, so ticking a question never calls the
         server. Livewire is only asked for a page of questions, the review
-        of the ids held here, and the final save.
+        of the ids held here, and the final step.
     --}}
     <div
         x-data="qbQuestionSelection({
@@ -32,7 +40,7 @@
         x-on:qb-selection-saved.window="clearSelection()"
         class="qb-selection pb-28 lg:pb-0"
     >
-        @if ($this->step === SelectQuestions::STEP_SELECT)
+        @if ($this->step === QuestionPickerPage::STEP_SELECT)
             <div class="space-y-6">
                 <x-filament::section>
                     {{ $this->form }}
@@ -76,7 +84,7 @@
                     <div class="space-y-4 lg:col-span-2">
                         @if (! $questions)
                             <x-filament::empty-state
-                                :heading="__('Choose a class, subject and chapter')"
+                                :heading="$this->showsClassFilter() ? __('Choose a class, subject and chapter') : __('Choose a subject and chapter')"
                                 :description="__('The approved questions of that chapter will be listed here.')"
                                 icon="heroicon-o-funnel"
                             />
@@ -185,7 +193,7 @@
                                         x-on:change="toggle(@js($item), $event)"
                                     >
 
-                                    @include('filament.teacher.pages.partials.question-card-content', ['question' => $question])
+                                    @include('filament.support.pages.question-picker.question-card', ['question' => $question, 'showAnswers' => $this->showsAnswersWhilePicking()])
                                 </label>
                             @endforeach
 
@@ -197,26 +205,26 @@
                         @endif
                     </div>
 
-                    @include('filament.teacher.pages.partials.selection-summary')
+                    @include('filament.support.pages.question-picker.selection-summary')
                 </div>
             </div>
-        @elseif ($this->step === SelectQuestions::STEP_REVIEW)
+        @elseif ($this->step === QuestionPickerPage::STEP_REVIEW)
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div class="space-y-6 lg:col-span-2">
                     <x-filament::section>
                         <x-slot name="heading">
-                            {{ $this->classSubject?->academicClass->name }} &middot; {{ $this->classSubject?->subject->name }}
+                            {{ $this->classSubject?->label() }}
                         </x-slot>
 
                         <x-slot name="description">
                             {{ $deliveryMode->getLabel() }}
-                            @if ($deliveryMode === \App\Enums\ExamDeliveryMode::Both)
+                            @if ($deliveryMode === ExamDeliveryMode::Both)
                                 &mdash; {{ __('CQ questions appear on the printed paper only.') }}
                             @endif
                         </x-slot>
 
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                            {{ __('This is the final view of everything you selected, chapter by chapter. Remove anything you do not want, then save it as an exam.') }}
+                            {{ $this->reviewIntro() }}
                         </p>
                     </x-filament::section>
 
@@ -243,7 +251,7 @@
                                     x-show="has({{ $question->id }})"
                                     class="flex gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10"
                                 >
-                                    @include('filament.teacher.pages.partials.question-card-content', ['question' => $question])
+                                    @include('filament.support.pages.question-picker.question-card', ['question' => $question, 'showAnswers' => $this->showsAnswersWhilePicking()])
 
                                     <x-filament::icon-button
                                         icon="heroicon-o-trash"
@@ -257,46 +265,10 @@
                     @endforeach
                 </div>
 
-                @include('filament.teacher.pages.partials.selection-summary')
+                @include('filament.support.pages.question-picker.selection-summary')
             </div>
-        @else
-            @php
-                $savedExam = $this->savedExam;
-            @endphp
-
-            <x-filament::section>
-                <x-slot name="heading">{{ $this->editingExam ? __('Exam updated') : __('Exam saved') }}</x-slot>
-
-                @if ($savedExam)
-                    <x-slot name="description">
-                        {{ $savedExam->title }} &middot;
-                        {{ trans_choice(':count Question|:count Questions', $savedExam->questions_count) }}
-                    </x-slot>
-
-                    <div class="flex flex-wrap gap-3">
-                        @if ($savedExam->delivery_mode->includesOffline())
-                            <x-filament::button
-                                tag="a"
-                                :href="route('filament.teacher.exams.print', $savedExam)"
-                                target="_blank"
-                                icon="heroicon-o-printer"
-                            >
-                                {{ __('Print / PDF') }}
-                            </x-filament::button>
-                        @endif
-
-                        @if ($savedExam->delivery_mode->includesOnline())
-                            <x-filament::button tag="a" :href="$this->examsUrl()" icon="heroicon-o-globe-alt" color="success">
-                                {{ __('Go to exams to publish it online') }}
-                            </x-filament::button>
-                        @endif
-
-                        <x-filament::button color="gray" wire:click="startNewSelection" icon="heroicon-o-plus">
-                            {{ __('Select questions for another exam') }}
-                        </x-filament::button>
-                    </div>
-                @endif
-            </x-filament::section>
+        @elseif ($this->finishedView())
+            @include($this->finishedView())
         @endif
 
         {{-- Asks before a destructive change discards part of the selection. --}}
@@ -469,13 +441,15 @@
                     return this.has(id) || this.countType(type) < this.target(type);
                 },
 
+                // A page without a choice of exam mode is online only.
                 allowsCq() {
-                    return this.$wire.data.exam_mode !== 'online';
+                    return (this.$wire.data.exam_mode ?? 'online') !== 'online';
                 },
 
-                // Which target fields the chosen question type calls for.
+                // Which target fields the chosen question type calls for (MCQ
+                // only, on a page without the type filter).
                 showsType(type) {
-                    const filter = this.$wire.data.question_type;
+                    const filter = this.$wire.data.question_type ?? 'mcq';
 
                     if (type === 'cq' && ! this.allowsCq()) {
                         return false;
@@ -680,8 +654,8 @@
                     this.$wire.review(this.ids());
                 },
 
-                saveExam() {
-                    this.$wire.mountAction('saveExam', { ids: this.ids() });
+                finish() {
+                    this.$wire.finish(this.ids());
                 },
             }));
         </script>

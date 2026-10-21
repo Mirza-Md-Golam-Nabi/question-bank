@@ -133,6 +133,23 @@ class SubscriptionLimitService
     }
 
     /**
+     * Whether the user sees performance analytics: only a paid plan's
+     * subscription that includes them — never a role's free plan, whatever
+     * its conditions say. Not tied to a class or subject: the analytics are
+     * of exams already sat.
+     */
+    public function allowsAnalytics(User $user): bool
+    {
+        foreach ($this->grantsFor($user) as $grant) {
+            if (! $grant->isFree() && $grant->allowsFeatures([PlanFeature::Analytics])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * The difficulties the user may use in this class + subject, across all
      * their grants: null when every one is allowed, empty when none.
      *

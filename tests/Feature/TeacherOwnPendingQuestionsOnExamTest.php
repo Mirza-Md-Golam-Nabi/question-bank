@@ -88,9 +88,11 @@ it('keeps a pending question out of a student\'s self-practice', function () {
     $student = User::factory()->student()->create();
     subscribeToEverything($student);
 
-    $attempt = app(SelfPracticeExamService::class)->generateManual($student, $this->classSubject, [$ownPending->id]);
+    // Nothing left to sit, so no practice exam is made at all.
+    expect(fn () => app(SelfPracticeExamService::class)->generateManual($student, $this->classSubject, [$ownPending->id]))
+        ->toThrow(ValidationException::class);
 
-    expect($attempt->exam->questions()->count())->toBe(0);
+    expect(Exam::query()->where('created_by', $student->id)->exists())->toBeFalse();
 });
 
 it('opens the question to everyone once the admin approves it, and leaves the exam as it was', function () {

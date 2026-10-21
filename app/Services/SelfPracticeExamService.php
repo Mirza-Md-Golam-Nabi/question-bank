@@ -6,6 +6,8 @@ use App\Enums\Difficulty;
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
+use App\Enums\QuestionType;
+use App\Models\BillingSetting;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
@@ -63,13 +65,41 @@ class SelfPracticeExamService
     }
 
     /**
-     * @param  array<int>  $questionIds
+     * The questions among `$questionIds` that can go on a practice exam of
+     * this class + subject: the approved pool's MCQs. The ids come from the
+     * student's browser (the question picker), so anything else — pending,
+     * edited since, another subject's, made up — is silently left out.
+     * Whether the student's plans allow their difficulties is checked when
+     * the exam is started, which says so by name.
      *
-     * @throws ValidationException when the student's plans don't allow it
+     * @param  array<int, mixed>  $questionIds
+     * @return Collection<int, Question>
+     */
+    public function selectableQuestions(ClassSubject $classSubject, array $questionIds): Collection
+    {
+        $questionIds = array_slice(array_values(array_unique(array_filter(array_map('intval', $questionIds)))), 0, TeacherExamBuilder::MAX_QUESTIONS);
+
+        if ($questionIds === []) {
+            return new Collection;
+        }
+
+        return $this->pool($classSubject)->whereIn('questions.id', $questionIds)->get();
+    }
+
+    /**
+     * @param  array<int, mixed>  $questionIds
+     *
+     * @throws ValidationException when the student's plans don't allow it, or none of the questions can be used
      */
     public function generateManual(User $student, ClassSubject $classSubject, array $questionIds): ExamAttempt
     {
-        $questions = $this->pool($classSubject)->whereIn('id', $questionIds)->get();
+        $questions = $this->selectableQuestions($classSubject, $questionIds);
+
+        if ($questions->isEmpty()) {
+            throw ValidationException::withMessages([
+                'questions' => __('None of the selected questions are available any more.'),
+            ]);
+        }
 
         $grant = $this->subscriptionLimits->authorize(
             $student,
@@ -103,13 +133,17 @@ class SelfPracticeExamService
     }
 
     /**
-     * The approved+latest questions of one class's subject.
+     * The approved+latest MCQs of one class's subject. Only MCQ: a practice
+     * exam is always taken online, and CQ is never taken online (CLAUDE.md
+     * rule 10).
      *
      * @return Builder<Question>
      */
     private function pool(ClassSubject $classSubject): Builder
     {
-        return Question::approvedPool()->ofClassSubject($classSubject->id);
+        return Question::approvedPool()
+            ->where('questions.question_type', QuestionType::Mcq)
+            ->ofClassSubject($classSubject->id);
     }
 
     /**
@@ -126,7 +160,7 @@ class SelfPracticeExamService
                 'generation_mode' => $mode,
                 'subject_id' => $classSubject->subject_id,
                 'class_subject_id' => $classSubject->id,
-                'duration_minutes' => 30,
+                'duration_minutes' => BillingSetting::current()->practiceMinutesFor($questions->count()),
                 'status' => ExamStatus::Draft,
             ]);
 

@@ -258,6 +258,41 @@ class BillingSettings extends Page
                             ->helperText(__('A question a student got wrong leaves their mistakes list once they have answered it correctly this many times in a row.'))
                             ->integer()->minValue(1)->maxValue(20)->required(),
                     ]),
+
+                Section::make(__('Self-practice exam time'))
+                    ->description(__('How long a self-practice exam runs, from how many questions are on it: 10 questions at 1 minute each, rounded up to 5, is 10 minutes; 11–15 questions are 15.'))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('practice_minutes_per_question')
+                            ->label(__('Minutes per question'))
+                            ->numeric()->minValue(0.25)->maxValue(10)->step(0.25)->required(),
+                        TextInput::make('practice_minutes_step')
+                            ->label(__('Round the time up to a multiple of (minutes)'))
+                            ->helperText(__('1 = no rounding. The exam is never shorter than this.'))
+                            ->integer()->minValue(1)->maxValue(60)->required(),
+                    ]),
+
+                Section::make(__('Performance analytics'))
+                    ->description(__("What a student's and a teacher's performance analytics go by — shown only to those whose paid plan includes them."))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('performance_min_questions')
+                            ->label(__('Questions needed before a rate is shown'))
+                            ->helperText(__('A subject, chapter or difficulty with fewer answered questions shows "more data needed" instead of a percentage.'))
+                            ->integer()->minValue(1)->maxValue(100)->required(),
+                        TextInput::make('performance_trend_exams')
+                            ->label(__('Exams on the score trend'))
+                            ->helperText(__('How many of the latest exams the score line shows.'))
+                            ->integer()->minValue(3)->maxValue(50)->required(),
+                        TextInput::make('performance_falling_exams')
+                            ->label(__('Falling scores that need attention'))
+                            ->helperText(__("A teacher is shown a student whose score has gone down this many exams in a row on the teacher's exams."))
+                            ->integer()->minValue(2)->maxValue(10)->required(),
+                        TextInput::make('performance_inactive_days')
+                            ->label(__('Days without an exam that need attention'))
+                            ->helperText(__("A teacher is shown a student who has sat none of the teacher's exams for this many days while the teacher has given new ones."))
+                            ->integer()->minValue(1)->maxValue(365)->required(),
+                    ]),
             ])
             ->statePath('data');
     }

@@ -6,6 +6,16 @@
 
 ## ২০২৬-১০-২১
 
+- **Admin-এর প্রশ্ন রিভিউ দ্রুত:** অধ্যায়ের তালিকায় একসাথে অনেক প্রশ্ন approve (সম্ভাব্য ডুপ্লিকেট বাদ থাকে, কয়টা বাদ বলে দেয়) ও reject (এক কারণে); "দেখুন" জানালায় Approve / Reject / পরের প্রশ্ন — চাপলেই তালিকার পরের pending প্রশ্ন, আবার চোখে চাপতে হয় না। কোড `Support\QuestionReviewActions`। → [05-question-bank.md](05-question-bank.md)
+
+- **Student-এর "নিজের প্র্যাকটিস পরীক্ষা বানান" এখন Teacher-এর "প্রশ্ন বাছাই"-এর মতো:** ড্রপডাউনে খোঁজার বদলে বিষয় → অধ্যায় → টপিক ধরে টিক, কয়টা প্রশ্ন, একাধিক অধ্যায়, এলোমেলো বাছাই, ফাইনাল ভিউ থেকে "পরীক্ষা শুরু করুন"; বাছার সময় উত্তর দেখায় না, শুধু MCQ (অনলাইন)। দুই পেজ এখন এক picker-এর ওপর (`QuestionPickerPage`, ভিউ `filament.support.pages.question-picker`); Self-practice-এর সব মোডে শুধু MCQ; একটাও প্রশ্ন না টিকলে খালি পরীক্ষা আর হয় না। → [07-student-practice.md](07-student-practice.md), [06-exams.md](06-exams.md)
+
+- **Self-practice-এর সময় প্রশ্নের সংখ্যা থেকে:** আগে সবসময় ৩০ মিনিট ছিল। এখন প্রশ্নপ্রতি মিনিট × প্রশ্ন, ৫-এর গুণিতকে ওপরে তোলা (১০টা → ১০ মিনিট, ১১–১৫ → ১৫, ১৬–২০ → ২০)। দুটো সংখ্যাই Admin-এর সেটিং (`practice_minutes_per_question`, `practice_minutes_step`), তিন মোডেই। → [07-student-practice.md](07-student-practice.md), [09-admin-settings.md](09-admin-settings.md)
+
+- **Self-practice-এ বিষয় খোঁজা তিন নামেই:** ইংরেজি, বাংলা বা সংক্ষিপ্ত নাম (যেমন "physics", "পদার্থ", "PHY") — যেটাই লেখা হোক, বিষয় খুঁজে পায়; আগে শুধু দেখানো নামে খুঁজত। → [07-student-practice.md](07-student-practice.md)
+
+- **পারফরম্যান্স বিশ্লেষণ (Student ও Teacher, শুধু পেইড plan):** plan-এর নতুন সুবিধা "পারফরম্যান্স বিশ্লেষণ"। Student-এর dashboard-এ স্কোরের ট্রেন্ড, মাসের গড়, টানা দিন, বিষয় ও কঠিনতা অনুযায়ী হার আর কভারেজ (উৎসের ফিল্টারসহ)। Teacher-এর dashboard-এ ক্লাসের ট্রেন্ড, দুর্বল অধ্যায়, "মনোযোগ দরকার", ছাত্রের তালিকা, আর প্রত্যেক ছাত্রের বিস্তারিত পেজ (শুধু নিজের পরীক্ষা থেকে)। Plan না থাকলে লক করা preview দেখায়। নতুন সেটিং `performance_*`, নতুন index `exam_attempts(student_id, submitted_at)`। "উত্তর প্রকাশ হয়েছে কি না" SQL-এ এখন এক জায়গায় (`Exam::whereShowsAnswersToStudents()`)। → [11-performance-analytics.md](11-performance-analytics.md), [09-admin-settings.md](09-admin-settings.md)
+
 - **"প্রশ্ন বাছাই"-এ "এলোমেলোভাবে বাছুন":** ফিল্টারের সব পাতা থেকে লক্ষ্য পর্যন্ত এলোমেলো প্রশ্ন; আর অন্য পাতায় গেলে পেজ তালিকার শুরুতে যায়, নিচে আটকে থাকে না। → [06-exams.md](06-exams.md)
 
 - **Teacher প্যানেলে "একাউন্ট" মেনু-গ্রুপ:** আমার প্রোফাইল, আমার সাবস্ক্রিপশন, রেফারেল ও কমিশন — Student প্যানেলের মতোই; গ্রুপ ও ক্রম এখন তিন পেজের base class-এ (`MyProfilePage`, `MySubscriptionPage`, `ReferralsAndCommissionPage`), Staff-এর প্রোফাইল আগের মতো গ্রুপের বাইরে।

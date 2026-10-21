@@ -1,13 +1,13 @@
 @php
     /**
-     * The running summary of the teacher's selection — a sticky right-hand
-     * panel on wide screens, a bar pinned to the bottom of the screen on a
-     * phone (tap it to open the chapter breakdown). Rendered entirely from
-     * the browser-side selection, so it never waits on the server.
+     * The running summary of the selection — a sticky right-hand panel on
+     * wide screens, a bar pinned to the bottom of the screen on a phone (tap
+     * it to open the chapter breakdown). Rendered entirely from the
+     * browser-side selection, so it never waits on the server.
      */
-    use App\Filament\Teacher\Pages\SelectQuestions;
+    use App\Filament\Support\Pages\QuestionPickerPage;
 
-    $isReview = $this->step === SelectQuestions::STEP_REVIEW;
+    $isReview = $this->step === QuestionPickerPage::STEP_REVIEW;
 @endphp
 
 <aside
@@ -24,8 +24,8 @@
 
         <div class="lg:hidden">
             @if ($isReview)
-                <x-filament::button size="sm" x-on:click="saveExam()" x-bind:disabled="! canReview()">
-                    {{ $this->editingExam ? __('Save changes') : __('Save as exam') }}
+                <x-filament::button size="sm" x-on:click="finish()" x-bind:disabled="! canReview()">
+                    {{ $this->finishLabel() }}
                 </x-filament::button>
             @else
                 <x-filament::button size="sm" x-on:click="review()" x-bind:disabled="! canReview()">
@@ -103,8 +103,8 @@
 
         <div class="flex flex-col gap-2">
             @if ($isReview)
-                <x-filament::button x-on:click="saveExam()" x-bind:disabled="! canReview()" icon="heroicon-o-check">
-                    {{ $this->editingExam ? __('Save changes') : __('Save as exam') }}
+                <x-filament::button x-on:click="finish()" x-bind:disabled="! canReview()" icon="heroicon-o-check">
+                    {{ $this->finishLabel() }}
                 </x-filament::button>
 
                 <x-filament::button color="gray" wire:click="backToSelection" icon="heroicon-o-arrow-left">

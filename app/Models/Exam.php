@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -285,6 +286,25 @@ class Exam extends Model
         return $this->exam_type === ExamType::SelfPractice
             || $this->answers_released_at !== null
             || $this->isAnswerReleaseDue();
+    }
+
+    /**
+     * showsAnswersToStudents() in SQL, as a constraint on a query of the
+     * `exams` table — for what is worked out from many exams' answers at
+     * once (a student's mistakes list, their performance analytics), which
+     * must not reveal a teacher's exam before its answers are out.
+     *
+     * @template TQuery of Builder|QueryBuilder
+     *
+     * @param  TQuery  $exams
+     * @return TQuery
+     */
+    public static function whereShowsAnswersToStudents(Builder|QueryBuilder $exams): Builder|QueryBuilder
+    {
+        return $exams->where(fn (Builder|QueryBuilder $shown) => $shown
+            ->where('exams.exam_type', ExamType::SelfPractice->value)
+            ->orWhereNotNull('exams.answers_released_at')
+            ->orWhere('exams.answers_release_at', '<=', now()));
     }
 
     /**

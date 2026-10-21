@@ -95,15 +95,16 @@ class DuplicateQuestionCheck
      * chapter's other current questions not rejected: for the Admin to see
      * before approving.
      *
+     * @param  Collection<int, Question>|null  $chapterQuestions  The chapter's questions when already read (chapterQuestions()) — approving many at once reads them once.
      * @return list<DuplicateMatch>
      */
-    public static function forApproval(Question $question): array
+    public static function forApproval(Question $question, ?Collection $chapterQuestions = null): array
     {
         $group = $question->stimulus_id !== null
             ? Question::query()->where('stimulus_id', $question->stimulus_id)->where('is_latest', true)->with(['cqParts', 'stimulus'])->orderBy('stimulus_order')->get()
             : collect([$question]);
 
-        $candidates = static::chapterQuestions($question->chapter_id)
+        $candidates = ($chapterQuestions ?? static::chapterQuestions($question->chapter_id))
             ->reject(fn (Question $other): bool => $other->status === QuestionStatus::Rejected
                 || $group->contains(fn (Question $own): bool => $other->isVersionOf($own)));
 
@@ -221,9 +222,13 @@ class DuplicateQuestionCheck
     }
 
     /**
+     * The chapter's questions a question is compared against — public so
+     * that approving several questions of a chapter reads them once
+     * (forApproval()'s second argument).
+     *
      * @return Collection<int, Question>
      */
-    protected static function chapterQuestions(int $chapterId): Collection
+    public static function chapterQuestions(int $chapterId): Collection
     {
         return Question::query()->duplicateCandidatesIn($chapterId, Auth::user())->get();
     }
