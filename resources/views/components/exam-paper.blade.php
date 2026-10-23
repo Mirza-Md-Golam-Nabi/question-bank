@@ -77,7 +77,7 @@
                         @endphp
 
                         <label class="flex items-center gap-2">
-                            <input type="radio" {!! $bind($question->id) !!} value="{{ $value }}" @checked($savedAnswer === $value)>
+                            <input type="radio" {!! $bind($question->id) !!} data-qb-answer="{{ $question->id }}" value="{{ $value }}" @checked($savedAnswer === $value)>
                             <span>
                                 {!! $option['option'] !!}
                                 <x-question-image :path="$option['image'] ?? null" option />

@@ -54,8 +54,7 @@ class QuestionInfolist
                 ->visible(fn (Question $record) => $record->stimulus_id !== null)
                 ->columnSpanFull(),
 
-            ImageEntry::make('stimulus.image')
-                ->hiddenLabel()
+            self::picture('stimulus.image')
                 ->visible(fn (Question $record) => filled($record->stimulus?->image))
                 ->columnSpanFull(),
 
@@ -64,8 +63,7 @@ class QuestionInfolist
                 ->html()
                 ->columnSpanFull(),
 
-            ImageEntry::make('question_image')
-                ->hiddenLabel()
+            self::picture('question_image')
                 ->visible(fn (Question $record) => filled($record->question_image))
                 ->columnSpanFull(),
 
@@ -75,7 +73,8 @@ class QuestionInfolist
                     RepeatableEntry::make('options')
                         ->hiddenLabel()
                         ->schema([
-                            TextEntry::make('option')->hiddenLabel()->html(),
+                            TextEntry::make('option')->hiddenLabel()->html()->visible(fn (?string $state): bool => filled(strip_tags((string) $state))),
+                            self::picture('image')->visible(fn (mixed $state): bool => filled($state)),
                             TextEntry::make('is_correct')
                                 ->hiddenLabel()
                                 ->visible(fn (?bool $state) => (bool) $state)
@@ -101,12 +100,25 @@ class QuestionInfolist
                         ->schema([
                             TextEntry::make('part_type')->label(__('Part'))->badge(),
                             TextEntry::make('part_text')->hiddenLabel()->html(),
-                            ImageEntry::make('part_image')
-                                ->hiddenLabel()
+                            self::picture('part_image')
                                 ->visible(fn ($record) => filled($record->part_image)),
                             TextEntry::make('marks')->label(__('Marks')),
                         ]),
                 ]),
         ];
+    }
+
+    /**
+     * A question's picture — its own, its stimulus's, an option's or a
+     * sub-question's. They are all kept on the public disk; without saying
+     * so the entry looks on the app's default (private) disk and shows
+     * nothing.
+     */
+    private static function picture(string $field): ImageEntry
+    {
+        return ImageEntry::make($field)
+            ->hiddenLabel()
+            ->disk('public')
+            ->visibility('public');
     }
 }

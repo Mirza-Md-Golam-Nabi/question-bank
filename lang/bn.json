@@ -1419,5 +1419,6 @@
     ":count question is left out: it has been rejected, or edited and not approved again.|:count questions are left out: they have been rejected, or edited and not approved again.": ":countটা প্রশ্ন বাদ যাবে: reject হয়েছে, অথবা এডিটের পর আবার approve হয়নি।|:countটা প্রশ্ন বাদ যাবে: reject হয়েছে, অথবা এডিটের পর আবার approve হয়নি।",
     "Create the new exam": "নতুন পরীক্ষা তৈরি করুন",
     "New exam created": "নতুন পরীক্ষা তৈরি হয়েছে",
-    ":title is saved as a draft with its own link. Publish it to share with the new students.": ":title নিজের লিংকসহ ড্রাফট হিসেবে সেভ হয়েছে। নতুন ছাত্রদের সাথে শেয়ার করতে publish করুন।"
+    ":title is saved as a draft with its own link. Publish it to share with the new students.": ":title নিজের লিংকসহ ড্রাফট হিসেবে সেভ হয়েছে। নতুন ছাত্রদের সাথে শেয়ার করতে publish করুন।",
+    "Write the option, or add an image.": "অপশনটা লিখুন, অথবা একটা ছবি দিন।"
 }

@@ -271,7 +271,10 @@ class QuestionFormSchema
             CkEditorField::make('option')
                 ->label(__('Option'))
                 ->compact()
-                ->required()
+                // An option can be only a picture (a figure to pick out),
+                // so the text is needed only when there is no image.
+                ->required(fn (Get $get): bool => blank($get('image')))
+                ->validationMessages(['required' => __('Write the option, or add an image.')])
                 ->columnSpanFull(),
             imageDirectory: $imageDirectory,
         );

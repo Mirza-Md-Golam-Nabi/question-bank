@@ -143,3 +143,73 @@ window.guardExamSubmit = function guardExamSubmit({ root, isTimeUp, submit }) {
         dialog.querySelector('[data-qb-submit-cancel]')?.focus();
     };
 };
+
+/**
+ * Keeps the answers ticked on an exam paper in this tab's storage until the
+ * paper is handed in, and ticks them again when the page loads anew — after
+ * a refresh, or a change of language, which reloads the page. Answers only
+ * reach the server on submit (or when time runs out), so otherwise they
+ * would be lost. The same for a guest's paper and a signed-in student's.
+ *
+ * Each answer field carries `data-qb-answer="{question id}"`. Ticking one
+ * again fires `input` and `change`, so Livewire's `wire:model` takes it up.
+ *
+ * @param {object} options
+ * @param {HTMLElement} options.root      Element containing the answers.
+ * @param {string} options.storageKey     One key per attempt.
+ * @returns {{ forget: () => void }}      `forget()` once the paper is handed in.
+ */
+window.keepExamAnswers = function keepExamAnswers({ root, storageKey }) {
+    const fields = () => [...root.querySelectorAll('[data-qb-answer]')];
+
+    const read = () => {
+        try {
+            return JSON.parse(sessionStorage.getItem(storageKey) ?? '{}');
+        } catch {
+            return {};
+        }
+    };
+
+    const stored = read();
+
+    fields().forEach((field) => {
+        const answer = stored[field.dataset.qbAnswer];
+
+        if (answer === undefined || ! (field.type !== 'radio' || field.value === answer)) {
+            return;
+        }
+
+        if (field.type === 'radio') {
+            field.checked = true;
+        } else {
+            field.value = answer;
+        }
+
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    root.addEventListener('change', (event) => {
+        const field = event.target.closest?.('[data-qb-answer]');
+
+        if (! field || (field.type === 'radio' && ! field.checked)) {
+            return;
+        }
+
+        try {
+            sessionStorage.setItem(storageKey, JSON.stringify({ ...read(), [field.dataset.qbAnswer]: field.value }));
+        } catch {
+            // Storage unavailable (private mode): the exam still works, a reload just starts blank.
+        }
+    });
+
+    return {
+        forget: () => {
+            try {
+                sessionStorage.removeItem(storageKey);
+            } catch {
+                // Nothing was stored in the first place.
+            }
+        },
+    };
+};

@@ -6,6 +6,7 @@ use App\Filament\Support\QuestionBlocks;
 use App\Models\BillingSetting;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\UploadedFile;
 
 /**
  * Tells whether a question is already there in another form — the one
@@ -176,9 +177,11 @@ final class DuplicateQuestionFinder
 
         // An MCQ is answered by its options, a CQ by its sub-questions.
         $isMcq = $question->options !== null;
+        // An option that is (or has) a picture is told apart by it too:
+        // two picture-only options are never "the same" for being blank.
         $answers = collect($isMcq ? $question->options : $question->cqParts)
-            ->pluck($isMcq ? 'option' : 'part_text')
-            ->map(fn (?string $answer): string => self::normalize($answer)['text']);
+            ->map(fn (mixed $answer): string => trim(self::normalize(data_get($answer, $isMcq ? 'option' : 'part_text'))['text']
+                .($isMcq && ($picture = self::optionPicture($answer)) ? ' #'.$picture : '')));
 
         // Options are the same in any order; sub-questions keep theirs.
         $answers = ($isMcq ? $answers->sort() : $answers)->implode(' | ');
@@ -202,6 +205,22 @@ final class DuplicateQuestionFinder
             'questionGrams' => self::grams($asked['text']),
             'answerGrams' => self::grams($answers),
         ];
+    }
+
+    /**
+     * An option's picture, by its file name — stored as one path, but still
+     * a list of uploads (path or file) while the form is being filled in.
+     */
+    private static function optionPicture(mixed $option): ?string
+    {
+        $picture = data_get($option, 'image');
+        $picture = is_array($picture) ? reset($picture) : $picture;
+
+        if ($picture instanceof UploadedFile) {
+            return $picture->getClientOriginalName();
+        }
+
+        return filled($picture) && is_string($picture) ? basename($picture) : null;
     }
 
     /**
