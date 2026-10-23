@@ -282,6 +282,20 @@ class Question extends Model
     }
 
     /**
+     * Questions whose text, shared stimulus or topic contains the search —
+     * kept in one group, so it only ever narrows the query it is added to.
+     */
+    public function scopeMatching(Builder $query, string $search): Builder
+    {
+        $like = '%'.trim($search).'%';
+
+        return $query->where(fn (Builder $matches) => $matches
+            ->where('question_text', 'like', $like)
+            ->orWhereHas('stimulus', fn (Builder $stimulus) => $stimulus->where('text', 'like', $like))
+            ->orWhereHas('topic', fn (Builder $topic) => $topic->where('name', 'like', $like)));
+    }
+
+    /**
      * Questions of one class's subject.
      */
     public function scopeOfClassSubject(Builder $query, int|string $classSubjectId): Builder

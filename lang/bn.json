@@ -1420,5 +1420,7 @@
     "Create the new exam": "নতুন পরীক্ষা তৈরি করুন",
     "New exam created": "নতুন পরীক্ষা তৈরি হয়েছে",
     ":title is saved as a draft with its own link. Publish it to share with the new students.": ":title নিজের লিংকসহ ড্রাফট হিসেবে সেভ হয়েছে। নতুন ছাত্রদের সাথে শেয়ার করতে publish করুন।",
-    "Write the option, or add an image.": "অপশনটা লিখুন, অথবা একটা ছবি দিন।"
+    "Write the option, or add an image.": "অপশনটা লিখুন, অথবা একটা ছবি দিন।",
+    "Table view": "টেবিল আকারে",
+    "Card view": "কার্ড আকারে"
 }

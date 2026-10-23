@@ -97,6 +97,16 @@ it('attaches a subject to a class from the subject browser', function () {
     ]);
 });
 
+it('finds a subject to attach by its English, Bangla or short name', function (string $search) {
+    $class = AcademicClass::factory()->create();
+    $ict = Subject::factory()->create(['name' => 'Information and Communication Technology', 'name_bn' => 'তথ্য ও যোগাযোগ প্রযুক্তি', 'short_name' => 'ICT']);
+    Subject::factory()->create(['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান', 'short_name' => 'PHY']);
+
+    livewire(BrowseSubjects::class, ['class' => $class->id])
+        ->mountAction('attachSubject')
+        ->assertFormFieldExists('subject_ids', 'mountedActionSchema0', fn ($field): bool => array_keys($field->getSearchResults($search)) === [$ict->id]);
+})->with(['Communication', 'যোগাযোগ', 'ICT']);
+
 it('detaches a subject from a class', function () {
     $class = AcademicClass::factory()->create();
     $subject = Subject::factory()->create();

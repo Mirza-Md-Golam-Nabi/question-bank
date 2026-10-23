@@ -37,12 +37,8 @@ class BrowseSubjects extends BrowseSubjectsPage
                 Select::make('subject_ids')
                     ->label(__('Subjects'))
                     ->helperText(__('Pick one or more subjects. They are added in the order you pick them, starting from the display order below.'))
-                    ->options(fn (): array => Subject::query()
-                        ->whereNotIn('id', $this->class->subjects()->pluck('subjects.id'))
-                        ->orderBy('name')
-                        ->get()
-                        ->mapWithKeys(fn (Subject $subject): array => [$subject->id => $subject->display_name])
-                        ->all())
+                    ->options(fn (): array => $this->attachableSubjectOptions())
+                    ->getSearchResultsUsing(fn (string $search): array => $this->attachableSubjectOptions($search))
                     ->multiple()
                     ->searchable()
                     ->required(),
@@ -65,6 +61,22 @@ class BrowseSubjects extends BrowseSubjectsPage
                     }
                 });
             });
+    }
+
+    /**
+     * Subjects not yet on this class, searched by English, Bangla or short name.
+     *
+     * @return array<int, string>
+     */
+    private function attachableSubjectOptions(?string $search = null): array
+    {
+        return Subject::query()
+            ->whereNotIn('id', $this->class->subjects()->pluck('subjects.id'))
+            ->when(filled($search), fn ($subjects) => $subjects->matching($search))
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (Subject $subject): array => [$subject->id => $subject->display_name])
+            ->all();
     }
 
     public function editSubjectOrderAction(): Action

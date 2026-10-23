@@ -38,6 +38,24 @@ it('lists only a teacher\'s own questions under "My questions", whatever their s
         ->assertCanNotSeeTableRecords([$othersPending, $othersApproved]);
 });
 
+it('never finds other people\'s questions when a teacher searches "My questions"', function () {
+    $teacherA = User::factory()->teacher()->create();
+    $teacherB = User::factory()->teacher()->create();
+
+    $this->actingAs($teacherA);
+    $own = Question::factory()->for($this->chapter)->create(['created_by' => $teacherA->id, 'question_text' => '<p>Photosynthesis needs light</p>']);
+
+    $this->actingAs($teacherB);
+    $others = Question::factory()->approved()->for($this->chapter)->create(['created_by' => $teacherB->id, 'question_text' => '<p>Photosynthesis makes glucose</p>']);
+
+    $this->actingAs($teacherA);
+
+    livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+        ->searchTable('Photosynthesis')
+        ->assertCanSeeTableRecords([$own])
+        ->assertCanNotSeeTableRecords([$others]);
+});
+
 it('still offers a teacher other people\'s approved questions on the Select questions page', function () {
     $teacherA = User::factory()->teacher()->create();
     subscribeToEverything($teacherA);

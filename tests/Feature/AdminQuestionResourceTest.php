@@ -10,6 +10,7 @@ use App\Filament\Resources\Questions\Pages\ListQuestions;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Question;
+use App\Models\QuestionStimulus;
 use App\Models\Topic;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -511,4 +512,67 @@ describe('remembered topic', function () {
         Livewire::withQueryParams(['chapter' => $this->chapter->id]);
         livewire(CreateQuestion::class)->assertFormSet(['topic_id' => null]);
     });
+});
+
+it('shows each question of a chapter whole, with its answer and review status, as cards', function () {
+    $teacher = User::factory()->teacher()->create(['name' => 'Rahima Teacher']);
+    $this->actingAs($teacher);
+    $question = Question::factory()->for($this->chapter)->create([
+        'created_by' => $teacher->id,
+        'question_text' => '<p>What is the capital of Bangladesh?</p>',
+        'options' => [
+            ['option' => 'Chattogram', 'image' => null, 'is_correct' => false],
+            ['option' => 'Dhaka', 'image' => null, 'is_correct' => true],
+        ],
+        'explanation' => '<p>Dhaka has been the capital since 1971.</p>',
+    ]);
+    $this->actingAs($this->admin);
+
+    livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+        ->assertCanSeeTableRecords([$question])
+        ->assertSee('What is the capital of Bangladesh?')
+        ->assertSee('Chattogram')
+        ->assertSee('Dhaka has been the capital since 1971.')
+        ->assertSee('Rahima Teacher')
+        ->assertSee(QuestionStatus::Pending->getLabel())
+        ->assertSeeHtml('qb-question-option--correct')
+        // The review actions stay on every card.
+        ->callTableAction('approve', $question)
+        ->assertHasNoTableActionErrors();
+
+    expect($question->refresh()->status)->toBe(QuestionStatus::Approved);
+});
+
+it('switches the chapter page back to table columns', function () {
+    $question = Question::factory()->approved()->for($this->chapter)->create([
+        'question_text' => '<p>Only in the card view</p>',
+    ]);
+
+    Livewire::withQueryParams(['view' => 'table']);
+
+    livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+        ->assertCanSeeTableRecords([$question])
+        ->assertDontSee('Only in the card view')
+        ->assertTableColumnExists('created_at');
+});
+
+it('searches a chapter\'s questions in the card view by their text, stimulus or topic', function () {
+    $topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Ohm\'s law', 'order_index' => 1]);
+    $byText = Question::factory()->approved()->for($this->chapter)->create(['question_text' => '<p>What is the unit of resistance?</p>']);
+    $stimulus = QuestionStimulus::factory()->create(['chapter_id' => $this->chapter->id, 'text' => '<p>A circuit has two resistors in parallel.</p>']);
+    $byStimulus = Question::factory()->approved()->for($this->chapter)->create(['stimulus_id' => $stimulus->id, 'stimulus_order' => 1]);
+    $byTopic = Question::factory()->approved()->for($this->chapter)->create(['topic_id' => $topic->id]);
+    $other = Question::factory()->approved()->for($this->chapter)->create(['question_text' => '<p>Name a noble gas.</p>']);
+
+    livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+        ->assertSeeHtml('fi-ta-search-field')
+        ->searchTable('resistance')
+        ->assertCanSeeTableRecords([$byText])
+        ->assertCanNotSeeTableRecords([$byStimulus, $byTopic, $other])
+        ->searchTable('parallel')
+        ->assertCanSeeTableRecords([$byStimulus])
+        ->assertCanNotSeeTableRecords([$byText, $byTopic, $other])
+        ->searchTable('Ohm')
+        ->assertCanSeeTableRecords([$byTopic])
+        ->assertCanNotSeeTableRecords([$byText, $byStimulus, $other]);
 });
