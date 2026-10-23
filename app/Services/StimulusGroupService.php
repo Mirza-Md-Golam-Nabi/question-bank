@@ -89,7 +89,7 @@ class StimulusGroupService
 
         $rows = StimulusGroupForm::questionRows($data, self::QUESTION_FIELDS);
 
-        $stimulus = DB::transaction(fn (): QuestionStimulus => $questions->contains(fn (Question $question) => $question->status === QuestionStatus::Approved)
+        $stimulus = DB::transaction(fn (): QuestionStimulus => $questions->contains(fn (Question $question) => $question->editsMakeNewVersion())
             ? $this->revise($stimulus, $questions, $rows, $data)
             : $this->changeInPlace($stimulus, $questions, $rows, $data));
 

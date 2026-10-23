@@ -72,6 +72,11 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => ['role' => UserRole::Student]);
     }
 
+    public function school(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::School]);
+    }
+
     /**
      * A Google OAuth-authenticated user — no password, has a google_id.
      */

@@ -1,5 +1,7 @@
 @props([
     'variant' => 'light',
+    // Pages that keep their own choice (SetLocale::SCOPES), e.g. "exam".
+    'for' => null,
 ])
 
 @php
@@ -40,7 +42,7 @@
 >
     @foreach (\App\Enums\Locale::cases() as $locale)
         <a
-            href="{{ route('locale.switch', ['locale' => $locale->value]) }}"
+            href="{{ route('locale.switch', ['locale' => $locale->value, 'for' => $for]) }}"
             lang="{{ $locale->value }}"
             @if ($locale->value === $currentLocale) aria-current="true" @endif
             @class([

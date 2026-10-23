@@ -5,6 +5,7 @@ namespace App\Filament\Teacher\Pages;
 use App\Enums\ExamDeliveryMode;
 use App\Enums\ExamType;
 use App\Enums\QuestionType;
+use App\Filament\Support\CurrentPanel;
 use App\Filament\Support\FutureDateTimePicker;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\Pages\QuestionPickerPage;
@@ -276,7 +277,7 @@ class SelectQuestions extends QuestionPickerPage
         return $this->hasAnyPlan() ? null : [
             'heading' => __('You need a plan to build exams'),
             'message' => __('Your plan does not cover any class or subject yet. Start your free trial or buy a plan to build exams.'),
-            'url' => MySubscription::getUrl(),
+            'url' => CurrentPanel::route('pages.my-subscription'),
             'button' => __('See plans'),
         ];
     }

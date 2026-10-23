@@ -80,6 +80,7 @@
 - **লাইভের `.env`-এ `APP_ENV=production`।** `local` থাকলে `/dev-login` রুট লাইভেও খুলে যাবে।
 - **ডেটাবেজের ব্যাকআপ**, বিশেষ করে migration ডেটা বদলালে। দুটো migration পুরনো খাতা হিসাবে তোলে (`add_dynamic_difficulty_tracking`, `add_mistake_practice_and_teacher_question_stats`); খাতা অনেক হলে এগুলো সময় নেয়, আর ততক্ষণ সাইট maintenance mode-এ থাকে।
 - **Google OAuth-এর redirect URI** লাইভের ডোমেইনে ঠিক আছে কি না (README দেখুন)।
+- **Push-এর VAPID key** লাইভের `.env`-এ (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`): প্রথমবার `php artisan webpush:vapid`, তারপর কখনো বদলাবেন না। আর `config/pwa.php`-এ লোগোর লিংক। Push ও app-এর install শুধু HTTPS-এ চলে। → [13-app-and-offers.md](13-app-and-offers.md)
 
 ## জানা ফাঁদ
 
@@ -91,6 +92,7 @@
 | Filament-এ enum-এর select | `options(Enum::class)` দেওয়া ঘর `$get()`-এ enum নিজেই ফেরত দেয়, তার `->value` না; দুটোই সামলাতে হয়। |
 | Filament-এর disabled ঘর | Disabled ঘরের মান ফর্ম থেকে আসে না। (difficulty ঘর disabled হলে নতুন সংস্করণ তাই আগেরটার difficulty নেয়।) |
 | Dark mode | প্যানেল dark mode-এ চলে; নিজের `qb-*` ক্লাসে হালকা background দিলে তার ওপর প্যানেলের বাটনের লেখা অদৃশ্য হতে পারে। |
+| Windows-এ OpenSSL | `webpush:vapid` ও push পাঠানো (প্রতিটা বার্তা নতুন key বানায়) Windows-এর PHP-তে "Unable to create the key" দিতে পারে: `OPENSSL_CONF` চলকে PHP-র `openssl.cnf`-এর পথ দিন (Laragon-এ `D:/laragon/bin/php/php-8.3/extras/ssl/openssl.cnf`)। Linux সার্ভারে লাগে না। |
 | `Collection::each()` | Callback `false` ফেরত দিলে লুপ থেমে যায়; `&&` দিয়ে এক লাইনে লিখলে এটা অজান্তে ঘটে। |
 
 ## CLAUDE.md-এর সাথে কোডের অমিল

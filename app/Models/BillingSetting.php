@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Model;
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
     'mistake_clear_streak', 'practice_minutes_per_question', 'practice_minutes_step', 'default_negative_marks', 'paper_rates',
     'performance_min_questions', 'performance_trend_exams', 'performance_falling_exams', 'performance_inactive_days',
+    'school_question_release_days', 'onboarding_checklist_enabled',
     'bkash_number', 'nagad_number', 'rocket_number', 'payment_instructions',
 ])]
 class BillingSetting extends Model
@@ -78,6 +79,8 @@ class BillingSetting extends Model
         'performance_trend_exams' => 10,
         'performance_falling_exams' => 3,
         'performance_inactive_days' => 14,
+        'school_question_release_days' => 60,
+        'onboarding_checklist_enabled' => true,
     ];
 
     protected function casts(): array
@@ -118,6 +121,8 @@ class BillingSetting extends Model
             'performance_trend_exams' => 'integer',
             'performance_falling_exams' => 'integer',
             'performance_inactive_days' => 'integer',
+            'school_question_release_days' => 'integer',
+            'onboarding_checklist_enabled' => 'boolean',
             'paper_rates' => 'array',
             'admin_notification_recipients' => 'array',
         ];

@@ -48,7 +48,7 @@
                 {{ __('Download as image') }}
             </button>
 
-            <a href="{{ ExamResults::getUrl(['record' => $exam], panel: 'teacher') }}" class="qb-btn qb-btn--outline ms-auto text-sm">
+            <a href="{{ ExamResults::getUrl(['record' => $exam]) }}" class="qb-btn qb-btn--outline ms-auto text-sm">
                 {{ __('Back to results') }}
             </a>
         </div>

@@ -78,9 +78,10 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | `status` | `pending` / `approved` / `rejected` |
 | `created_by`, `approved_by`, `rejection_reason` | |
 | `parent_id`, `version`, `is_latest` | versioning; `parent_id` সবসময় প্রথম সংস্করণকে নির্দেশ করে |
+| `is_private` | School-এর নিজের প্রশ্ন (School লিখলে নিজে থেকে; নতুন সংস্করণেও): শুধু সেই School দেখে, pool/Admin-এর রিভিউতে কখনো না, status সবসময় `pending` — [12-school-link.md](12-school-link.md) |
 | `deleted_at` | soft delete |
 
-Index: `(status, is_latest)`, `(chapter_id, status, is_latest)`, `(created_by)`।
+Index: `(status, is_latest)`, `(chapter_id, status, is_latest)`, `(created_by)`, `(created_by, is_private, is_latest)`।
 
 ### `question_cq_parts`
 
@@ -140,11 +141,37 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | `difficulty_counted_at` | difficulty-র গণনায় তোলা হয়েছে (শুধু Teacher-এর পরীক্ষা) |
 | `statistics_recorded_at` | ভুলের তালিকা ও Teacher-এর পরিসংখ্যানে তোলা হয়েছে |
 
-শেষ দুটো কলাম নিশ্চিত করে একই খাতা দুইবার গোনা না হয়। Index (`student_id`, `submitted_at`): student-এর পারফরম্যান্স বিশ্লেষণ নতুন থেকে পুরনো খাতা পড়ে ([11-performance-analytics.md](11-performance-analytics.md))।
+শেষ দুটো কলাম নিশ্চিত করে একই খাতা দুইবার গোনা না হয়।
+
+School-এর পরীক্ষার খাতায় আরও: `school_class_id`, `school_class_name`, `school_section_id`, `school_section_name` (স্কুলের software-এর id, নাম কপি হিসেবে), `school_roll` (এক রূপে); index (`exam_id`, `school_class_id`, `school_roll`) — নাম `guest_name`-এ, `is_guest` সত্য, `student_id` ফাঁকা ([12-school-link.md](12-school-link.md))। Index (`student_id`, `submitted_at`): student-এর পারফরম্যান্স বিশ্লেষণ নতুন থেকে পুরনো খাতা পড়ে ([11-performance-analytics.md](11-performance-analytics.md))।
 
 ### `attempt_answers`
 
 `attempt_id`, `question_id` (nullable), `board_mcq_question_id` (nullable), `student_answer`, `is_correct`, `obtained_marks`; unique(attempt, question), unique(attempt, board_mcq_question)। প্রশ্নপত্রের পরীক্ষায় উত্তর `board_mcq_question_id`-এ, অন্যটায় `question_id`-এ (`Exam::answerColumn()`)। শুধু উত্তর দেওয়া প্রশ্নের সারি থাকে; ফাঁকা রাখা প্রশ্নের কোনো সারি নেই।
+
+### `school_profiles`
+
+একটা School একাউন্টের তথ্য ও স্কুলের software-এর সংযোগ, প্রতিটা School-এর একটা (`user_id` unique) — [12-school-link.md](12-school-link.md)।
+
+| কলাম | টীকা |
+|---|---|
+| `user_id` | School user |
+| `name`, `eiin`, `address`, `phone` | School approve-এর আগে দেয়, Admin দেখে বদলাতে পারেন |
+| `connection_code` | unique, `QB-` + ১০ অক্ষর; স্কুলের software নিজেকে এটা দিয়ে চেনায় |
+| `connection_secret` | `encrypted`; দুই দিকের অনুরোধ সই করে, কখনো পাঠানো হয় না |
+| `installation_url`, `connected_at` | স্কুলের software শেষ যেখান থেকে যুক্ত হলো; নতুন secret বানালে ফাঁকা |
+
+### `school_result_pushes`
+
+School প্রতিবার স্কুলের software-এর রেজাল্টে MCQ নম্বর পাঠালে একটা সারি (audit) — [12-school-link.md](12-school-link.md)।
+
+| কলাম | টীকা |
+|---|---|
+| `exam_id`, `sent_by` | কোন পরীক্ষার নম্বর, কোন School user পাঠাল |
+| `school_class_id`/`_name`, `school_exam_id`/`_name`, `school_subject_id`/`_name` | স্কুলের software-এর id, নাম কপি হিসেবে |
+| `school_full_marks`, `in_proportion` | স্কুলের MCQ পূর্ণমান; অনুপাতে বসানো হলো কি না |
+| `overwrite` | আগের নম্বর বদলানোর অনুমতি ছিল কি না |
+| `sent_count`, `saved_count`, `skipped` | কয়টা গেল, কয়টা সেভ হলো; বাদের তালিকা (json: ছাত্র, কারণ) |
 
 ## উত্তর থেকে জমানো হিসাব
 
@@ -203,3 +230,44 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 ### `notifications`
 
 Laravel-এর নিজস্ব টেবিল — প্রতিটা প্যানেলের বেলে যা দেখায় (Filament database notifications): `id` (uuid), `type`, `notifiable_type`/`notifiable_id` (user), `data` (JSON: title, body, icon, বোতাম), `read_at`। লেখা হয় শুধু `BellNotifier` দিয়ে। → [08-billing.md](08-billing.md#বেলের-নোটিফিকেশন)
+
+### `push_subscriptions`
+
+`laravel-notification-channels/webpush`-এর টেবিল: একজন user-এর যে ডিভাইসে push চালু, তার প্রতিটার একটা সারি — `subscribable_type`/`subscribable_id` (user), `endpoint` (unique), `public_key`, `auth_token`, `content_encoding`। → [13-app-and-offers.md](13-app-and-offers.md)
+
+### `offers`
+
+Admin-এর লেখা অফার ও খবর — [13-app-and-offers.md](13-app-and-offers.md)।
+
+| কলাম | টীকা |
+|---|---|
+| `title`, `body`, `image` | শিরোনাম, লেখা, ঐচ্ছিক ছবি (public disk, `offers/`) |
+| `button_label`, `button_url` | ঐচ্ছিক বাটন; নোটিফিকেশন চাপলেও এখানে যায় |
+| `target_roles` (JSON) | `student` / `teacher` / `school` / `staff`-এর তালিকা |
+| `academic_class_ids` (JSON, nullable) | Student-এর জন্য শুধু এই শ্রেণিগুলো (সংখ্যা হিসেবে); ফাঁকা = সব শ্রেণি |
+| `starts_at`, `ends_at`, `is_active` | কখন চালু (`Offer::scopeLive()`) |
+| `notified_at`, `notified_by` | বেলে/push-এ পাঠানো হলো কখন, কে পাঠালেন — একবারই |
+| `created_by` | যে Admin লিখলেন |
+
+Index: `(is_active, starts_at, ends_at)`।
+
+### `guides`
+
+Admin-এর লেখা গাইড — [14-guides.md](14-guides.md)।
+
+| কলাম | টীকা |
+|---|---|
+| `slug` (nullable, unique) | seeder-এর খসড়ার নিজের চাবি — আবার seed করলে দুবার হয় না |
+| `category` | `GuideCategory` |
+| `title_bn`, `body_bn` | বাংলা (বাধ্যতামূলক); body rich text HTML, ছবিসহ |
+| `title_en`, `body_en` (nullable) | ইংরেজি; না থাকলে বাংলা দেখায় |
+| `video_url` (nullable) | YouTube লিংক |
+| `target_roles` (JSON) | `student` / `teacher` / `staff` / `school` |
+| `page_keys` (JSON, nullable) | যে পেজগুলোর "কীভাবে করবেন?" বাটনে খোলে (`GuidePage`) |
+| `sort_order`, `is_active` | বিভাগের ভেতরে ক্রম; চালু/বন্ধ |
+
+Index: `(is_active, category, sort_order)`। `users.onboarding_dismissed_at` — user "শুরু করুন" তালিকা বন্ধ করলেন কখন।
+
+### `offer_dismissals`
+
+`offer_id`, `user_id`; unique(offer, user) — user ড্যাশবোর্ডের ব্যানারে অফারটা বন্ধ করেছেন, আর দেখানো হয় না।

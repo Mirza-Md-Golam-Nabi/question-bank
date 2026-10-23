@@ -2,22 +2,9 @@
 
 namespace App\Filament\Staff\Pages;
 
-use App\Filament\Support\Concerns\TranslatesPageLabels;
-use Filament\Pages\Page;
-use Illuminate\Contracts\Support\Htmlable;
+use App\Filament\Support\Pages\PendingApprovalPage;
 
-class PendingApprovalNotice extends Page
+class PendingApprovalNotice extends PendingApprovalPage
 {
-    use TranslatesPageLabels;
-
-    protected static ?string $slug = 'pending-approval';
-
-    protected static bool $shouldRegisterNavigation = false;
-
     protected string $view = 'filament.staff.pages.pending-approval-notice';
-
-    public function getTitle(): string|Htmlable
-    {
-        return __('Pending Approval');
-    }
 }

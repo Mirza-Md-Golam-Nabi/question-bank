@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'phone', 'password', 'google_id', 'avatar', 'role', 'status', 'academic_class_id'])]
@@ -26,7 +27,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements FilamentUser, HasAvatar
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasFactory, HasPushSubscriptions, HasRoles, Notifiable;
 
     protected string $guard_name = 'web';
 
@@ -39,6 +40,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     {
         return [
             'email_verified_at' => 'datetime',
+            'onboarding_dismissed_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
@@ -84,14 +86,23 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->role === UserRole::SuperAdmin;
     }
 
-    public function isStaffPendingApproval(): bool
+    /**
+     * A Staff member or a School whose new account an Admin has not
+     * approved yet — they see only the "awaiting approval" page.
+     */
+    public function isAwaitingApproval(): bool
     {
-        return $this->role === UserRole::Staff && $this->status === UserStatus::Pending;
+        return $this->role->needsApproval() && $this->status === UserStatus::Pending;
     }
 
     public function staffProfile(): HasOne
     {
         return $this->hasOne(StaffProfile::class);
+    }
+
+    public function schoolProfile(): HasOne
+    {
+        return $this->hasOne(SchoolProfile::class);
     }
 
     public function staffEarnings(): HasMany

@@ -386,12 +386,12 @@ livewire(ListUsers::class)
 
 ## ⭐ মূল বিজনেস রুলসমূহ (কখনো ভাঙা যাবে না)
 
-### ১. Authentication — Google OAuth (Teacher/Staff/Student) + Filament Default (Admin/Super Admin)
+### ১. Authentication — Google OAuth (Teacher/Staff/Student/School) + Filament Default (Admin/Super Admin)
 > **Teacher/Staff/Student পুরোপুরি Google OAuth-only — কোনো password ফর্ম, রেজিস্ট্রেশন পেজ, বা forget-password ফ্লো নেই। শুধু Admin/Super Admin Filament-এর ডিফল্ট email/password Login ব্যবহার করবে, আর সেখানে Registration পাবলিকলি বন্ধ।**
 
 1. Teacher/Staff/Student প্যানেলের Login page-এ শুধু "Continue with Google" বাটন — `/auth/google/redirect/{role}` → Google callback-এ email/`google_id` match করে existing user login, না পেলে নতুন `users` row তৈরি (session-এ রাখা intended role অনুযায়ী)।
 2. নতুন **Teacher/Student** একাউন্ট সাথে সাথে `status=active`।
-3. নতুন **Staff** একাউন্ট `status=pending`-এ তৈরি হয় — Admin approve না করা পর্যন্ত Staff Panel middleware/policy তাকে ব্লক করবে ("অনুমোদনের অপেক্ষায়" পেজ দেখাবে), `QuestionResource`-এ কিছু করতে দেবে না।
+3. নতুন **Staff** ও **School** একাউন্ট `status=pending`-এ তৈরি হয় (`UserRole::needsApproval()`) — Admin approve না করা পর্যন্ত প্যানেলের middleware (`EnsureAccountIsApproved`) তাকে ব্লক করবে ("অনুমোদনের অপেক্ষায়" পেজ দেখাবে; School সেখানে স্কুলের নাম/EIIN/ঠিকানা/ফোন দেয়), `QuestionResource`-এ কিছু করতে দেবে না।
 4. **Admin Panel-এ পাবলিক Registration বন্ধ** (`->registration(false)`) — যে কেউ সাইনআপ করে Admin হতে পারবে না। প্রথম Super Admin `SuperAdminSeeder` দিয়ে তৈরি, এরপরের Admin Super Admin নিজে `AdminResource` থেকে বানাবে।
 5. `users.password_hash` শুধু `admin`/`super_admin`-এর জন্য filled থাকবে; বাকি রোলে সবসময় `null`। `users.google_id` উল্টোটা — শুধু Teacher/Staff/Student-এ filled।
 6. **`users.status` চারটা মান নিতে পারে:** `pending` (Staff-এর জন্য, Admin approve-এর অপেক্ষায়), `active`, `suspended`, `permanent_suspend`। Teacher/Staff দুই ক্ষেত্রেই Admin `suspended` করলে প্যানেলে ঢুকতে পারবে (Dashboard/Earning-এর মতো নিজের পেজ দেখতে পারবে), কিন্তু নতুন প্রশ্ন **add করতে পারবে না** (`QuestionPolicy::create()`-এ হার্ডকোড থাকবে)। `permanent_suspend` করলে পুরো প্যানেলে ঢোকাই ব্লক (`User::canAccessPanel()`-এ হার্ডকোড)।
@@ -457,7 +457,7 @@ livewire(ListUsers::class)
 - **Teacher ও Student কমিশন পায় শুধু নিজের পেইড subscription চালু থাকলে** (ট্রায়াল/ফ্রি plan-এ না), শুধু নগদে দেওয়া অংশের ওপর, refund-এর সময় পার হলে পাকা; শতাংশ দুটোই Admin-এর সেটিং, কোডে কোনো হার নেই। কমিশন wallet-এ মেয়াদ ছাড়া জমে; role অনুযায়ী Admin-এর reserve সবসময় থাকে — শুধু নিজের subscription-এ খরচ হয়, তোলা যায় না; বাকিটা request করে তোলা যায় (`WithdrawalService` একমাত্র জায়গা, নম্বর `encrypted`, প্রতিটা ধাপ log)। Staff-এর reward payout-এর সাথে নগদে।
 
 ### ৮. Exam Sharing (Guest + Login)
-> **শেয়ার-লিংকে Student সবসময় দুটো অপশন পাবে: Login করে ঢোকা অথবা Guest হিসেবে (শুধু নাম দিয়ে) ঢোকা — এটা টগল করার কোনো সেটিং নেই, সবসময় দুটোই থাকবে।**
+> **শেয়ার-লিংকে Student সবসময় দুটো অপশন পাবে: Login করে ঢোকা অথবা Guest হিসেবে (শুধু নাম দিয়ে) ঢোকা — এটা টগল করার কোনো সেটিং নেই, সবসময় দুটোই থাকবে। একমাত্র ব্যতিক্রম School-এর পরীক্ষা: সেখানে দুটোর বদলে স্কুলের ফর্ম (নিয়ম ১২)।**
 - `exams.share_token` — random, যথেষ্ট লম্বা (কমপক্ষে ৩২ ক্যারেক্টার), অনুমানযোগ্য না।
 - Guest route Filament panel-এর বাইরে, plain Laravel/Livewire route — কারণ unauthenticated (Google OAuth guard-এর সাথে মিশবে না)।
 - Guest submission route-এ **rate limiting বাধ্যতামূলক** (spam/multiple-attempt ঠেকাতে)।
@@ -481,7 +481,7 @@ livewire(ListUsers::class)
 5. **বাছাই শুধু ব্রাউজারের `localStorage`-এ থাকে, আর সেখানে শুধু প্রশ্নের ID** (লেখা না)। টিক, গণনা, chapter-ভিত্তিক সারাংশ — সব client-side (Alpine); সার্ভারে যায় শুধু ফিল্টার/পেজ বদলালে আর শেষে সেভ করার সময়। প্রশ্নের তালিকা সবসময় paginated — কখনো পুরো subject/chapter একবারে লোড করা যাবে না।
 6. **ব্রাউজারের ডেটা বিশ্বাস করা যাবে না।** সেভের সময় `TeacherExamBuilder` সার্ভারে আবার যাচাই করে: প্রতিটা ID Teacher-এর ব্যবহারযোগ্য (`Question::usableInExamBy()` — approved pool অথবা নিজের pending), একই `class_subject`-এর, আর `online` হলে সব MCQ। এই যাচাই ও exam তৈরির লজিক শুধু ওই service-এ থাকবে।
 7. **Subscription লিমিট সেভ করার মুহূর্তে একবারই গোনা হয়** — অনলাইনে প্রকাশ হোক বা শুধু PDF; তখন plan-এ শ্রেণি+বিষয়, পরীক্ষার ধরনের সুবিধা ও প্রশ্নের difficulty থাকতে হয়। আগে থেকে গোনা exam পরে publish/print করতে গেলে শুধু plan-এ সেই সুবিধা আছে কিনা দেখা হয়, আবার গোনা হয় না (`SubscriptionLimitService::allows()`)। Exam তৈরি/এডিটের একমাত্র পথ "প্রশ্ন বাছাই" — Teacher-এর `ExamResource`-এ কোনো create/edit ফর্ম-পেজ রাখা যাবে না।
-9. **Exam এডিটও এই পেজ দিয়েই হয়** (`?exam=`; `TeacherExamBuilder::update()`), তৈরি করার মতো একই যাচাইসহ, আর লিমিটে আবার গোনা হয় না। **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`canBeEdited()`) — নইলে তার নম্বর/পজিশন আর প্রশ্নপত্রের সাথে মিলবে না। তখন একমাত্র পথ **"পরীক্ষা বাতিল"** (`Exam::cancel()`): ওই exam-এর সব attempt ও উত্তর স্থায়ীভাবে মুছে exam-কে draft-এ ফেরায় (লিংক বন্ধ থাকে, যাতে এডিটের মাঝে কেউ শুরু না করে); পরে একই লিংকে আবার publish করা যায়। এটা ফেরানো যায় না, তাই confirmation ও log বাধ্যতামূলক।
+9. **Exam এডিটও এই পেজ দিয়েই হয়** (`?exam=`; `TeacherExamBuilder::update()`), তৈরি করার মতো একই যাচাইসহ, আর লিমিটে আবার গোনা হয় না। **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`canBeEdited()`) — নইলে তার নম্বর/পজিশন আর প্রশ্নপত্রের সাথে মিলবে না। অন্য ছাত্রদের জন্য একই প্রশ্নে আবার পরীক্ষা নিতে **"আবার পরীক্ষা নিন"** (`ExamRepeater`): নতুন লিংক ও ফলাফলসহ নতুন ড্রাফট পরীক্ষা, পুরনোটা অক্ষত; প্রতিটা প্রশ্নের সর্বশেষ ব্যবহারযোগ্য সংস্করণ (reject/অপেক্ষমাণ বাদ), বিগত সালের পেপার পুরোটা; নতুন পরীক্ষার মতোই plan যাচাই ও সীমায় গোনা। পুরনো খাতা মুছে একই পরীক্ষা বদলাতে হলে একমাত্র পথ **"পরীক্ষা বাতিল"** (`Exam::cancel()`): ওই exam-এর সব attempt ও উত্তর স্থায়ীভাবে মুছে exam-কে draft-এ ফেরায় (লিংক বন্ধ থাকে, যাতে এডিটের মাঝে কেউ শুরু না করে); পরে একই লিংকে আবার publish করা যায়। এটা ফেরানো যায় না, তাই confirmation ও log বাধ্যতামূলক।
 10. **নেগেটিভ মার্কিং ও আসন-সীমা:** অনলাইন পরীক্ষায় Teacher সেভের সময় নেগেটিভ মার্কিং চালু করতে পারেন (`exams.negative_marks`, শুরুর মান Admin-এর); ভুলে কাটে, ফাঁকায় না, মোট ০-এর নিচে না — গ্রেডিং শুধু `ExamAttempt::submitAndAutoGrade()`-এ। Plan-এ "প্রতি পরীক্ষায় অংশগ্রহণকারী" থাকলে সেভের সময় `exams.max_participants`-এ কপি হয়; পূর্ণ হলে নতুন কেউ ঢোকে না (`ExamAttempt::enter()`), আগে শুরু করা কেউ ফিরতে পারে।
 8. **PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে** (প্রিন্ট-উপযোগী পেজ, "শুধু প্রশ্ন" ও "উত্তরসহ" দুই রূপে) — সার্ভারে PDF বানানো হয় না, কারণ বাংলা যুক্তাক্ষর/গণিতের সূত্র ভাঙে আর সার্ভারে চাপ পড়ে।
 
@@ -494,6 +494,32 @@ livewire(ListUsers::class)
 4. **Teacher শুধু নিজের পরীক্ষার ডেটা দেখেন** — student-এর self-practice বা অন্য Teacher-এর পরীক্ষা কখনো না; শুধু সেই student-এর বিস্তারিত, যে তাঁর কোনো পরীক্ষা দিয়েছে (`TeacherClassPerformance::hasStudent()`)। ক্লাসের হিসাবে (ট্রেন্ড, দুর্বল অধ্যায়) Guest গোনা হয়; student-ভিত্তিক হিসাবে (তালিকা, "মনোযোগ দরকার", বিস্তারিত) শুধু লগইন করা student — Guest-এর পরিচয় নির্ভরযোগ্যভাবে জোড়া লাগানো যায় না।
 5. হিসাব শুধু `StudentPerformance` (কার খাতা — `PerformanceScope`) ও `TeacherClassPerformance`-এ; সংখ্যাগুলো `BillingSetting.performance_*`।
 
+### ১২. School একাউন্ট ও School Management Software-এর সংযোগ
+> **প্রতিটা স্কুলের একটাই School একাউন্ট (স্কুলের Google একাউন্ট, কম্পিউটার অপারেটর চালান; `/school` প্যানেল, Admin approve করলে চালু)। শুধু এই একাউন্টই স্কুলের জন্য প্রশ্ন বানায়, স্কুলের ছাত্রদের অনলাইন পরীক্ষা নেয় আর রেজাল্ট স্কুলের software-এ পাঠায় — স্কুলের কোনো Teacher নিজের একাউন্টে এগুলো পারেন না। স্কুলের Teacher ও Student আগের মতোই নিজের Google একাউন্টে, নিজের subscription-এ।**
+
+1. **সংযোগ:** School একাউন্টের "স্কুল সফটওয়্যারের সংযোগ" পেজে Question Bank-এর ঠিকানা, সংযোগ কোড ও secret; স্কুলের software-এর Admin সেটিংসে বসিয়ে "সেভ করে যুক্ত করুন" চাপেন। দুই দিকের প্রতিটা অনুরোধ secret দিয়ে সই (`{timestamp}.{body}`-এর HMAC-SHA256, ৫ মিনিটের বেশি পুরনো না; secret কখনো পাঠানো হয় না) — Question Bank-এ `SchoolConnectionSignature` + `AuthenticateSchoolInstallation`, স্কুলের দিকে `HmacSignature`। Secret `encrypted`; নতুন secret বানালে সংযোগ বন্ধ যতক্ষণ না নতুনটা বসানো হয়। Approve-না-হওয়া বা suspended School-এর অনুরোধ নেওয়া হয় না।
+2. **লিংক:** স্কুলের software-এর Admin প্যানেলে Question Bank-এর `/school`, Teacher প্যানেলে `/teacher`, Student প্যানেলে `/student`-এর লিংক (সংযুক্ত হলেই) — লগইন সবাই নিজের Google একাউন্টে।
+3. School plan আলাদা (`SubscriptionTargetRole::School`); School referral/wallet-এ নেই। স্কুলের পরীক্ষায় ছাত্রের subscription লাগে না।
+4. **স্কুলের পরীক্ষা:** Teacher-এর একই পেজ দিয়ে ("প্রশ্ন বাছাই", পরীক্ষার তালিকা, ফলাফল, প্রিন্ট — School প্যানেলে একই ক্লাস, প্যানেল অনুযায়ী লিংক `CurrentPanel`), তিন ধরন (অনলাইন/প্রিন্ট/দুটোই)। লিংকে Login/Guest-এর বদলে স্কুলের ফর্ম: ক্লাস → সেকশন (ক্লাসে থাকলে, তখন বাধ্যতামূলক) → রোল → নাম — ক্লাস/সেকশন স্কুলের software থেকে (`SchoolRoster`, কয়েক মিনিট পরপর আনা, শেষ তালিকা রাখা থাকে)। পরিচয় = ক্লাস + সেকশন + রোল + নাম (`ExamAttempt::startForSchoolStudent()`; রোল এক রূপে — বাংলা অঙ্ক, শুরুর শূন্য বাদ); একই রোলে অন্য নাম আলাদা খাতা পায়। Account বা subscription লাগে না; পরীক্ষার পাতা Guest-এরটাই। ফলাফল খোঁজা একই লিংকে ক্লাস + সেকশন + রোল দিয়ে (প্রথম জমা দেওয়া খাতা)।
+5. **রেজাল্টে পাঠানো** (`School\Pages\SendToSchoolResults`; মেলানো `SchoolResultMatcher`, পাঠানো ও log `SchoolResultPusher` + `school_result_pushes`): শুধু অনলাইন MCQ-এর নম্বর, School নিজে বাটন চেপে, স্কুলের কোন পরীক্ষা ও বিষয় বেছে। মেলানো ক্লাস + সেকশন + রোল দিয়ে বর্তমান সেশনের তালিকার সাথে; নাম না মিললে দুটো নাম পাশাপাশি — School approve করে; রোল না পেলে পাঠানো হয় না; এক রোলে একাধিক খাতা হলে School একটা বাছে; খাতা না থাকলে "অনুপস্থিত" (`is_absent`)। পূর্ণমান না মিললে পপআপ: স্কুলের software-এ পূর্ণমান ঠিক করুন, অথবা অনুপাতে বসান (আগে পূর্বরূপ)। আগে থেকে নম্বর থাকলে জিজ্ঞেস করে; রেজাল্ট প্রকাশ হয়ে গেলে কিছু বদলায় না; একই অনুরোধ দুইবার এলে একবারই বসে; লিখিত/ব্যবহারিক নম্বর থাকলে অনুপস্থিত দাগানো হয় না; প্রতিটা পাঠানোর log।
+6. **স্কুলের নিজের প্রশ্ন:** School-এর লেখা প্রশ্ন ("আমার প্রশ্ন", Teacher-এর একই পেজ) নিজে থেকেই `questions.is_private` — শুধু ওই School দেখে ও নিজের পরীক্ষায় দেয়; সাধারণ pool-এ যায় না, Admin-এর তালিকা/রিভিউ/ডুপ্লিকেট-যাচাইয়ে আসে না, কেউ approve/reject করে না (`QuestionPolicy`, `Question::approve()`; status সবসময় `pending`)। ছাত্ররা পরীক্ষা দেওয়ার পর এডিট করলে নতুন সংস্করণ (`Question::editsMakeNewVersion()`), দেওয়া পরীক্ষায় পুরনোটাই থাকে। ওই স্কুলের ছাত্ররা স্কুলের software-এর Student প্যানেলে দেখে (যেকোনো ক্লাসের, যেকোনো সালের, উত্তর ও ব্যাখ্যাসহ) — প্রশ্নটা যে পরীক্ষাগুলোয় আছে তার সব শেষ হওয়ার পরের দিন থেকে; কোনো পরীক্ষায় শেষ সময় না থাকলে (বা কোনো পরীক্ষায় না থাকলে) প্রথম সংস্করণ লেখার Admin-এর দিন (`BillingSetting.school_question_release_days`, ডিফল্ট ৬০) পরে — সব সংস্করণের পরীক্ষা মিলিয়ে, কোনো job ছাড়া দেখার মুহূর্তে হিসাব (`Question::scopeReleasedToSchoolStudents()`)। স্কুলের software অল্প সময়ের সই করা লিংক বানায়, Question Bank-এর পেজ (`SchoolQuestionsController`, `SchoolQuestionLibrary`) সেটা iframe-এ দেখায় — Student-এর আলাদা লগইন লাগে না।
+
+### ১৩. App (PWA), অফার ও Push নোটিফিকেশন
+> **সবার জন্য একটাই install করা যায় এমন app — নাম "Next Fusion" (শুধু app-এ; সফটওয়্যারের বাকি জায়গায় নাম আপাতত বদলায়নি)। Admin-এর অফার হোম পেজে সবাই আর ড্যাশবোর্ডের ব্যানারে যাদের জন্য তারা দেখে; বেলে ও ফোনে push যায় শুধু Admin "পাঠান" চাপলে, একবারই।**
+
+1. **App:** manifest `config/pwa.php` থেকে (`PwaController`), খোলে `/app`-এ — লগইন থাকলে নিজের প্যানেলের ড্যাশবোর্ড, না থাকলে প্যানেল বাছাই (`<x-panel-choices>`) ও চালু অফার। Icon-এর লিংক শুধু `config/pwa.php`-এ। Service worker (`public/sw.js`) শুধু push দেখায়, কিছু cache করে না।
+2. **অফার কাদের জন্য:** Student / Teacher / School / Staff (এক বা একাধিক); Student হলে চাইলে নির্দিষ্ট শ্রেণি (ফাঁকা = সব)। চালু = `is_active` আর শুরু-শেষের সময়ের ভেতরে — কোনো job নেই। কার ব্যানারে, কাদের কাছে পাঠানো — সব শুধু `Offer`-এ (`scopeLive()`, `scopeInBannerOf()`, `audience()`)। ব্যানার Admin ছাড়া সব প্যানেলের ড্যাশবোর্ডে; user বন্ধ করলে তার কাছে আর আসে না।
+3. **পাঠানো:** শুধু চালু অফার, একবারই (`offers.notified_at`), Admin বাছেন বেলে / push / দুটোই; পাঠানো চলে উত্তর দেওয়ার পরে, ভাগে ভাগে, queue worker ছাড়া — নিয়ম শুধু `OfferNotifier`-এ, প্রতিটা পাঠানো log হয়।
+4. **Push চালু:** ব্রাউজার অনুমতি চায় শুধু user "চালু করুন" চাপলে (`<x-push-prompt>`); ডিভাইস `push_subscriptions`-এ। VAPID key `.env`-এ, একবার বানিয়ে আর বদলানো যাবে না।
+
+### ১৪. গাইড (সাহায্য)
+> **গাইড শুধু প্যানেলের ভেতরে, লেখেন Admin (বাংলা ও ইংরেজি, ছবি, ঐচ্ছিক YouTube ভিডিও), দেখান দর্শকের ভাষায় — ইংরেজি না থাকলে বাংলা। প্রতিটা গাইড নির্দিষ্ট role-এর জন্য; অন্য role কখনো দেখে না।**
+
+1. **"সাহায্য" পেজ** Student/Teacher/Staff/School প্যানেলে (`HelpCenter`) — বিভাগ অনুযায়ী, খোঁজা যায়। Admin-এর প্যানেলে নেই।
+2. **"কীভাবে করবেন?" বাটন:** কোন পেজে থাকতে পারে তা কোডে স্থির (`GuidePage`); কোন গাইড খুলবে Admin গাইডেই বাছেন; দর্শকের role-এর গাইড না থাকলে বাটন নেই।
+3. **"শুরু করুন" তালিকা:** role-অনুযায়ী ধাপ কোডে স্থির, user-এর আসল কাজ দেখে নিজে টিক পড়ে (কিছু রাখা হয় না) — শুধু `OnboardingChecklist`-এ; সব শেষে বা user বন্ধ করলে চলে যায়; Admin সবার জন্য বন্ধ রাখতে পারেন (`BillingSetting.onboarding_checklist_enabled`)।
+4. কে কোন গাইড দেখে ও কোন ভাষায় — শুধু `Guide`-এ (`scopeFor()`, `scopeOnPage()`, `title()`, `bodyHtml()`)।
+
 ## Roles & Permissions (সংক্ষেপে)
 
 | Role | পারে | পারে না |
@@ -503,6 +529,7 @@ livewire(ListUsers::class)
 | Staff | নিজের প্রশ্ন CRUD (pending/rejected), নিজের earning দেখা — Admin approve করার আগে **কিছুই না** (`status=pending`); `suspended` হলে Dashboard/Earning দেখা যায় কিন্তু প্রশ্ন add করা যায় না | exam তৈরি করা, অন্যের প্রশ্ন দেখা, approved pool ব্রাউজ করা, `permanent_suspend` হলে প্যানেলে ঢোকা |
 | Student (Login) | নিজের attempt/result, নিজের subscription দিয়ে self-practice exam | প্রশ্ন দেখা exam-এর বাইরে, অন্যের result দেখা |
 | Student (Guest) | শুধু নির্দিষ্ট share-link-এর exam attempt দেওয়া | self-practice exam, লগইন-নির্ভর যেকোনো ফিচার |
+| School | নিজের স্কুলের জন্য প্রশ্ন, স্কুলের ছাত্রদের পরীক্ষা, রেজাল্ট স্কুলের software-এ পাঠানো, সংযোগ (নিয়ম ১২) — Admin approve করার আগে **কিছুই না** | referral/wallet, অন্য স্কুলের কিছু দেখা |
 
 ## Tech Stack
 
@@ -689,6 +716,12 @@ CLAUDE.md
 | পরীক্ষা পূর্ণ কি না | `Exam::isFull()`; ভুল উত্তরে কত কাটা যায় `Exam::marksLostPerWrongAnswer()` |
 | Staff-এর প্রশ্ন breakdown পেজ | `Support\Pages\QuestionStatusBreakdownPage` |
 | approve/reject-এর status বদল | `Models\Concerns\HasApprovalStatus` |
+| Admin approve করে এমন একাউন্ট (Staff, School): অপেক্ষার পেজ, middleware, approve/suspend বাটন | `Support\Pages\PendingApprovalPage`, `EnsureAccountIsApproved`, `User::isAwaitingApproval()`, `StaffLikeUserResourceSchema::statusActions()` |
+| School-এর তথ্যের ফর্ম; সংযোগ কোড/secret; সই করা অনুরোধ | `Support\SchoolDetailsForm`; `Models\SchoolProfile` (`for()`, `markConnected()`, `regenerateSecret()`); `App\Support\SchoolConnectionSignature`, `AuthenticateSchoolInstallation` |
+| School-এর নিজের প্রশ্ন: ছাত্ররা কবে দেখে, তাদের পেজ, এডিটে নতুন সংস্করণ কখন | `Question::scopeReleasedToSchoolStudents()`, `App\Services\SchoolQuestionLibrary`, `SchoolQuestionsController` (লিংক `SchoolConnectionSignature::verifyLink()`); `Question::editsMakeNewVersion()` |
+| App: manifest, `/app`, `<head>`-এর অংশ, প্যানেল বাছাইয়ের কার্ড | `PwaController`, `config/pwa.php`, `<x-pwa-head>`, `<x-panel-choices>` |
+| অফার: চালু কি না, কার ব্যানারে, কাদের কাছে; পাঠানো; কার্ড ও ব্যানার; push চালু | `Models\Offer`, `App\Services\OfferNotifier` (+ `OfferPushNotification`), `<x-offer-card>`, `filament.support.offer-banner`, `<x-push-prompt>` |
+| গাইড: কে দেখে, ভাষা, ভিডিও; "সাহায্য" পেজ; পেজের "কীভাবে করবেন?"; "শুরু করুন" | `Models\Guide`, `Enums\GuidePage`, `Support\Pages\HelpCenter`, `<x-guides.content>`, `<x-guides.page-help>`, `App\Services\OnboardingChecklist` |
 | Admin-এর প্রশ্ন রিভিউ: সারির, একসাথে অনেক (ডুপ্লিকেট বাদ), "দেখুন" জানালা থেকে ও পরের pending প্রশ্ন | `Support\QuestionReviewActions` |
 | শেয়ার-লিংকের exam খোঁজা, লিংক সচল কি না | `Exam::findPublishedByShareToken()`, `isAcceptingAttempts()` |
 | একটা শ্রেণির subject-এর approved প্রশ্ন | `Question::scopeOfClassSubject()`, `approvedOptionsForClassSubject()` |

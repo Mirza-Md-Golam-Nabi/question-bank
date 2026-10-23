@@ -8,5 +8,5 @@
      guest's result. --}}
 <div {{ $attributes->class(['flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs sm:text-sm']) }}>
     <p><span class="text-gray-500">{{ __('Name') }}:</span> <span class="font-medium">{{ $attempt->participantName() }}</span></p>
-    <p><span class="text-gray-500">{{ __('Phone/Email') }}:</span> <span class="font-medium">{{ $attempt->participantContact() }}</span></p>
+    <p><span class="text-gray-500">{{ $attempt->participantContactLabel() }}:</span> <span class="font-medium">{{ $attempt->participantContact() }}</span></p>
 </div>

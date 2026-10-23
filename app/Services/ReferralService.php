@@ -70,11 +70,12 @@ class ReferralService
     }
 
     /**
-     * Who can be brought in: the roles that buy a subscription.
+     * Who can be brought in: a Teacher or a Student — the roles that buy a
+     * subscription for themselves (a School takes no part in referrals).
      */
     public function canBeReferred(User $user): bool
     {
-        return $user->role->subscriptionTargetRole() !== null;
+        return $user->role->holdsWallet();
     }
 
     /**

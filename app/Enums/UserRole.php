@@ -11,6 +11,7 @@ enum UserRole: string implements HasLabel
     case Teacher = 'teacher';
     case Staff = 'staff';
     case Student = 'student';
+    case School = 'school';
 
     public function getLabel(): ?string
     {
@@ -20,6 +21,7 @@ enum UserRole: string implements HasLabel
             self::Teacher => __('Teacher'),
             self::Staff => __('Staff'),
             self::Student => __('Student'),
+            self::School => __('School'),
         };
     }
 
@@ -48,8 +50,7 @@ enum UserRole: string implements HasLabel
     }
 
     /**
-     * The side of the subscription plans this role buys from — also the
-     * roles that take part in referrals and hold a wallet. Null for the
+     * The side of the subscription plans this role buys from. Null for the
      * roles that have no subscription at all.
      */
     public function subscriptionTargetRole(): ?SubscriptionTargetRole
@@ -57,18 +58,39 @@ enum UserRole: string implements HasLabel
         return match ($this) {
             self::Teacher => SubscriptionTargetRole::Teacher,
             self::Student => SubscriptionTargetRole::Student,
+            self::School => SubscriptionTargetRole::School,
             default => null,
         };
     }
 
     /**
-     * Whether this role's referral rewards become wallet credit. The roles
-     * with a subscription to spend it on do; Staff are paid theirs in cash
-     * with their earnings instead.
+     * Whether this role's referral rewards become wallet credit — a Teacher
+     * or a Student, who spend it on their own subscription. Staff are paid
+     * theirs in cash with their earnings instead; a School takes no part in
+     * referrals.
      */
     public function holdsWallet(): bool
     {
-        return $this->subscriptionTargetRole() !== null;
+        return $this === self::Teacher || $this === self::Student;
+    }
+
+    /**
+     * Whether a new account of this role waits for an Admin's approval
+     * before it can do anything: a Staff member (who is paid) and a School
+     * (whose account speaks for a whole school).
+     */
+    public function needsApproval(): bool
+    {
+        return $this === self::Staff || $this === self::School;
+    }
+
+    /**
+     * Whether this role sets exams for others from the question picker —
+     * a Teacher for anyone, a School for its own students.
+     */
+    public function setsExams(): bool
+    {
+        return $this === self::Teacher || $this === self::School;
     }
 
     /**
@@ -91,6 +113,7 @@ enum UserRole: string implements HasLabel
             self::Teacher => 'teacher',
             self::Staff => 'staff',
             self::Student => 'student',
+            self::School => 'school',
         };
     }
 }

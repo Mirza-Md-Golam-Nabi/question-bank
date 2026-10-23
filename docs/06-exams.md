@@ -47,6 +47,13 @@ CQ কখনো অনলাইনে নেওয়া হয় না, ক�
 - **নেগেটিভ মার্কিং:** সেভের modal-এ (শিরোনাম ও সময়ের সাথে) টগল; চালু করলে প্রতি ভুল উত্তরে কাটা নম্বর, শুরুতে Admin-এর মান (`BillingSetting.default_negative_marks`, ডিফল্ট ০.২৫), Teacher বদলাতে পারেন। শুধু অনলাইনে নেওয়া পরীক্ষায় (প্রিন্টের খাতা হাতে দেখা হয়)। খাতার শিরোনামে student-কে জানানো হয় (`<x-exam-heading>`)। কেউ শুরু করার পর বদলানো যায় না (এডিটের নিয়মেই)।
 - পরীক্ষা তৈরি ও এডিটের **একমাত্র** পথ এই পেজ: Teacher-এর `ExamResource`-এ কোনো create/edit ফর্ম-পেজ নেই (ড্যাশবোর্ডের "পরীক্ষা তৈরি করুন" আর "সাম্প্রতিক পরীক্ষা"-র সারিও এখানে আনে)।
 - **কোনো student পরীক্ষা শুরু করার পর প্রশ্ন বদলানো যায় না** (`TeacherExamBuilder::canBeEdited()`), নইলে তার নম্বর আর প্রশ্নপত্র মিলবে না।
+- **আবার পরীক্ষা নিন** (`ExamRepeater`, তালিকার কপির বাটন, Teacher ও School দুই প্যানেলে): একই প্রশ্ন দিয়ে অন্য ছাত্রদের জন্য নতুন পরীক্ষা।
+  - **কী তৈরি হয়:** নিজের লিংক, ফলাফল ও উত্তর-প্রকাশসহ ড্রাফট পরীক্ষা। পুরনো পরীক্ষা, তার লিংক, ফলাফল ও প্রকাশিত উত্তর অক্ষত থাকে।
+  - **কী কপি হয়:** পরীক্ষার ধরন, শ্রেণি-বিষয়, নেগেটিভ মার্কিং। জানালায় নাম (ডিফল্ট "আগের নাম (২)"), সময় ও শেষ সময় বদলানো যায়।
+  - **কোন প্রশ্ন:** প্রতিটা প্রশ্নের **সর্বশেষ সংস্করণ**, যদি Teacher এখনো ব্যবহার করতে পারেন (`usableInExamBy()`)। reject হওয়া বা আবার approve-এর অপেক্ষায় থাকা প্রশ্ন বাদ যায়, জানালায় লেখা থাকে কয়টা। কোনোটাই না থাকলে তৈরি হয় না।
+  - **যাচাই ও গোনা:** তৈরি হয় নতুন পরীক্ষার পথেই (`TeacherExamBuilder::build()`), তাই plan-এর শ্রেণি/বিষয়/সুবিধা/difficulty যাচাই হয় আর **সীমায় আবার গোনা হয়**।
+  - **বিগত সালের প্রশ্নপত্র:** পুরো পেপারটাই আবার পরীক্ষা হিসেবে যায় (`PastPaperExamService::createTeacherExam()`)।
+  - শুধু নিজের Teacher-এর পরীক্ষা; প্রতিটা কপি log হয়।
 - **পরীক্ষা বাতিল** (`Exam::cancel()`): তখন একমাত্র পথ। সব attempt ও উত্তর স্থায়ীভাবে মুছে পরীক্ষাকে draft-এ ফেরায়; লিংক বন্ধ থাকে; পরে একই লিংকে আবার publish করা যায়। ফেরানো যায় না, তাই confirmation চায় ও log রাখে। ওই খাতাগুলো difficulty-র গণনা থেকেও বাদ যায়।
 
 ## Subscription লিমিট
@@ -71,12 +78,16 @@ CQ কখনো অনলাইনে নেওয়া হয় না, ক�
 
 ## শেয়ার-লিংক: Login অথবা Guest
 
+> School-এর পরীক্ষার লিংকে এর বদলে স্কুলের ফর্ম (ক্লাস → সেকশন → রোল → নাম) — [12-school-link.md](12-school-link.md)।
+
 লিংক: `/exam/{share_token}`। এখানে student সবসময় দুটো পথ পায়; এটা বন্ধ করার কোনো সেটিং নেই।
 
 - **Login করে:** `/exam/{token}/join` → দরকার হলে Google login → Student প্যানেলের পরীক্ষার পেজ।
 - **Guest হিসেবে:** নাম + ফোন/ইমেইল দিয়ে। Guest-এর পেজগুলো Filament-এর বাইরে, সাধারণ রুট (`GuestExamController`)।
 
 লিংক কাজ করে যতক্ষণ `Exam::isAcceptingAttempts()` সত্য: পরীক্ষা published, লিংক বন্ধ করা হয়নি, মেয়াদ পার হয়নি।
+
+**ভাষা ও হোম পেজ:** পরীক্ষার পাতাগুলো (`/exam/...`) খোলে সাইটের নিজের ভাষায় (বাংলা), একই ব্রাউজারে প্যানেলে English বাছা থাকলেও। পরীক্ষার পাতায় ভাষা বদলালে সেটা শুধু পরীক্ষার পাতায় খাটে (`SetLocale`-এর `exam` স্কোপ — [02-architecture.md](02-architecture.md))। ওপরে বাঁয়ে "হোম পেজ" বাটন (`layouts.guest-exam`); পরীক্ষা চলার পাতায় থাকে না, যাতে কেউ ভুল করে বেরিয়ে না যায় (`hide-home-link`)।
 
 **Guest-এর পরিচয়** = নাম + ফোন/ইমেইল। `guest_contact` normalize করে রাখা হয় (ফাঁকা, হাইফেন, বন্ধনী বাদ; ছোট হাতের), নাম তুলনায় বড়-ছোট হাত ও বাড়তি ফাঁকা উপেক্ষা হয়। এই জোড়া দিয়েই Guest পরে ফিরে এসে নিজের ফলাফল খোঁজে, লিংক বন্ধ হয়ে গেলেও।
 
@@ -134,6 +145,7 @@ Self-practice-এ উত্তর সাথে সাথে দেখায়�
 | কী | কোথায় |
 |---|---|
 | তৈরি/এডিটের যাচাই | `app/Services/TeacherExamBuilder.php` |
+| আবার পরীক্ষা নেওয়া (কপি) | `app/Services/ExamRepeater.php`, বাটন `ExamsTable::takeAgainAction()` |
 | পেজ | `app/Filament/Teacher/Pages/SelectQuestions.php` (base `app/Filament/Support/Pages/QuestionPickerPage.php`), `resources/views/filament/support/pages/question-picker.blade.php`, সেভের পরের অংশ `resources/views/filament/teacher/pages/partials/exam-saved.blade.php` |
 | তালিকা ও কাজ | `app/Filament/Teacher/Resources/Exams/` |
 | Model | `app/Models/Exam.php`, `ExamAttempt.php`, `AttemptAnswer.php` |
@@ -143,7 +155,7 @@ Self-practice-এ উত্তর সাথে সাথে দেখায়�
 | ফলাফল | `app/Services/ExamResultSheet.php` |
 | প্রিন্ট | `app/Http/Controllers/TeacherExamPrintController.php`, `TeacherExamResultsPrintController.php` |
 
-টেস্ট: `TeacherSelectQuestionsTest`, `TeacherExamResourceTest`, `TeacherOwnPendingQuestionsOnExamTest`, `TeacherQuestionStatsTest`, `ExamModelTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `GuestExamFlowTest`, `StudentExamFlowTest`, `TeacherExamResultsTest`, `TeacherExamPrintTest`, `QueryCountTest`, `SubscriptionPlanConditionsTest`।
+টেস্ট: `TeacherSelectQuestionsTest`, `TeacherExamResourceTest`, `TeacherOwnPendingQuestionsOnExamTest`, `TeacherQuestionStatsTest`, `ExamModelTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `GuestExamFlowTest`, `StudentExamFlowTest`, `TeacherExamResultsTest`, `TeacherExamPrintTest`, `ExamRepeatTest`, `QueryCountTest`, `SubscriptionPlanConditionsTest`।
 
 ## জানা ফাঁক
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Teacher\Resources\Exams\Pages;
 
+use App\Filament\Support\CurrentPanel;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
 use App\Models\Exam;
 use App\Services\ExamResultSheet;
@@ -72,7 +73,7 @@ class ExamResults extends Page
             Action::make('print')
                 ->label(__('Print / PDF / Image'))
                 ->icon(Heroicon::OutlinedPrinter)
-                ->url(fn (): string => route('filament.teacher.exams.results.print', $this->getRecord()))
+                ->url(fn (): string => CurrentPanel::route('exams.results.print', $this->getRecord()))
                 ->openUrlInNewTab()
                 ->disabled(fn (): bool => $this->rows->isEmpty()),
         ];

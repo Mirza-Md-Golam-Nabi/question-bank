@@ -10,9 +10,17 @@ use App\Filament\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Resources\Questions\Pages\EditQuestion;
 use App\Filament\Resources\Questions\Pages\ListQuestions;
 use App\Filament\Support\Resources\QuestionResourceBase;
+use Illuminate\Database\Eloquent\Builder;
 
 class QuestionResource extends QuestionResourceBase
 {
+    public static function getEloquentQuery(): Builder
+    {
+        // An Admin reviews and manages every question but a School's own,
+        // which only that School sees and nobody approves (CLAUDE.md rule 12).
+        return parent::getEloquentQuery()->where('is_private', false);
+    }
+
     public static function getPages(): array
     {
         return [

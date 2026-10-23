@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Enums\QuestionStatus;
+use App\Enums\UserRole;
 use App\Models\Question;
 use App\Models\User;
 
@@ -18,6 +19,10 @@ class QuestionObserver
             $question->status = $this->defaultStatusFor(auth()->user());
         }
 
+        // What a School writes is its own (CLAUDE.md rule 12) — a new
+        // version keeps what its first one was.
+        $question->is_private ??= $this->creatorOf($question)?->role === UserRole::School;
+
         if ($question->status === QuestionStatus::Approved && ! $question->approved_by) {
             $question->approved_by = auth()->id();
         }
@@ -30,6 +35,14 @@ class QuestionObserver
         // Question::createRevisionWith()) consistent without a round-trip.
         $question->version ??= 1;
         $question->is_latest ??= true;
+    }
+
+    /**
+     * Who wrote it — the signed-in user in nearly every case, so no query.
+     */
+    private function creatorOf(Question $question): ?User
+    {
+        return $question->created_by === auth()->id() ? auth()->user() : $question->creator;
     }
 
     private function defaultStatusFor(?User $user): QuestionStatus

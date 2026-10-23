@@ -82,7 +82,7 @@ class GoogleAuthController extends Controller
             'google_id' => $googleUser->getId(),
             'avatar' => $googleUser->getAvatar(),
             'role' => $role,
-            'status' => $role === UserRole::Staff ? UserStatus::Pending : UserStatus::Active,
+            'status' => $role->needsApproval() ? UserStatus::Pending : UserStatus::Active,
             'email_verified_at' => now(),
         ]);
 

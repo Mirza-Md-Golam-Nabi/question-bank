@@ -232,12 +232,18 @@ class ExamResultSheet
 
     /**
      * What makes two attempts "the same person": a logged-in student's
-     * account, or a guest's name + phone/email.
+     * account, a School student's class + section + roll + name, or a
+     * guest's name + phone/email.
      */
     private function participantKey(ExamAttempt $attempt): string
     {
         if (! $attempt->is_guest) {
             return 'student:'.$attempt->student_id;
+        }
+
+        if ($attempt->isSchoolAttempt()) {
+            return "school:{$attempt->school_class_id}|{$attempt->school_section_id}|{$attempt->school_roll}|"
+                .ExamAttempt::normalizeGuestName((string) $attempt->guest_name);
         }
 
         return 'guest:'.ExamAttempt::normalizeGuestContact((string) $attempt->guest_contact)

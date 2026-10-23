@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Staffs;
 
 use App\Enums\UserRole;
-use App\Enums\UserStatus;
 use App\Filament\Resources\Staffs\Pages\ManageStaffs;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
@@ -11,7 +10,6 @@ use App\Filament\Support\StaffLikeUserResourceSchema;
 use App\Filament\Support\TableActions;
 use App\Models\User;
 use BackedEnum;
-use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
@@ -56,38 +54,7 @@ class StaffResource extends Resource
             ])
             ->filters(StaffLikeUserResourceSchema::tableFilters())
             ->recordActions([
-                Action::make('approve')
-                    ->label(__('Approve'))
-                    ->color('success')
-                    ->iconButton()
-                    ->icon('heroicon-o-check-circle')
-                    ->visible(fn (User $record) => $record->status === UserStatus::Pending)
-                    ->requiresConfirmation()
-                    ->action(fn (User $record) => $record->update(['status' => UserStatus::Active])),
-                Action::make('suspend')
-                    ->label(__('Suspend'))
-                    ->color('warning')
-                    ->iconButton()
-                    ->icon('heroicon-o-pause-circle')
-                    ->visible(fn (User $record) => $record->status === UserStatus::Active)
-                    ->requiresConfirmation()
-                    ->action(fn (User $record) => $record->update(['status' => UserStatus::Suspended])),
-                Action::make('permanentSuspend')
-                    ->label(__('Permanent Suspend'))
-                    ->color('danger')
-                    ->iconButton()
-                    ->icon('heroicon-o-no-symbol')
-                    ->visible(fn (User $record) => $record->status !== UserStatus::PermanentSuspend)
-                    ->requiresConfirmation()
-                    ->action(fn (User $record) => $record->update(['status' => UserStatus::PermanentSuspend])),
-                Action::make('reactivate')
-                    ->label(__('Reactivate'))
-                    ->color('success')
-                    ->iconButton()
-                    ->icon('heroicon-o-arrow-path')
-                    ->visible(fn (User $record) => in_array($record->status, [UserStatus::Suspended, UserStatus::PermanentSuspend], strict: true))
-                    ->requiresConfirmation()
-                    ->action(fn (User $record) => $record->update(['status' => UserStatus::Active])),
+                ...StaffLikeUserResourceSchema::statusActions(),
                 EditAction::make()->iconButton(),
                 DeleteAction::make()->iconButton(),
             ])

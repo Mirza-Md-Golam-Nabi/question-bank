@@ -7,6 +7,7 @@ use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
 use App\Enums\QuestionType;
+use App\Enums\UserRole;
 use App\Models\Concerns\FiltersByMonth;
 use App\Services\QuestionDifficultyTracker;
 use Carbon\CarbonInterface;
@@ -65,6 +66,16 @@ class Exam extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Whether a School set this exam for its own students — whose share
+     * link then takes the School's entry form (class, section, roll, name)
+     * instead of a login or a guest's name (CLAUDE.md rule 12).
+     */
+    public function isSchoolExam(): bool
+    {
+        return $this->creator?->role === UserRole::School;
     }
 
     /**

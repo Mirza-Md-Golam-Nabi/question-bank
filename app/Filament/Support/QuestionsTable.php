@@ -27,6 +27,15 @@ use Filament\Tables\Table;
  */
 class QuestionsTable
 {
+    /**
+     * Whether the list shows where each question is in review — not for a
+     * School, whose own questions are never reviewed (CLAUDE.md rule 12).
+     */
+    public static function showsReview(): bool
+    {
+        return CurrentPanel::id() !== 'school';
+    }
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -39,13 +48,14 @@ class QuestionsTable
                 TextColumn::make('question_type')->badge(),
                 TextColumn::make('difficulty')->badge(),
                 TextColumn::make('marks'),
-                TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor()),
+                TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor())
+                    ->visible(self::showsReview()),
                 TextColumn::make('version')->label(__('v'))->toggleable(),
                 TextColumn::make('creator.name')->label(__('Created by')),
                 TextColumn::make('created_at')->localDateTime()->sortable(),
             ])
             ->filters([
-                SelectFilter::make('status')->options(QuestionStatus::class),
+                SelectFilter::make('status')->options(QuestionStatus::class)->visible(self::showsReview()),
                 TrashedFilter::make(),
             ])
             ->recordActions([

@@ -293,6 +293,23 @@ class BillingSettings extends Page
                             ->helperText(__("A teacher is shown a student who has sat none of the teacher's exams for this many days while the teacher has given new ones."))
                             ->integer()->minValue(1)->maxValue(365)->required(),
                     ]),
+
+                Section::make(__('School questions'))
+                    ->description(__("A School's own questions open to its students in the school management software from the day after every exam they are on has ended."))
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('school_question_release_days')
+                            ->label(__('Days after it was written, when an exam has no end time'))
+                            ->helperText(__('Also for a question that is on no exam.'))
+                            ->integer()->minValue(1)->maxValue(3650)->required(),
+                    ]),
+
+                Section::make(__('Guides'))
+                    ->schema([
+                        Toggle::make('onboarding_checklist_enabled')
+                            ->label(__('Show the "Get started" list on the dashboard of new users'))
+                            ->helperText(__('The first few steps for each role, ticked off as they are done. A user can also close it.')),
+                    ]),
             ])
             ->statePath('data');
     }

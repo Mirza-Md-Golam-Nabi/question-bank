@@ -18,7 +18,7 @@ class QuestionPolicy
 
     public function view(User $user, Question $question): bool
     {
-        return $this->isOwner($user, $question) || $this->isVisibleApproved($question) || $this->isAdmin($user);
+        return $this->isOwner($user, $question) || $this->isVisibleApproved($question) || $this->managesAsAdmin($user, $question);
     }
 
     /**
@@ -32,8 +32,8 @@ class QuestionPolicy
 
     /**
      * Adding many questions at once from pasted JSON. An Admin always can;
-     * a Teacher can while the Admin leaves it switched on in the settings;
-     * Staff never — they are paid for every approved question, so they
+     * a Teacher — and a School, for its own questions — can while the
+     * Admin leaves it switched on in the settings; Staff never — they are paid for every approved question, so they
      * keep adding theirs one at a time.
      */
     public function import(User $user): bool
@@ -43,7 +43,7 @@ class QuestionPolicy
         }
 
         return $this->isAdmin($user)
-            || ($user->role === UserRole::Teacher && BillingSetting::current()->teacher_question_import_enabled);
+            || (in_array($user->role, [UserRole::Teacher, UserRole::School], true) && BillingSetting::current()->teacher_question_import_enabled);
     }
 
     /**
@@ -52,7 +52,7 @@ class QuestionPolicy
      */
     public function update(User $user, Question $question): bool
     {
-        return ($this->isAdmin($user) || $this->isOwner($user, $question))
+        return ($this->managesAsAdmin($user, $question) || $this->isOwner($user, $question))
             && ! $question->isFrozenByAttempts();
     }
 
@@ -65,7 +65,7 @@ class QuestionPolicy
      */
     public function delete(User $user, Question $question): bool
     {
-        return $this->isAdmin($user) || (
+        return $this->managesAsAdmin($user, $question) || (
             $this->isOwner($user, $question)
             && $question->status !== QuestionStatus::Approved
             && ! $question->isOnAnExam()
@@ -74,7 +74,7 @@ class QuestionPolicy
 
     public function restore(User $user, Question $question): bool
     {
-        return $this->isAdmin($user) || $this->isOwner($user, $question);
+        return $this->managesAsAdmin($user, $question) || $this->isOwner($user, $question);
     }
 
     public function restoreAny(User $user): bool
@@ -88,7 +88,7 @@ class QuestionPolicy
      */
     public function forceDelete(User $user, Question $question): bool
     {
-        return $this->isAdmin($user);
+        return $this->managesAsAdmin($user, $question);
     }
 
     public function forceDeleteAny(User $user): bool
@@ -98,12 +98,12 @@ class QuestionPolicy
 
     public function approve(User $user, Question $question): bool
     {
-        return $this->isAdmin($user);
+        return $this->managesAsAdmin($user, $question);
     }
 
     public function reject(User $user, Question $question): bool
     {
-        return $this->isAdmin($user);
+        return $this->managesAsAdmin($user, $question);
     }
 
     private function isOwner(User $user, Question $question): bool
@@ -114,6 +114,15 @@ class QuestionPolicy
     private function isVisibleApproved(Question $question): bool
     {
         return $question->status === QuestionStatus::Approved && $question->is_latest;
+    }
+
+    /**
+     * An Admin manages every question but a School's own, which only that
+     * School sees (CLAUDE.md rule 12).
+     */
+    private function managesAsAdmin(User $user, Question $question): bool
+    {
+        return $this->isAdmin($user) && ! $question->is_private;
     }
 
     private function isAdmin(User $user): bool

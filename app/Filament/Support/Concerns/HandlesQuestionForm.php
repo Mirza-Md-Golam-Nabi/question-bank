@@ -2,7 +2,6 @@
 
 namespace App\Filament\Support\Concerns;
 
-use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Filament\Support\EditorModePreference;
 use App\Filament\Support\QuestionFormData;
@@ -16,8 +15,9 @@ use Illuminate\Support\Facades\Auth;
 /**
  * Shared by every panel's CreateQuestion/EditQuestion pages: extracting the
  * form's virtual `cq_parts.*` fields into real QuestionCqPart rows, and
- * routing an edit of an approved question through Question::createRevisionWith()
- * instead of a plain update — the one place this branching needs to live.
+ * routing an edit that makes a new version (Question::editsMakeNewVersion())
+ * through Question::createRevisionWith() instead of a plain update — the
+ * one place this branching needs to live.
  */
 trait HandlesQuestionForm
 {
@@ -139,25 +139,27 @@ trait HandlesQuestionForm
     }
 
     /**
+     * An edit saved as a new version (Question::editsMakeNewVersion()),
+     * leaving the edited one as it is on every exam.
+     *
      * @param  array<string, mixed>  $data
      */
-    protected function handleApprovedQuestionEdit(Question $record, array $data): Model
+    protected function handleEditAsNewVersion(Question $record, array $data): Model
     {
         $revision = $record->createRevisionWith($data, $this->cqPartsData);
 
-        Notification::make()
-            ->title(__('Approved question edited'))
-            ->body(__('A new pending version has been created for re-review; the previous approved version is unchanged.'))
-            ->success()
-            ->send();
+        $notification = $record->is_private
+            ? Notification::make()
+                ->title(__('Saved as a new version'))
+                ->body(__('Students have already sat this question, so the exams they sat keep it as it was.'))
+            : Notification::make()
+                ->title(__('Approved question edited'))
+                ->body(__('A new pending version has been created for re-review; the previous approved version is unchanged.'));
+
+        $notification->success()->send();
 
         $this->redirect(static::getResource()::getUrl('edit', ['record' => $revision]));
 
         return $revision;
-    }
-
-    protected function isEditingAnApprovedQuestion(Question $record): bool
-    {
-        return $record->status === QuestionStatus::Approved;
     }
 }

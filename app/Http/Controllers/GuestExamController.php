@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ExamAttemptStatus;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\GuestAttemptSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,19 +19,25 @@ use Illuminate\View\View;
  */
 class GuestExamController extends Controller
 {
-    /**
-     * Session list of the guest attempt ids started from this browser.
-     */
-    private const SESSION_KEY = 'guest_exam_attempts';
-
     public function show(string $shareToken): View|RedirectResponse
     {
-        $exam = $this->activeSharedExamOrFail($shareToken);
+        $exam = self::activeSharedExamOrFail($shareToken);
 
         if (! $exam) {
             // A closed link no longer starts attempts, but those who sat
             // the exam can still come back to it for their result.
-            return view('guest-exam.inactive', ['exam' => Exam::findPublishedByShareToken($shareToken)]);
+            $closedExam = Exam::findPublishedByShareToken($shareToken);
+
+            return view('guest-exam.inactive', [
+                'exam' => $closedExam,
+                // A School's exam is looked up by class and roll instead.
+                'schoolClasses' => $closedExam?->isSchoolExam() ? app(SchoolExamEntryController::class)->classesOrNull($closedExam) : null,
+            ]);
+        }
+
+        // A School's exam takes its own entry form instead.
+        if ($exam->isSchoolExam()) {
+            return app(SchoolExamEntryController::class)->show($exam);
         }
 
         return view('guest-exam.join', ['exam' => $exam]);
@@ -47,7 +53,7 @@ class GuestExamController extends Controller
     {
         $exam = Exam::findPublishedByShareToken($shareToken);
 
-        abort_if(! $exam, 404);
+        abort_if(! $exam || $exam->isSchoolExam(), 404);
 
         $data = $request->validate([
             'guest_name' => ['required', 'string', 'max:255'],
@@ -73,9 +79,9 @@ class GuestExamController extends Controller
      */
     public function startGuestAttempt(Request $request, string $shareToken): View|RedirectResponse
     {
-        $exam = $this->activeSharedExamOrFail($shareToken);
+        $exam = self::activeSharedExamOrFail($shareToken);
 
-        abort_if(! $exam, 404);
+        abort_if(! $exam || $exam->isSchoolExam(), 404);
 
         $data = $request->validate([
             'guest_name' => ['required', 'string', 'max:255'],
@@ -99,10 +105,7 @@ class GuestExamController extends Controller
         }
 
         // This browser may now open the attempt (see take()).
-        $request->session()->put(
-            self::SESSION_KEY,
-            collect($request->session()->get(self::SESSION_KEY, []))->push($attempt->id)->unique()->values()->all(),
-        );
+        GuestAttemptSession::remember($request, $attempt);
 
         return redirect()->route('guest-exam.take', $attempt);
     }
@@ -114,7 +117,7 @@ class GuestExamController extends Controller
      */
     public function take(Request $request, ExamAttempt $attempt): View|RedirectResponse
     {
-        abort_unless($this->guestAttemptsOfThisBrowser($request)->whereKey($attempt->id)->exists(), 403);
+        abort_unless(GuestAttemptSession::attempts($request)->whereKey($attempt->id)->exists(), 403);
 
         $attempt->load('exam');
 
@@ -157,20 +160,10 @@ class GuestExamController extends Controller
     }
 
     /**
-     * @return Builder<ExamAttempt>
-     */
-    private function guestAttemptsOfThisBrowser(Request $request): Builder
-    {
-        return ExamAttempt::query()
-            ->where('is_guest', true)
-            ->whereIn('id', (array) $request->session()->get(self::SESSION_KEY, []));
-    }
-
-    /**
      * The exam behind a share token, only while its link still takes new
      * attempts.
      */
-    private function activeSharedExamOrFail(string $shareToken): ?Exam
+    public static function activeSharedExamOrFail(string $shareToken): ?Exam
     {
         $exam = Exam::findPublishedByShareToken($shareToken);
 

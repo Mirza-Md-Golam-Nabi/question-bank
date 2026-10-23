@@ -2,6 +2,8 @@
 
 @section('title', $attempt->exam->title)
 
+@section('hide-home-link', true)
+
 @section('content')
     <form id="qb-exam-form" method="POST" action="{{ route('guest-exam.submit', $attempt) }}">
         @csrf

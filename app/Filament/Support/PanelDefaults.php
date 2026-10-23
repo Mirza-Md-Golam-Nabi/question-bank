@@ -2,8 +2,13 @@
 
 namespace App\Filament\Support;
 
+use App\Enums\GuidePage;
 use App\Enums\Locale;
+use App\Filament\Support\Pages\HelpCenter;
 use App\Http\Middleware\SetLocale;
+use App\Models\Guide;
+use App\Models\Offer;
+use App\Services\OnboardingChecklist;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -11,6 +16,8 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup as FilamentNavigationGroup;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -56,7 +63,35 @@ class PanelDefaults
                 ->all())
             ->pages([
                 $dashboard,
+                // "Help" — the guides of every panel but the Admin's, who writes them.
+                ...($id === 'admin' ? [] : [HelpCenter::class]),
             ])
+            // The installable app (config/pwa.php) opens from every panel.
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => view('components.pwa-head')->render())
+            // Above the dashboard: "Get started", the offers for this user
+            // and the button to switch push notifications on — not for
+            // Admins, who write the offers.
+            ->renderHook(
+                PanelsRenderHook::PAGE_START,
+                fn (): ?View => auth()->user() && ! auth()->user()->role->isAdmin()
+                    ? view('filament.support.offer-banner', [
+                        'offers' => Offer::query()->inBannerOf(auth()->user())->get(),
+                        'onboarding' => app(OnboardingChecklist::class)->for(auth()->user()),
+                    ])
+                    : null,
+                scopes: $dashboard,
+            )
+            // "How do I…?" beside a page's own buttons, when it has guides
+            // for this user's role (GuidePage).
+            ->renderHook(
+                PanelsRenderHook::PAGE_HEADER_ACTIONS_BEFORE,
+                function (array $scopes): ?View {
+                    $page = auth()->user() && ! auth()->user()->role->isAdmin() ? GuidePage::forScopes($scopes) : null;
+                    $guides = $page ? Guide::query()->onPage(auth()->user(), $page)->get() : collect();
+
+                    return $guides->isNotEmpty() ? view('components.guides.page-help', ['guides' => $guides]) : null;
+                },
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

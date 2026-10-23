@@ -55,8 +55,8 @@ abstract class EditQuestionPage extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var Question $record */
-        if ($this->isEditingAnApprovedQuestion($record)) {
-            return $this->handleApprovedQuestionEdit($record, $data);
+        if ($record->editsMakeNewVersion()) {
+            return $this->handleEditAsNewVersion($record, $data);
         }
 
         $record->update($data);

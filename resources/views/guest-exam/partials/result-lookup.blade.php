@@ -22,6 +22,6 @@
             <p class="text-sm text-red-600">{{ $message }}</p>
         @enderror
 
-        <button type="submit" class="qb-btn qb-btn--outline">{{ __('See my result') }}</button>
+        <button type="submit" class="qb-btn qb-btn--info">{{ __('See my result') }}</button>
     </form>
 </div>

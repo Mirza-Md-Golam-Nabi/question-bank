@@ -5,7 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Staff\Pages\Auth\Login;
 use App\Filament\Support\PanelDefaults;
 use App\Filament\Support\QuestionEditorAssets;
-use App\Http\Middleware\EnsureStaffIsApproved;
+use App\Http\Middleware\EnsureAccountIsApproved;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -26,7 +26,7 @@ class StaffPanelProvider extends PanelProvider
                 // widget list
             ])
             ->authMiddleware([
-                EnsureStaffIsApproved::class,
+                EnsureAccountIsApproved::class,
             ]));
     }
 }

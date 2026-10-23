@@ -44,7 +44,7 @@ Admin প্যানেলে registration বন্ধ রাখা হয়�
 কোথায় বলবৎ হয়:
 
 - **প্যানেলে ঢোকা:** `User::canAccessPanel()` — role-এর প্যানেল মিলতে হবে এবং `permanent_suspend` হওয়া চলবে না।
-- **Pending Staff:** `EnsureStaffIsApproved` middleware Staff প্যানেলের প্রতিটা অনুরোধ `PendingApprovalNotice` পেজে ফেরত পাঠায় (logout ছাড়া)।
+- **Pending Staff ও School:** `EnsureAccountIsApproved` middleware (Staff ও School প্যানেলে) প্রতিটা অনুরোধ প্যানেলের `pending-approval` পেজে ফেরত পাঠায় (logout ছাড়া) — `User::isAwaitingApproval()`। School সেই পেজে স্কুলের তথ্য দেয় — [12-school-link.md](12-school-link.md)।
 - **প্রশ্ন যোগ:** `QuestionPolicy::create()` শুধু `active` user-কে অনুমতি দেয়।
 
 ## Admin-এর হাতে যা আছে
@@ -70,7 +70,7 @@ Admin প্যানেলে registration বন্ধ রাখা হয়�
 | Google login | `app/Http/Controllers/Auth/GoogleAuthController.php` |
 | প্যানেলের সেটআপ | `app/Providers/Filament/*PanelProvider.php`, `App\Filament\Support\PanelDefaults` |
 | প্যানেলে ঢোকার নিয়ম | `App\Models\User::canAccessPanel()` |
-| Pending Staff | `App\Http\Middleware\EnsureStaffIsApproved` |
+| Pending Staff/School | `App\Http\Middleware\EnsureAccountIsApproved`, পেজের base `Support\Pages\PendingApprovalPage` |
 | Reactivation | `App\Models\ReactivationRequest` |
 
-টেস্ট: `GoogleAuthTest`, `AdminPanelAccessTest`, `StaffPendingApprovalTest`, `TeacherSuspensionTest`, `ReactivationRequestTest`, `LogoutRedirectTest`, `DevLoginBypassTest`।
+টেস্ট: `GoogleAuthTest`, `AdminPanelAccessTest`, `StaffPendingApprovalTest`, `SchoolAccountTest`, `TeacherSuspensionTest`, `ReactivationRequestTest`, `LogoutRedirectTest`, `DevLoginBypassTest`।

@@ -4,16 +4,22 @@ namespace App\Filament\Teacher\Resources\Exams\Tables;
 
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
+use App\Enums\Locale;
 use App\Enums\QuestionType;
+use App\Filament\School\Pages\SendToSchoolResults;
+use App\Filament\Support\CurrentPanel;
 use App\Filament\Support\FutureDateTimePicker;
 use App\Filament\Support\SubjectColumn;
 use App\Filament\Support\TableActions;
 use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
+use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
 use App\Models\Exam;
+use App\Services\ExamRepeater;
 use App\Services\TeacherExamBuilder;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
@@ -22,6 +28,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Js;
 
 class ExamsTable
@@ -61,7 +68,7 @@ class ExamsTable
             ->iconButton()
             ->color('warning')
             ->visible(fn (Exam $record) => $record->status !== ExamStatus::Draft && $record->delivery_mode->includesOnline())
-            ->url(fn (Exam $record): string => ExamResults::getUrl(['record' => $record], panel: 'teacher'));
+            ->url(fn (Exam $record): string => ExamResults::getUrl(['record' => $record]));
     }
 
     /**
@@ -112,6 +119,42 @@ class ExamsTable
                 Js::from($record->shareUrl()),
                 Js::from(__('Link copied')),
             ));
+    }
+
+    /**
+     * The same paper as a new exam for another group of students — its own
+     * link and results, counted against the plan again (ExamRepeater).
+     */
+    public static function takeAgainAction(): Action
+    {
+        return Action::make('takeAgain')
+            ->label(__('Take again'))
+            ->tooltip(__('Take this exam again with other students'))
+            ->icon('heroicon-o-document-duplicate')
+            ->iconButton()
+            ->color('gray')
+            ->visible(fn (Exam $record): bool => app(ExamRepeater::class)->canRepeat($record, Auth::user()))
+            ->modalHeading(__('Take this exam again'))
+            ->modalDescription(function (Exam $record): string {
+                $leftOut = app(ExamRepeater::class)->preview($record, Auth::user())['leftOut'];
+
+                return __('A new exam with the same questions and its own link. This exam, its link and its results stay as they are. It counts as a new exam on your plan.')
+                    .($leftOut > 0 ? ' '.trans_choice(':count question is left out: it has been rejected, or edited and not approved again.|:count questions are left out: they have been rejected, or edited and not approved again.', $leftOut) : '');
+            })
+            ->fillForm(fn (Exam $record): array => [
+                'title' => $record->title.' ('.Locale::current()->writeDigits('2').')',
+                'duration_minutes' => $record->duration_minutes,
+            ])
+            ->schema(fn (Exam $record): array => [
+                TextInput::make('title')->label(__('Exam title'))->required()->maxLength(255),
+                TextInput::make('duration_minutes')->label(__('Duration (minutes)'))->integer()->minValue(1)->maxValue(600)->required(),
+                FutureDateTimePicker::make('link_expires_at')
+                    ->label(__('Exam ends at'))
+                    ->visible($record->delivery_mode->includesOnline()),
+            ])
+            ->modalSubmitActionLabel(__('Create the new exam'))
+            ->authorize('update')
+            ->action(fn (Exam $record, array $data, ListExams $livewire, Action $action) => $livewire->takeAgain($record, $data, $action));
     }
 
     public static function configure(Table $table): Table
@@ -189,6 +232,18 @@ class ExamsTable
                         Notification::make()->title(__('Exam published'))->success()->send();
                     }),
                 self::resultsAction(),
+                // A School's exam: its online MCQ marks into the school
+                // management software's results (CLAUDE.md rule 12).
+                Action::make('sendToSchoolResults')
+                    ->label(__('Send to school results'))
+                    ->tooltip(__('Send to school results'))
+                    ->icon('heroicon-o-paper-airplane')
+                    ->iconButton()
+                    ->color('success')
+                    ->visible(fn (Exam $record): bool => CurrentPanel::id() === 'school'
+                        && $record->status !== ExamStatus::Draft
+                        && $record->delivery_mode->includesOnline())
+                    ->url(fn (Exam $record): string => SendToSchoolResults::getUrl(['exam' => $record->id])),
                 self::copyShareLinkAction(),
                 // The last moment a student can start the exam; after it the
                 // share link stops taking new attempts on its own.
@@ -279,7 +334,7 @@ class ExamsTable
                     ->color('gray')
                     ->icon('heroicon-o-printer')
                     ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline())
-                    ->url(fn (Exam $record): string => route('filament.teacher.exams.print', $record))
+                    ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', $record))
                     ->openUrlInNewTab(),
                 // Editing works like creating: the exam opens in the question
                 // picker with its questions already selected. Gone once a
@@ -293,6 +348,7 @@ class ExamsTable
                     ->visible(fn (Exam $record) => ! self::hasAttempts($record) && ! $record->isPastPaper())
                     ->authorize('update')
                     ->url(fn (Exam $record): string => SelectQuestions::getUrl(['exam' => $record->id])),
+                self::takeAgainAction(),
                 // The way back to an editable paper once students have started:
                 // call the exam off, which deletes everything they did on it.
                 Action::make('cancelExam')

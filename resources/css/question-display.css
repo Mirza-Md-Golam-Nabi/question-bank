@@ -568,6 +568,24 @@
     background-color: #d97706;
 }
 
+.qb-btn--success {
+    background-color: #16a34a;
+    color: #fff;
+}
+
+.qb-btn--success:hover {
+    background-color: #15803d;
+}
+
+.qb-btn--info {
+    background-color: #0284c7;
+    color: #fff;
+}
+
+.qb-btn--info:hover {
+    background-color: #0369a1;
+}
+
 .qb-btn--outline {
     border-color: #d1d5db;
     background-color: #fff;

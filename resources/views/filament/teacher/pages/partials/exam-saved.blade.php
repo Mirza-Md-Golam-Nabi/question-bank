@@ -19,7 +19,7 @@
             @if ($savedExam->delivery_mode->includesOffline())
                 <x-filament::button
                     tag="a"
-                    :href="route('filament.teacher.exams.print', $savedExam)"
+                    :href="\App\Filament\Support\CurrentPanel::route('exams.print', $savedExam)"
                     target="_blank"
                     icon="heroicon-o-printer"
                 >

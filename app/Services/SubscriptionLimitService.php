@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\Difficulty;
 use App\Enums\ExamType;
 use App\Enums\PlanFeature;
-use App\Enums\UserRole;
 use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
 use App\Models\Exam;
@@ -378,7 +377,7 @@ class SubscriptionLimitService
      */
     public function examTypeFor(User $user): ExamType
     {
-        return $user->role === UserRole::Teacher ? ExamType::TeacherExam : ExamType::SelfPractice;
+        return $user->role->setsExams() ? ExamType::TeacherExam : ExamType::SelfPractice;
     }
 
     private function hasReachedLimit(User $user, PlanGrant $grant): bool

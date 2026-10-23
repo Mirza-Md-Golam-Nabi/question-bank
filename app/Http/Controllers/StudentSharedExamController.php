@@ -33,8 +33,9 @@ class StudentSharedExamController extends Controller
     {
         $exam = Exam::findPublishedByShareToken($shareToken);
 
-        // A closed or unknown link: the share page explains it.
-        if (! $exam?->isAcceptingAttempts()) {
+        // A closed or unknown link: the share page explains it. A School's
+        // exam has no login: its share page takes the School's entry form.
+        if (! $exam?->isAcceptingAttempts() || $exam->isSchoolExam()) {
             return redirect()->route('guest-exam.show', $shareToken);
         }
 

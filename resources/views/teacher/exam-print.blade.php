@@ -72,18 +72,18 @@
             </button>
 
             @if ($showAnswers)
-                <a href="{{ route('filament.teacher.exams.print', $exam) }}"
+                <a href="{{ \App\Filament\Support\CurrentPanel::route('exams.print', $exam) }}"
                    class="qb-btn qb-btn--outline text-sm">
                     {{ __('Questions only') }}
                 </a>
             @else
-                <a href="{{ route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 1]) }}"
+                <a href="{{ \App\Filament\Support\CurrentPanel::route('exams.print', ['exam' => $exam, 'answers' => 1]) }}"
                    class="qb-btn qb-btn--outline text-sm">
                     {{ __('With answers') }}
                 </a>
             @endif
 
-            <a href="{{ ExamResource::getUrl('index', panel: 'teacher') }}"
+            <a href="{{ ExamResource::getUrl('index') }}"
                class="ms-auto text-sm font-medium text-gray-600 hover:underline">
                 {{ __('Back to exams') }}
             </a>

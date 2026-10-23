@@ -25,6 +25,7 @@ use Random\Randomizer;
 
 #[Fillable([
     'exam_id', 'student_id', 'is_guest', 'guest_name', 'guest_contact',
+    'school_class_id', 'school_class_name', 'school_section_id', 'school_section_name', 'school_roll',
     'started_at', 'submitted_at', 'status', 'total_score',
 ])]
 class ExamAttempt extends Model
@@ -188,6 +189,87 @@ class ExamAttempt extends Model
     }
 
     /**
+     * Puts a School's student into one of its exams, by the same rule. They
+     * have no account here: the School's entry form takes their class,
+     * section (where the class has them), roll and name — and those four
+     * together are who they are, so the same student on another device
+     * carries on with the same exam. Someone giving a taken roll under
+     * another name gets an attempt of their own, which the School sorts out
+     * when it sends the marks to its results.
+     *
+     * @param  array{id: int, name: string}  $class  As the school's software lists it.
+     * @param  array{id: int, name: string}|null  $section
+     */
+    public static function startForSchoolStudent(Exam $exam, array $class, ?array $section, string $roll, string $name): self
+    {
+        $roll = self::normalizeRoll($roll);
+
+        return self::enter(
+            $exam,
+            fn (): Collection => self::ofSchoolRoll($exam, $class['id'], $section['id'] ?? null, $roll)
+                ->filter(fn (self $attempt): bool => self::normalizeGuestName((string) $attempt->guest_name) === self::normalizeGuestName($name))
+                ->values(),
+            [
+                'student_id' => null,
+                'is_guest' => true,
+                'guest_name' => trim($name),
+                'school_class_id' => $class['id'],
+                'school_class_name' => $class['name'],
+                'school_section_id' => $section['id'] ?? null,
+                'school_section_name' => $section['name'] ?? null,
+                'school_roll' => $roll,
+            ],
+        );
+    }
+
+    /**
+     * The submitted attempt a School's student gets back with their class,
+     * section and roll — the first, when the roll was used more than once.
+     */
+    public static function findSchoolResult(Exam $exam, int $classId, ?int $sectionId, string $roll): ?self
+    {
+        return self::ofSchoolRoll($exam, $classId, $sectionId, self::normalizeRoll($roll))
+            ->first(fn (self $attempt): bool => ! $attempt->isInProgress());
+    }
+
+    /**
+     * A roll number in one spelling: Bangla digits as English ones, no
+     * spaces, no leading zeros — "০৫", " 5" and "05" are all roll 5.
+     */
+    public static function normalizeRoll(string $roll): string
+    {
+        $roll = strtr(trim($roll), ['০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9']);
+        $roll = preg_replace('/\s+/u', '', $roll);
+
+        return ctype_digit($roll) ? (ltrim($roll, '0') ?: '0') : mb_strtoupper($roll);
+    }
+
+    /**
+     * Whether a School's entry form let this attempt in.
+     */
+    public function isSchoolAttempt(): bool
+    {
+        return $this->school_class_id !== null;
+    }
+
+    /**
+     * Every attempt under one class + section + roll of a School's exam,
+     * oldest first.
+     *
+     * @return Collection<int, self>
+     */
+    private static function ofSchoolRoll(Exam $exam, int $classId, ?int $sectionId, string $roll): Collection
+    {
+        return self::query()
+            ->where('exam_id', $exam->id)
+            ->where('school_class_id', $classId)
+            ->where('school_section_id', $sectionId)
+            ->where('school_roll', $roll)
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
      * The one rule for getting into an exam, which a participant may sit
      * only once and against a single clock:
      *
@@ -258,11 +340,24 @@ class ExamAttempt extends Model
     }
 
     /**
-     * How to reach them: a guest's phone/email, or the student's email.
+     * How to tell them apart: a School student's class, section and roll; a
+     * guest's phone/email; or the student's email.
      */
     public function participantContact(): ?string
     {
+        if ($this->isSchoolAttempt()) {
+            return collect([$this->school_class_name, $this->school_section_name, __('Roll :roll', ['roll' => $this->school_roll])])->filter()->join(' · ');
+        }
+
         return $this->is_guest ? $this->guest_contact : $this->student?->email;
+    }
+
+    /**
+     * What participantContact() is, as a label.
+     */
+    public function participantContactLabel(): string
+    {
+        return $this->isSchoolAttempt() ? __('Class / Roll') : __('Phone/Email');
     }
 
     public function student(): BelongsTo

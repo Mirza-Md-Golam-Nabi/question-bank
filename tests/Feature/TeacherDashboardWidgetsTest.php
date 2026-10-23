@@ -17,11 +17,15 @@ use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Filament\Facades\Filament;
 
 use function Pest\Livewire\livewire;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
+    // These widgets live on the Teacher dashboard; the exam links they show
+    // are that panel's.
+    Filament::setCurrentPanel(Filament::getPanel('teacher'));
 });
 
 it('lets an active teacher load the dashboard, which mounts every widget', function () {

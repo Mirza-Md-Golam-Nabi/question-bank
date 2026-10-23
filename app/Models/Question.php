@@ -24,11 +24,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 #[Fillable([
     'chapter_id', 'topic_id', 'stimulus_id', 'stimulus_order', 'question_type', 'question_text', 'editor_mode', 'question_image', 'options',
     'explanation', 'marks', 'difficulty', 'status', 'created_by', 'approved_by',
-    'rejection_reason', 'parent_id', 'version', 'is_latest',
+    'rejection_reason', 'parent_id', 'version', 'is_latest', 'is_private',
 ])]
 #[ObservedBy(QuestionObserver::class)]
 class Question extends Model
@@ -60,6 +61,7 @@ class Question extends Model
             'status' => QuestionStatus::class,
             'options' => 'array',
             'is_latest' => 'boolean',
+            'is_private' => 'boolean',
             'answer_count' => 'integer',
             'correct_answer_count' => 'integer',
         ];
@@ -153,7 +155,12 @@ class Question extends Model
     {
         return $query->where('chapter_id', $chapterId)
             ->where('is_latest', true)
-            ->when(! $viewer->role->isAdmin(), fn (Builder $query) => $query->where(fn (Builder $query) => $query->visibleTo($viewer)))
+            ->when(
+                $viewer->role->isAdmin(),
+                // An Admin sees every question but a School's own.
+                fn (Builder $query) => $query->where('is_private', false),
+                fn (Builder $query) => $query->where(fn (Builder $query) => $query->visibleTo($viewer)),
+            )
             ->with(['cqParts', 'stimulus']);
     }
 
@@ -168,11 +175,43 @@ class Question extends Model
     /**
      * The pool of questions eligible for exam-building / self-practice —
      * approved and the current version. Reused by exam pickers, self-practice
-     * auto/manual selection, and exam-attach validation.
+     * auto/manual selection, and exam-attach validation. A School's own
+     * question is never approved; it is left out here as well, so it can't
+     * reach the pool even by mistake.
      */
     public function scopeApprovedPool(Builder $query): Builder
     {
-        return $query->where('status', QuestionStatus::Approved)->where('is_latest', true);
+        return $query->where('status', QuestionStatus::Approved)->where('is_latest', true)->where('is_private', false);
+    }
+
+    /**
+     * A School's own questions (CLAUDE.md rule 12) that its students may
+     * now read in the school management software — the current version of
+     * each, once every exam any version of it is on has ended, from the day
+     * after; when one of those exams has no end time, or it is on none, the
+     * Admin's number of days after it was first written. No job or stored
+     * date: worked out when asked.
+     */
+    public function scopeReleasedToSchoolStudents(Builder $query, User $school): Builder
+    {
+        $writtenBefore = now()->subDays(BillingSetting::current()->school_question_release_days);
+        $examsOfAnyVersion = fn () => DB::table('exam_questions')
+            ->join('exams', 'exams.id', '=', 'exam_questions.exam_id')
+            ->join('questions as versions', 'versions.id', '=', 'exam_questions.question_id')
+            ->whereRaw('coalesce(versions.parent_id, versions.id) = coalesce(questions.parent_id, questions.id)');
+
+        return $query
+            ->where('questions.created_by', $school->id)
+            ->where('questions.is_private', true)
+            ->where('questions.is_latest', true)
+            ->whereNotExists($examsOfAnyVersion()->where('exams.link_expires_at', '>=', today()))
+            ->where(fn (Builder $query) => $query
+                ->whereExists(DB::table('questions as first_versions')
+                    ->whereRaw('first_versions.id = coalesce(questions.parent_id, questions.id)')
+                    ->where('first_versions.created_at', '<=', $writtenBefore))
+                ->orWhere(fn (Builder $query) => $query
+                    ->whereExists($examsOfAnyVersion())
+                    ->whereNotExists($examsOfAnyVersion()->whereNull('exams.link_expires_at'))));
     }
 
     /**
@@ -181,7 +220,8 @@ class Question extends Model
      * written today can be on today's exam. Nobody else sees a pending
      * question, and a rejected one can't go on a new exam at all. The only
      * place this exception to the approved-only rule is written; students'
-     * self-practice stays on approvedPool().
+     * self-practice stays on approvedPool(). A School's own questions are
+     * pending for good, so this is also what puts them on its exams.
      */
     public function scopeUsableInExamBy(Builder $query, User $teacher): Builder
     {
@@ -227,7 +267,18 @@ class Question extends Model
      */
     public function isFrozenByAttempts(): bool
     {
-        return $this->status !== QuestionStatus::Approved && $this->hasBeenSat();
+        return ! $this->editsMakeNewVersion() && $this->hasBeenSat();
+    }
+
+    /**
+     * Whether saving an edit makes a new version, leaving this one as it is
+     * on every exam: an approved question always; a School's own question
+     * (never approved) once a student has sat it — so the School can still
+     * correct it.
+     */
+    public function editsMakeNewVersion(): bool
+    {
+        return $this->status === QuestionStatus::Approved || ($this->is_private && $this->hasBeenSat());
     }
 
     /**
@@ -307,11 +358,24 @@ class Question extends Model
      */
     public function approve(User $approver): void
     {
+        $this->ensureNotPrivate();
+
         DB::transaction(function () use ($approver) {
             foreach ($this->groupToReview(QuestionStatus::Approved) as $question) {
                 $question->approveAlone($approver);
             }
         });
+    }
+
+    /**
+     * A School's own question is never reviewed: approving it would put it
+     * in everyone's pool.
+     */
+    private function ensureNotPrivate(): void
+    {
+        if ($this->is_private) {
+            throw new LogicException("A School's own question is never approved or rejected.");
+        }
     }
 
     private function approveAlone(User $approver): void
@@ -376,6 +440,8 @@ class Question extends Model
      */
     public function reject(User $rejecter, string $reason): void
     {
+        $this->ensureNotPrivate();
+
         DB::transaction(function () use ($rejecter, $reason) {
             foreach ($this->groupToReview(QuestionStatus::Rejected) as $question) {
                 $question->markRejected($reason);
@@ -433,6 +499,7 @@ class Question extends Model
                 ...$attributes,
                 'parent_id' => $this->parent_id ?? $this->id,
                 'version' => ($this->version ?? 1) + 1,
+                'is_private' => $this->is_private,
                 'status' => QuestionStatus::Pending,
                 'approved_by' => null,
                 'rejection_reason' => null,

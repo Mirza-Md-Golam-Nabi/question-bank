@@ -31,7 +31,7 @@ app/
     Forms/Components/       CkEditorField
   Http/
     Controllers/            Google login, Guest পরীক্ষা, প্রিন্ট, referral লিংক, ভাষা বদল
-    Middleware/             EnsureStaffIsApproved, SetLocale
+    Middleware/             EnsureAccountIsApproved, AuthenticateSchoolInstallation, SetLocale
   Models/                   Eloquent model; Concerns/-এ শেয়ার করা trait
   Observers/                QuestionObserver, BoardQuestionPaperObserver
   Policies/                 QuestionPolicy, ExamPolicy, BoardQuestionPaperPolicy
@@ -161,7 +161,7 @@ CSS বা JS বদলালে লাইভের জন্য build আলা
 
 ## ভাষা
 
-বাংলা ও ইংরেজি। **ডিফল্ট বাংলা, শুধু Admin প্যানেলের ডিফল্ট ইংরেজি।** যে দর্শক এখনো ভাষা বাছেনি, সে Teacher/Staff/Student প্যানেল, হোম পেজ ও Guest-এর পরীক্ষা বাংলায় দেখে, আর Admin প্যানেল (লগইন পেজসহ) ইংরেজিতে। ভাষা বদলানোর বাটনে কিছু বাছলে সেটা ওই session-এ সব জায়গায় খাটে, Admin প্যানেলেও।
+বাংলা ও ইংরেজি। **ডিফল্ট বাংলা, শুধু Admin প্যানেলের ডিফল্ট ইংরেজি।** যে দর্শক এখনো ভাষা বাছেনি, সে Teacher/Staff/Student প্যানেল, হোম পেজ ও Guest-এর পরীক্ষা বাংলায় দেখে, আর Admin প্যানেল (লগইন পেজসহ) ইংরেজিতে। ভাষা বদলানোর বাটনে কিছু বাছলে সেটা ওই session-এ সব জায়গায় খাটে, Admin প্যানেলেও — **শুধু শেয়ার-লিংকের পরীক্ষার পাতা (`/exam/...`) বাদে**: সেগুলোর পছন্দ আলাদা (session-এ `exam_locale`, স্কোপ `SetLocale::SCOPES`), তাই একই ব্রাউজারে প্যানেলে English বাছলেও পরীক্ষার লিংক সাইটের নিজের ভাষায় (বাংলা) খোলে; পরীক্ষার পাতায় English বাছলে সেটা শুধু পরীক্ষার পাতায় খাটে (route-এ `SetLocale::class.':,exam'`, বাটন `<x-language-switcher for="exam">` → `/locale/{locale}?for=exam`)।
 
 - প্যানেলভিত্তিক ডিফল্ট: `PanelDefaults::apply()`-এর `defaultLocale` (Admin-এ `AdminPanelProvider` দেয় `Locale::En`), যেটা `SetLocale` middleware-এ `SetLocale::class.':en'` হিসেবে যায়। অন্য কোনো প্যানেলের ডিফল্ট বদলাতে হলে ওই প্যানেলের provider-এ একই প্যারামিটার দিন।
 
