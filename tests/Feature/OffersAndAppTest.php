@@ -42,6 +42,12 @@ it('serves one app manifest that opens on /app', function () {
     $this->get('/')->assertOk()->assertSee('/manifest.webmanifest', false);
 });
 
+it('points the manifest at icon files that exist, without which Chrome offers no install', function () {
+    foreach (config('pwa.icons') as $path) {
+        expect(public_path($path))->toBeFile();
+    }
+});
+
 it('opens the app on the signed-in user\'s own dashboard, or on the sign-in choices', function () {
     $this->get('/app')->assertOk()->assertSee(route('filament.student.auth.login'))->assertSee(route('filament.school.auth.login'));
 

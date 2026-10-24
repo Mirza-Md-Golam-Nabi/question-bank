@@ -80,7 +80,7 @@
 - **লাইভের `.env`-এ `APP_ENV=production`।** `local` থাকলে `/dev-login` রুট লাইভেও খুলে যাবে।
 - **ডেটাবেজের ব্যাকআপ**, বিশেষ করে migration ডেটা বদলালে। দুটো migration পুরনো খাতা হিসাবে তোলে (`add_dynamic_difficulty_tracking`, `add_mistake_practice_and_teacher_question_stats`); খাতা অনেক হলে এগুলো সময় নেয়, আর ততক্ষণ সাইট maintenance mode-এ থাকে।
 - **Google OAuth-এর redirect URI** লাইভের ডোমেইনে ঠিক আছে কি না (README দেখুন)।
-- **Push-এর VAPID key** লাইভের `.env`-এ (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`): প্রথমবার `php artisan webpush:vapid`, তারপর কখনো বদলাবেন না। আর `config/pwa.php`-এ লোগোর লিংক। Push ও app-এর install শুধু HTTPS-এ চলে। → [13-app-and-offers.md](13-app-and-offers.md)
+- **Push-এর VAPID key** লাইভের `.env`-এ (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`): প্রথমবার `php artisan webpush:vapid`, তারপর কখনো বদলাবেন না। আর `public/images/pwa/`-এর icon তিনটা সার্ভারে আপলোড হয়েছে কিনা (আসল লোগো এলে একই নামে বদলে)। Push ও app-এর install শুধু HTTPS-এ চলে। → [13-app-and-offers.md](13-app-and-offers.md)
 
 ## জানা ফাঁদ
 

@@ -5,7 +5,7 @@
 ## App
 
 - **Manifest:** `GET /manifest.webmanifest` (`PwaController::manifest()`), সব তথ্য `config/pwa.php` থেকে: নাম, ছোট নাম, বর্ণনা ("প্রশ্নব্যাংক, পরীক্ষা ও অনুশীলন"), রঙ, icon। `start_url` = `/app`, `scope` = `/`, `display` = `standalone`।
-- **Icon:** `config/pwa.php`-এর `icons`-এ তিনটা লিংক বসাতে হবে: ১৯২×১৯২, ৫১২×৫১২, আর ৫১২×৫১২ "maskable" (লোগোর চারপাশে ফাঁকা জায়গাসহ, যাতে ফোন গোল/চারকোনা কাটতে পারে)। এখন সেখানে dummy লেখা (`LOGO-LINK-...-HERE`) আছে। **Icon না বসানো পর্যন্ত Chrome "Install" প্রস্তাব দেখাবে না।**
+- **Icon:** `config/pwa.php`-এর `icons`-এ তিনটা লিংক বসাতে হবে: ১৯২×১৯২, ৫১২×৫১২, আর ৫১২×৫১২ "maskable" (লোগোর চারপাশে ফাঁকা জায়গাসহ, যাতে ফোন গোল/চারকোনা কাটতে পারে)। ফাইলগুলো `public/images/pwa/`-এ (Next Fusion-এর লোগো; maskable-টা একই লোগো ছোট করে লোগোর কালো `#060606`-এর ওপর, splash-এর `background_color`-ও সেই রঙ) — লোগো বদলালে একই নাম ও মাপে ফাইল তিনটা বদলে দিলেই হবে। **Manifest কোনো ফাইল না, route — তাই `public/`-এ `manifest.json` খুঁজে না পাওয়া স্বাভাবিক।** Icon না থাকলে বা ভাঙা লিংক হলে Chrome "Install" প্রস্তাব দেখায় না; install শুধু HTTPS-এ।
 - **কোথায় যুক্ত:** `<x-pwa-head>` (manifest-এর লিংক, রঙ, iPhone-এর icon, service worker চালু করা) সব প্যানেলের `<head>`-এ (`PanelDefaults`), হোম পেজে আর `/app`-এ।
 - **`/app`** (`PwaController::start()`): লগইন করা থাকলে নিজের প্যানেলের ড্যাশবোর্ডে (`UserRole::panelId()`)। না থাকলে "কোন প্যানেলে লগইন করবেন" (চার কার্ড, `<x-panel-choices>`, হোম পেজের সাথে অভিন্ন) আর এখনকার অফার।
 - **Service worker:** `public/sw.js`, শুধু push নোটিফিকেশন দেখায় আর চাপলে তার লিংক খোলে (খোলা জানালা থাকলে সেখানেই)। কিছু cache করে না; পরীক্ষা ও প্রশ্ন সবসময় অনলাইন।
