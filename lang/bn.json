@@ -1021,7 +1021,7 @@
     "How many questions can be added at once by pasting JSON — to a chapter or to a past paper.": "JSON পেস্ট করে একবারে কয়টা প্রশ্ন যোগ করা যাবে — অধ্যায়ে বা প্রশ্নপত্রে।",
     "Every question is an MCQ.": "সব প্রশ্ন MCQ।",
     "Every question is a CQ (creative question).": "সব প্রশ্ন সৃজনশীল (CQ)।",
-    "\"explanation\" (may be left out): why the answer is the right one.": "\"explanation\" (না দিলেও চলে): উত্তরটা কেন সঠিক।",
+    "\"explanation\" (optional — leave it out or empty when there is none): why the answer is the right one.": "\"explanation\" (ঐচ্ছিক — না থাকলে বাদ দিন বা ফাঁকা রাখুন): উত্তরটা কেন সঠিক।",
     "\"answer\" on a sub-question (may be left out): its answer.": "উপপ্রশ্নের \"answer\" (না দিলেও চলে): তার উত্তর।",
     "this list takes MCQs only — add CQs in the CQ list": "এই তালিকায় শুধু MCQ — সৃজনশীল প্রশ্ন CQ তালিকায় যোগ করুন",
     "this list takes CQs only — add MCQs in the MCQ list": "এই তালিকায় শুধু সৃজনশীল — MCQ, MCQ তালিকায় যোগ করুন",

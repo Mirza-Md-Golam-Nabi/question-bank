@@ -92,18 +92,22 @@ it('adds the MCQs of the JSON to the chapter as the teacher\'s own pending quest
         ->and(array_column($second->options, 'is_correct'))->toBe([false, false, true, false]);
 });
 
-it('stores an MCQ\'s explanation when one is given, and none when it is left out', function () {
+it('stores an MCQ\'s explanation when one is given, and none when it is left out, null or empty', function () {
     ($this->import)([
         ($this->mcq)(['explanation' => 'HyperText হলো $x^2$ নয়।']),
         ($this->mcq)(['question' => 'দ্বিতীয় প্রশ্ন?']),
+        ($this->mcq)(['question' => 'তৃতীয় প্রশ্ন?', 'explanation' => null]),
+        ($this->mcq)(['question' => 'চতুর্থ প্রশ্ন?', 'explanation' => '  ']),
         ['stimulus' => 'একটি উদ্দীপক।', 'questions' => [
             ($this->mcq)(['question' => 'উদ্দীপকের প্রথম প্রশ্ন?', 'explanation' => 'প্রথমটির ব্যাখ্যা।']),
-            ($this->mcq)(['question' => 'উদ্দীপকের দ্বিতীয় প্রশ্ন?']),
+            ($this->mcq)(['question' => 'উদ্দীপকের দ্বিতীয় প্রশ্ন?', 'explanation' => '']),
         ]],
     ]);
 
     expect(Question::orderBy('id')->pluck('explanation')->all())->toBe([
         '<p>HyperText হলো <span class="qb-katex-embed">x^2</span> নয়।</p>',
+        null,
+        null,
         null,
         '<p>প্রথমটির ব্যাখ্যা।</p>',
         null,

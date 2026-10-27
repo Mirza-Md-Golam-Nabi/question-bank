@@ -113,7 +113,7 @@ final class QuestionJsonReader
                 ])
                 : null,
             $this->onlyType !== QuestionType::Cq
-                ? __('"explanation" (may be left out): why the answer is the right one.')
+                ? __('"explanation" (optional — leave it out or empty when there is none): why the answer is the right one.')
                 : null,
             $this->onlyType !== QuestionType::Cq
                 ? __('MCQs that share a stimulus go in one object: "stimulus" is its text, and "questions" lists :min to :max MCQs. Do not write "answer questions 42 and 43" — the paper numbers them itself.', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])
@@ -376,7 +376,8 @@ final class QuestionJsonReader
             $problems[] = $this->marksProblem(__('the question'));
         }
 
-        if (isset($item['explanation'])) {
+        // Optional: left out, null or empty all mean there is none.
+        if (filled($item['explanation'] ?? null)) {
             array_push($problems, ...$this->textProblems($item['explanation'], __('the explanation')));
         }
 
@@ -416,7 +417,7 @@ final class QuestionJsonReader
                 $problems[] = $this->marksProblem($name);
             }
 
-            if ($this->withCqAnswers && isset($part['answer'])) {
+            if ($this->withCqAnswers && filled($part['answer'] ?? null)) {
                 array_push($problems, ...$this->textProblems($part['answer'], __('the answer of :name', ['name' => $name])));
             }
         }

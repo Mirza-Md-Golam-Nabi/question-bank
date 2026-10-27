@@ -64,15 +64,20 @@ beforeEach(function () {
 it('adds MCQs with their explanations after the ones already in the paper', function () {
     BoardMcqQuestion::factory()->create(['board_question_paper_id' => $this->paper->id, 'order_index' => 5]);
 
-    $result = $this->importer->import(json_encode([($this->mcq)(), ($this->mcq)(['question' => 'দ্বিতীয়?', 'explanation' => null])]), $this->paper, QuestionType::Mcq);
+    $result = $this->importer->import(json_encode([
+        ($this->mcq)(),
+        ($this->mcq)(['question' => 'দ্বিতীয়?', 'explanation' => null]),
+        ($this->mcq)(['question' => 'তৃতীয়?', 'explanation' => '']),
+    ]), $this->paper, QuestionType::Mcq);
 
     $added = $this->paper->mcqQuestions()->where('order_index', '>', 5)->get();
 
-    expect($result)->toBe(['added' => 2, 'skipped' => 0, 'possible_duplicates' => 0])
-        ->and($added->pluck('order_index')->all())->toBe([6, 7])
+    expect($result)->toBe(['added' => 3, 'skipped' => 0, 'possible_duplicates' => 0])
+        ->and($added->pluck('order_index')->all())->toBe([6, 7, 8])
         ->and($added[0]->editor_mode)->toBe(EditorMode::CkEditor)
         ->and($added[0]->explanation)->toContain('অক্সিজেন')
         ->and($added[1]->explanation)->toBeNull()
+        ->and($added[2]->explanation)->toBeNull()
         ->and(collect($added[0]->options)->firstWhere('is_correct', true)['option'])->toContain('qb-katex-embed');
 });
 
@@ -101,7 +106,14 @@ it('checks an explanation and a CQ answer like any other text', function () {
             ['text' => 'খ?', 'marks' => 2],
             ['text' => 'গ?', 'marks' => 3],
             ['text' => 'ঘ?', 'marks' => 4],
-        ]])], QuestionType::Cq))->not->toBe([]);
+        ]])], QuestionType::Cq))->not->toBe([])
+        // An empty one is simply none.
+        ->and(($this->problems)([($this->cq)(['parts' => [
+            ['text' => 'ক?', 'marks' => 1, 'answer' => ''],
+            ['text' => 'খ?', 'marks' => 2, 'answer' => null],
+            ['text' => 'গ?', 'marks' => 3],
+            ['text' => 'ঘ?', 'marks' => 4],
+        ]])], QuestionType::Cq))->toBe([]);
 });
 
 it('leaves out a question the paper already has, or that is pasted twice', function () {

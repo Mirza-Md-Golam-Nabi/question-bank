@@ -4,6 +4,10 @@
 
 এই ফাইল ২০২৬-১০-১০ থেকে রাখা হচ্ছে; তার আগের ইতিহাস Git-এ (`git log`)।
 
+## ২০২৬-১০-২৭
+
+- **JSON ইমপোর্টে ব্যাখ্যা পুরোপুরি ঐচ্ছিক:** MCQ-র `"explanation": ""` (ফাঁকা) আগে "the explanation is missing" বলে পুরো JSON আটকাত; এখন না দেওয়া/`null`/ফাঁকা সবই "ব্যাখ্যা নেই" — প্রশ্নভাণ্ডার (Admin/Teacher/School) ও প্রশ্নপত্র (Admin/Staff) সব জায়গায় (`QuestionJsonReader`)। প্রশ্নপত্রের CQ-অংশের ফাঁকা `answer`-ও একইভাবে। → [05-question-bank.md](05-question-bank.md)
+
 ## ২০২৬-১০-২৪
 
 - **App install চালু:** `config/pwa.php`-এ dummy icon-এর লিংকের বদলে Next Fusion-এর লোগো (`public/images/pwa/`, ১৯২/৫১২/maskable), splash-এর রঙ লোগোর কালো — icon না থাকায় Chrome "Install" দেখাচ্ছিল না। → [13-app-and-offers.md](13-app-and-offers.md)
