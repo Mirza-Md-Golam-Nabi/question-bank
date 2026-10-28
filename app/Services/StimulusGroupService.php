@@ -56,7 +56,7 @@ class StimulusGroupService
                 Question::create([...$row['attributes'], ...$this->shared($stimulus, $data)]);
             }
 
-            EditorModePreference::rememberFromForm(Auth::user(), $data['editor_mode'] ?? null);
+            EditorModePreference::rememberFromForm(Auth::user(), $data);
 
             return $stimulus;
         });
@@ -93,7 +93,7 @@ class StimulusGroupService
             ? $this->revise($stimulus, $questions, $rows, $data)
             : $this->changeInPlace($stimulus, $questions, $rows, $data));
 
-        EditorModePreference::rememberFromForm(Auth::user(), $data['editor_mode'] ?? null);
+        EditorModePreference::rememberFromForm(Auth::user(), $data);
 
         return $stimulus;
     }

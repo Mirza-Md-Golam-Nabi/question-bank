@@ -167,7 +167,7 @@ abstract class PaperQuestionsRelationManager extends RelationManager
      */
     protected function noteChange(array $data): void
     {
-        EditorModePreference::rememberFromForm(Auth::user(), $data['editor_mode'] ?? null);
+        EditorModePreference::rememberFromForm(Auth::user(), $data);
         $this->paper()->markEditedBy(Auth::user());
     }
 }

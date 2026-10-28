@@ -283,8 +283,9 @@ class QuestionFormSchema
 
     /**
      * An MCQ's optional explanation, under its heading the choice of its
-     * own editor on one line — Rich Text to start with, whichever editor
-     * the question text is in.
+     * own editor on one line — starting on the editor this user last wrote
+     * an explanation in (EditorModePreference), whichever editor the
+     * question text is in.
      *
      * @return array<Component>
      */
@@ -293,7 +294,7 @@ class QuestionFormSchema
         return [
             static::editorSwitch('explanation_editor_mode', 'explanation')
                 ->label(__('Explanation (optional)'))
-                ->default(EditorMode::RichText)
+                ->default(fn () => EditorModePreference::forExplanation(auth()->user()))
                 // Left unpicked, the explanation is simply in Rich Text.
                 ->required(false)
                 ->columnSpanFull(),
@@ -302,7 +303,7 @@ class QuestionFormSchema
                 ->columnSpanFull()
                 ->live()
                 ->schema(fn (Get $get) => [
-                    static::textEditor($get('explanation_editor_mode') ?? EditorMode::RichText, 'explanation')
+                    static::textEditor($get('explanation_editor_mode') ?? EditorModePreference::forExplanation(auth()->user()), 'explanation')
                         ->hiddenLabel()
                         ->columnSpanFull(),
                 ]),

@@ -5,6 +5,7 @@ use App\Enums\ExamDeliveryMode;
 use App\Filament\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Resources\Questions\Pages\EditQuestion;
 use App\Filament\Resources\Questions\Pages\ListQuestions;
+use App\Filament\Support\EditorModePreference;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\ExamAttempt;
@@ -85,6 +86,45 @@ describe('writing it', function () {
 
         livewire(EditQuestion::class, ['record' => $ckEditor->id])
             ->assertFormSet(['explanation_editor_mode' => EditorMode::CkEditor, 'explanation' => '<p>Three and three make six.</p>']);
+    });
+
+    it('starts the next explanation on the editor this user last wrote one in, apart from the question text\'s', function () {
+        livewire(CreateQuestion::class)
+            ->fillForm(($this->mcqForm)(['editor_mode' => 'richtext']))
+            ->fillForm(['explanation_editor_mode' => 'ckeditor'])
+            ->fillForm(['explanation' => '<p>Two and two make four.</p>'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        livewire(CreateQuestion::class)
+            ->assertFormSet(['editor_mode' => EditorMode::RichText, 'explanation_editor_mode' => EditorMode::CkEditor]);
+
+        expect(EditorModePreference::forExplanation(User::factory()->admin()->create()))->toBe(EditorMode::RichText);
+    });
+
+    it('remembers nothing for an explanation left empty', function () {
+        EditorModePreference::rememberFromForm($this->admin, ['explanation_editor_mode' => 'ckeditor', 'explanation' => '<p>Two and two make four.</p>']);
+
+        livewire(CreateQuestion::class)
+            ->fillForm(($this->mcqForm)(['question_text' => '<p>3 + 3 = ?</p>']))
+            ->fillForm(['explanation_editor_mode' => 'richtext'])
+            ->fillForm(['explanation' => '<p></p>'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        expect(EditorModePreference::forExplanation($this->admin))->toBe(EditorMode::CkEditor);
+    });
+
+    it('remembers the editor of a stimulus group\'s last written explanation', function () {
+        EditorModePreference::rememberFromForm($this->admin, [
+            'questions' => [
+                ['explanation_editor_mode' => 'richtext', 'explanation' => '<p>প্রথমটির ব্যাখ্যা।</p>'],
+                ['explanation_editor_mode' => 'ckeditor', 'explanation' => '<p>দ্বিতীয়টির ব্যাখ্যা।</p>'],
+                ['explanation_editor_mode' => 'richtext', 'explanation' => null],
+            ],
+        ]);
+
+        expect(EditorModePreference::forExplanation($this->admin))->toBe(EditorMode::CkEditor);
     });
 
     it('starts the explanation over when its editor is switched', function () {

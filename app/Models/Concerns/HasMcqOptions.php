@@ -31,8 +31,17 @@ trait HasMcqOptions
     protected function explanation(): Attribute
     {
         return Attribute::make(
-            set: fn (?string $value): ?string => static::hasWords((string) $value) || preg_match('/<(img|table)\b/i', (string) $value) ? $value : null,
+            set: fn (?string $value): ?string => static::explanationOrNull($value),
         );
+    }
+
+    /**
+     * The explanation as written, or null when nothing is in it — no words,
+     * no picture, no table.
+     */
+    public static function explanationOrNull(?string $html): ?string
+    {
+        return static::hasWords((string) $html) || preg_match('/<(img|table)\b/i', (string) $html) ? $html : null;
     }
 
     /**

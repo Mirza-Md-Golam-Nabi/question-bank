@@ -87,15 +87,16 @@ trait HandlesQuestionForm
     }
 
     /**
-     * Saves whichever editor (Rich Text vs CKEditor) was used this time as
-     * this user's preference (EditorModePreference), so their next Create
-     * Question form defaults to it instead of always starting on Rich Text.
+     * Saves whichever editors (Rich Text vs CKEditor) the text and the
+     * explanation were written in this time as this user's preference
+     * (EditorModePreference), so their next Create Question form defaults
+     * to them instead of always starting on Rich Text.
      *
      * @param  array<string, mixed>  $data
      */
     protected function rememberEditorModePreference(array $data): void
     {
-        EditorModePreference::rememberFromForm(Auth::user(), $data['editor_mode'] ?? null);
+        EditorModePreference::rememberFromForm(Auth::user(), $data);
     }
 
     /**
