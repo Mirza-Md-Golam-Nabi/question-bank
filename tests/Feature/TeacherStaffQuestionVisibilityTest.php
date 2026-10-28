@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\QuestionStatus;
+use App\Enums\UserRole;
 use App\Filament\Staff\Resources\Questions\Pages\ListQuestions as StaffListQuestions;
 use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Questions\Pages\ListQuestions as TeacherListQuestions;
@@ -8,6 +10,7 @@ use App\Models\Question;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
+use Livewire\Livewire;
 
 use function Pest\Livewire\livewire;
 
@@ -96,3 +99,47 @@ it('only lets staff see their own questions, never an approved pool from others'
         ->assertCanSeeTableRecords([$ownQuestion])
         ->assertCanNotSeeTableRecords([$othersApproved]);
 });
+
+it('shows a writer\'s own chapter questions whole as cards, and switches back to the table', function (string $role, string $panel, string $page) {
+    $writer = User::factory()->state(['role' => $role, 'name' => 'Karim Writer'])->create();
+    $other = User::factory()->teacher()->create();
+    Filament::setCurrentPanel(Filament::getPanel($panel));
+
+    $this->actingAs($writer);
+    $own = Question::factory()->rejected()->for($this->chapter)->create([
+        'created_by' => $writer->id,
+        'question_text' => '<p>What is the capital of Bangladesh?</p>',
+        'options' => [
+            ['option' => 'Chattogram', 'image' => null, 'is_correct' => false],
+            ['option' => 'Dhaka', 'image' => null, 'is_correct' => true],
+        ],
+        'explanation' => '<p>Dhaka has been the capital since 1971.</p>',
+    ]);
+
+    $this->actingAs($other);
+    $others = Question::factory()->approved()->for($this->chapter)->create(['created_by' => $other->id]);
+
+    $this->actingAs($writer);
+
+    livewire($page, ['chapter' => $this->chapter->id])
+        ->assertCanSeeTableRecords([$own])
+        ->assertCanNotSeeTableRecords([$others])
+        ->assertSee('Chattogram')
+        ->assertSee('Dhaka has been the capital since 1971.')
+        ->assertSee(QuestionStatus::Rejected->getLabel())
+        ->assertSeeHtml('qb-question-option--correct')
+        // Everything listed here is their own, so their name would only repeat.
+        ->assertDontSee('Karim Writer')
+        ->assertActionVisible('switchDisplay');
+
+    Livewire::withQueryParams(['view' => 'table']);
+
+    livewire($page, ['chapter' => $this->chapter->id])
+        ->assertCanSeeTableRecords([$own])
+        ->assertDontSee('Chattogram')
+        ->assertTableColumnExists('created_at');
+})->with([
+    'teacher' => [UserRole::Teacher->value, 'teacher', TeacherListQuestions::class],
+    'staff' => [UserRole::Staff->value, 'staff', StaffListQuestions::class],
+    'school' => [UserRole::School->value, 'school', TeacherListQuestions::class],
+]);

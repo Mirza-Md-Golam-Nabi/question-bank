@@ -7,6 +7,7 @@ use App\Models\BillingSetting;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
+use WeakMap;
 
 /**
  * Tells whether a question is already there in another form — the one
@@ -40,18 +41,23 @@ final class DuplicateQuestionFinder
     ];
 
     /**
-     * A question's normalized form, worked out once per question.
+     * A question's normalized form, worked out once per question — kept
+     * against the question object itself, since PHP hands a freed object's
+     * id on to the next object made.
      *
-     * @var array<int, array{type: string, question: string, answers: string, guard: string, questionGrams: array<string, true>, answerGrams: array<string, true>}>
+     * @var WeakMap<Model, array{type: string, question: string, answers: string, guard: string, questionGrams: array<string, true>, answerGrams: array<string, true>}>
      */
-    private array $profiles = [];
+    private WeakMap $profiles;
 
     /**
      * @var array<string, true>|null
      */
     private ?array $turningWords = null;
 
-    public function __construct(private readonly int $similarPercent) {}
+    public function __construct(private readonly int $similarPercent)
+    {
+        $this->profiles = new WeakMap;
+    }
 
     /**
      * At the Admin's percentage.
@@ -164,7 +170,7 @@ final class DuplicateQuestionFinder
      */
     private function profile(Model $question): array
     {
-        return $this->profiles[spl_object_id($question)] ??= $this->makeProfile($question);
+        return $this->profiles[$question] ??= $this->makeProfile($question);
     }
 
     /**

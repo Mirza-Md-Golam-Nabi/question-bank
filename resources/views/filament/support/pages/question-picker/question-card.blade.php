@@ -4,12 +4,12 @@
      * difficulty and marks, then the question itself, with its answer where
      * the page shows answers while picking (not to a student about to sit
      * it). The same in the selectable list and in the final view, and on
-     * an Admin's chapter page, which reviews the question instead of picking
-     * it (ListQuestionsByChapterPage's card view).
+     * a chapter's question list in every panel, which reviews the question
+     * instead of picking it (ListQuestionsByChapterPage's card view).
      *
      * @var \App\Models\Question $question
      * @var bool $showAnswers
-     * @var bool $reviewing  Shows where the question is in review, its version and who wrote it.
+     * @var bool $reviewing  Shows where the question is in review, its version and who wrote it (unless the viewer did).
      */
     use App\Enums\QuestionStatus;
     use App\Enums\QuestionType;
@@ -51,7 +51,7 @@
         @endif
 
         <span class="ms-auto text-xs font-medium text-gray-500 dark:text-gray-400">
-            @if ($reviewing && $question->creator)
+            @if ($reviewing && $question->creator && $question->created_by !== auth()->id())
                 {{ $question->creator->name }} ·
             @endif
             {{ __(':marks marks', ['marks' => QuestionDisplay::marks($question->marks)]) }}

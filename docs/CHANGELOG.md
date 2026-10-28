@@ -4,6 +4,16 @@
 
 এই ফাইল ২০২৬-১০-১০ থেকে রাখা হচ্ছে; তার আগের ইতিহাস Git-এ (`git log`)।
 
+## ২০২৬-১০-২৯
+
+- **ব্যাখ্যায় দুই এডিটর:** MCQ-র ব্যাখ্যা এখন Rich Text (ডিফল্ট) বা CKEditor (সূত্রসহ) — "ব্যাখ্যা (ঐচ্ছিক)"-এর নিচে এক লাইনে বাছাই, নতুন কলাম `explanation_editor_mode` (প্রশ্নভাণ্ডার ও প্রশ্নপত্র; আগের ব্যাখ্যা CKEditor)। ফাঁকা এডিটরের ব্যাখ্যা = ব্যাখ্যা নেই। → [05-question-bank.md](05-question-bank.md), [03-database.md](03-database.md)
+- **টেবিল:** দুই এডিটরেই টেবিল (CKEditor-এ নতুন, ঘরে সূত্রসহ), দেখানোর স্টাইলসহ; JSON ইমপোর্টে Markdown টেবিল (`| ক | খ |` + `|---|---|`), AI-এর ফরম্যাট গাইড ও নমুনা হালনাগাদ। → [05-question-bank.md](05-question-bank.md)
+- **ডুপ্লিকেট যাচাইয়ের লুকানো বাগ:** `DuplicateQuestionFinder` প্রশ্নের হিসাব object-id দিয়ে মনে রাখত, PHP সেই id পরের নতুন object-কে দিয়ে দিলে ভুল প্রশ্নের হিসাব ব্যবহার হতে পারত — এখন `WeakMap`।
+
+## ২০২৬-১০-২৮
+
+- **Teacher/Staff/School-এর অধ্যায়ের প্রশ্নও কার্ড আকারে:** Admin-এর মতো কার্ড ↔ টেবিল দুই আকার এখন সব প্যানেলে (একই `ListQuestionsByChapterPage`); নিজের প্রশ্নে লেখকের নাম দেখায় না। → [05-question-bank.md](05-question-bank.md)
+
 ## ২০২৬-১০-২৭
 
 - **JSON ইমপোর্টে ব্যাখ্যা পুরোপুরি ঐচ্ছিক:** MCQ-র `"explanation": ""` (ফাঁকা) আগে "the explanation is missing" বলে পুরো JSON আটকাত; এখন না দেওয়া/`null`/ফাঁকা সবই "ব্যাখ্যা নেই" — প্রশ্নভাণ্ডার (Admin/Teacher/School) ও প্রশ্নপত্র (Admin/Staff) সব জায়গায় (`QuestionJsonReader`)। প্রশ্নপত্রের CQ-অংশের ফাঁকা `answer`-ও একইভাবে। → [05-question-bank.md](05-question-bank.md)

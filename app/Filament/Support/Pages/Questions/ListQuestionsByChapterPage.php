@@ -24,10 +24,10 @@ use Livewire\Attributes\Url;
  * pool for Teacher, everything for Admin) — this page only adds the
  * chapter filter on top.
  *
- * A panel that offersCardView() shows each row as the whole question (the
- * question picker's card, with its answer) instead of table columns, with
- * a button to switch between the two; the row actions, bulk actions,
- * filters and pagination are the same in both.
+ * Every panel shows each row as the whole question (the question picker's
+ * card, with its answer) by default, with a button to switch to the table
+ * columns; the row actions, bulk actions, filters and pagination — each
+ * panel's own — are the same in both.
  */
 abstract class ListQuestionsByChapterPage extends ListRecords
 {
@@ -93,17 +93,9 @@ abstract class ListQuestionsByChapterPage extends ListRecords
         return $table;
     }
 
-    /**
-     * Whether this panel's chapter page can show its questions as cards.
-     */
-    protected function offersCardView(): bool
-    {
-        return false;
-    }
-
     public function showsCards(): bool
     {
-        return $this->offersCardView() && $this->display !== 'table';
+        return $this->display !== 'table';
     }
 
     protected function switchDisplayAction(): Action
@@ -114,8 +106,7 @@ abstract class ListQuestionsByChapterPage extends ListRecords
             ->label($toTable ? __('Table view') : __('Card view'))
             ->icon($toTable ? Heroicon::OutlinedTableCells : Heroicon::OutlinedSquares2x2)
             ->color('gray')
-            ->url(static::getResource()::getUrl('list', ['chapter' => $this->chapter->id, 'view' => $toTable ? 'table' : 'cards']))
-            ->visible($this->offersCardView());
+            ->url(static::getResource()::getUrl('list', ['chapter' => $this->chapter->id, 'view' => $toTable ? 'table' : 'cards']));
     }
 
     protected function getHeaderActions(): array

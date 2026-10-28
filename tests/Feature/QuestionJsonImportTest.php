@@ -152,6 +152,41 @@ it('stores a formula as a KaTeX embed and everything else as escaped text', func
         ->and($question->options[1]['option'])->toBe('<p>&lt;h1&gt;</p>');
 });
 
+it('stores a Markdown table as a table, with formulas in its cells, and opens the explanation in CKEditor', function () {
+    ($this->import)([($this->mcq)([
+        'question' => "নিচের তালিকা দেখো:\n| তত্ত্ব | আবিষ্কারক |\n|---|:---:|\n| আপেক্ষিক তত্ত্ব | আইনস্টাইন |\n| \$E = mc^2\$ | <b>?</b> |\nকোনটি সঠিক?",
+        'explanation' => "রাদারফোর্ড।\n| ক | খ |\n|---|---|\n| $|x|$ | ক \\| খ |",
+    ])]);
+
+    $question = Question::sole();
+
+    expect($question->question_text)->toBe('<p>নিচের তালিকা দেখো:</p>'
+        .'<figure class="table"><table><thead><tr><th>তত্ত্ব</th><th>আবিষ্কারক</th></tr></thead>'
+        .'<tbody><tr><td>আপেক্ষিক তত্ত্ব</td><td>আইনস্টাইন</td></tr>'
+        .'<tr><td><span class="qb-katex-embed">E = mc^2</span></td><td>&lt;b&gt;?&lt;/b&gt;</td></tr></tbody></table></figure>'
+        .'<p>কোনটি সঠিক?</p>')
+        // A bar inside a formula, or written \|, is not a new cell.
+        ->and($question->explanation)->toBe('<p>রাদারফোর্ড।</p>'
+            .'<figure class="table"><table><thead><tr><th>ক</th><th>খ</th></tr></thead>'
+            .'<tbody><tr><td><span class="qb-katex-embed">|x|</span></td><td>ক | খ</td></tr></tbody></table></figure>')
+        ->and($question->explanation_editor_mode)->toBe(EditorMode::CkEditor);
+});
+
+it('finds what is wrong with a table', function (array $overrides, string $problem) {
+    expect(implode(' ', ($this->problems)([($this->mcq)($overrides)])))->toContain($problem);
+})->with([
+    'a row with too few cells' => [['question' => "| ক | খ |\n|---|---|\n| ১ |"], 'a table row has 1 cells, but its header has 2'],
+    'no rows under the header' => [['question' => "| ক | খ |\n|---|---|"], 'a table has no rows under its header'],
+    'a table in an option' => [['options' => ["| ক | খ |\n|---|---|\n| ১ | ২ |", 'খ', 'গ', 'ঘ']], 'an option cannot have a table'],
+    'a broken formula in a cell' => [['question' => "| ক |\n|---|\n| \$\\frac{1}{2\$ |"], 'brackets of a formula do not match'],
+]);
+
+it('takes bars that do not make a table as plain text', function () {
+    ($this->import)([($this->mcq)(['question' => "|x| = 3 হলে\n|y| কত?"])]);
+
+    expect(Question::sole()->question_text)->toBe("<p>|x| = 3 হলে<br>\n|y| কত?</p>");
+});
+
 it('accepts the sample it offers, with the images it names', function () {
     $sample = QuestionJsonImporter::sampleJson();
     $result = $this->importer->import($sample, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($sample));

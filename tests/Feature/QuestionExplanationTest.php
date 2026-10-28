@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\EditorMode;
 use App\Enums\ExamDeliveryMode;
 use App\Filament\Resources\Questions\Pages\CreateQuestion;
 use App\Filament\Resources\Questions\Pages\EditQuestion;
@@ -59,6 +60,38 @@ describe('writing it', function () {
         livewire(CreateQuestion::class)->fillForm(($this->mcqForm)(['question_text' => '<p>3 + 3 = ?</p>', 'explanation' => null]))->call('create')->assertHasNoFormErrors();
 
         expect(Question::orderBy('id')->pluck('explanation')->all())->toBe(['<p>Two and two make four.</p>', null]);
+    });
+
+    it('writes the explanation in Rich Text to start with, or in CKEditor when picked, and remembers which', function () {
+        livewire(CreateQuestion::class)
+            ->assertFormSet(['explanation_editor_mode' => EditorMode::RichText])
+            ->fillForm(($this->mcqForm)(['explanation' => '<table><tbody><tr><td>ক</td></tr></tbody></table>']))
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        livewire(CreateQuestion::class)
+            ->fillForm(($this->mcqForm)(['question_text' => '<p>3 + 3 = ?</p>']))
+            ->fillForm(['explanation_editor_mode' => 'ckeditor'])
+            ->fillForm(['explanation' => '<p>Three and three make six.</p>'])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        [$richText, $ckEditor] = Question::orderBy('id')->get()->all();
+
+        expect($richText->explanation_editor_mode)->toBe(EditorMode::RichText)
+            ->and($richText->explanation)->toContain('<table>')
+            ->and($ckEditor->explanation_editor_mode)->toBe(EditorMode::CkEditor)
+            ->and($ckEditor->explanation)->toBe('<p>Three and three make six.</p>');
+
+        livewire(EditQuestion::class, ['record' => $ckEditor->id])
+            ->assertFormSet(['explanation_editor_mode' => EditorMode::CkEditor, 'explanation' => '<p>Three and three make six.</p>']);
+    });
+
+    it('starts the explanation over when its editor is switched', function () {
+        livewire(CreateQuestion::class)
+            ->fillForm(['explanation' => '<p>Written in Rich Text.</p>'])
+            ->fillForm(['explanation_editor_mode' => 'ckeditor'])
+            ->assertFormSet(['explanation' => null]);
     });
 
     it('carries the explanation into the new version when an approved question is edited', function () {

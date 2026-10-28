@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'board_question_paper_id', 'stimulus_id', 'stimulus_order', 'question_text', 'editor_mode', 'question_image',
-    'options', 'explanation', 'marks', 'order_index',
+    'options', 'explanation', 'explanation_editor_mode', 'marks', 'order_index',
 ])]
 class BoardMcqQuestion extends Model
 {
@@ -30,6 +30,7 @@ class BoardMcqQuestion extends Model
         return [
             'options' => 'array',
             'editor_mode' => EditorMode::class,
+            'explanation_editor_mode' => EditorMode::class,
         ];
     }
 

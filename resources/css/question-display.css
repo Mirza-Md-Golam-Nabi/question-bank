@@ -18,6 +18,46 @@
     margin-bottom: 0;
 }
 
+/* A table in a question, stimulus, explanation or answer — written in
+   either editor or with a JSON import. A wide one scrolls sideways
+   instead of pushing the page wider than the screen. */
+:is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content) table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+    border-collapse: collapse;
+}
+
+:is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content) :is(th, td) {
+    border: 1px solid #9ca3af;
+    padding: 0.25rem 0.625rem;
+    text-align: start;
+    vertical-align: top;
+}
+
+:is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content) th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+}
+
+:is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content) :is(th, td) p {
+    margin: 0;
+}
+
+:is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content) figure.table {
+    margin: 0;
+}
+
+:is(.dark :is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content)) :is(th, td) {
+    border-color: #4b5563;
+}
+
+:is(.dark :is(.qb-question-text, .qb-question-option-content, .qb-question-preview-content)) th {
+    background-color: rgb(255 255 255 / 0.05);
+}
+
 /* A figure (x-question-image): never wider than its column nor taller
    than a few lines of text, whatever size it was uploaded at. */
 .qb-question-image {

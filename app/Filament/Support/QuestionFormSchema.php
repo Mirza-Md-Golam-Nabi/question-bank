@@ -153,16 +153,25 @@ class QuestionFormSchema
      */
     public static function editorModeRadio(): Radio
     {
-        return Radio::make('editor_mode')
+        return static::editorSwitch('editor_mode', 'question_text')
             ->label(__('Editor'))
-            ->options(EditorMode::class)
             // Defaults to whichever editor this user saved a
             // question with last time (EditorModePreference),
             // falling back to Rich Text the very first time.
             // Only applies on Create — editing an existing
             // question fills this from the record itself,
             // overriding this default entirely.
-            ->default(fn () => EditorModePreference::for(auth()->user()))
+            ->default(fn () => EditorModePreference::for(auth()->user()));
+    }
+
+    /**
+     * The choice between the two editors for one piece of text, which is
+     * then written in whichever is picked (textEditor()).
+     */
+    protected static function editorSwitch(string $name, string $textField): Radio
+    {
+        return Radio::make($name)
+            ->options(EditorMode::class)
             ->live()
             ->inline()
             ->inlineLabel(false)
@@ -170,8 +179,20 @@ class QuestionFormSchema
             // plain-HTML state are incompatible formats — handing
             // one editor the other's leftover state on switch
             // silently breaks it, so always start clean instead.
-            ->afterStateUpdated(fn (Set $set) => $set('question_text', null))
+            ->afterStateUpdated(fn (Set $set) => $set($textField, null))
             ->required();
+    }
+
+    /**
+     * RichEditor and CkEditorField produce incompatible state formats
+     * (Tiptap JSON vs plain HTML), so only the picked one is ever mounted
+     * for a field. Both can hold tables.
+     */
+    protected static function textEditor(EditorMode|string|null $editorMode, string $name): RichEditor|CkEditorField
+    {
+        return ($editorMode instanceof EditorMode ? $editorMode : EditorMode::tryFrom((string) $editorMode)) === EditorMode::CkEditor
+            ? CkEditorField::make($name)
+            : RichEditor::make($name);
     }
 
     /**
@@ -215,18 +236,18 @@ class QuestionFormSchema
     }
 
     /**
-     * RichEditor and CkEditorField both bind to `question_text`, but produce
-     * incompatible state formats (Tiptap JSON vs plain HTML) — only one is
-     * ever mounted at a time, picked by the `editor_mode` radio.
+     * The question text in the editor the `editor_mode` radio picked.
      */
     protected static function questionTextComponent(EditorMode $editorMode, ?string $label = null): Component
     {
-        $component = $editorMode === EditorMode::CkEditor
-            ? CkEditorField::make('question_text')
-            // CkEditorField syncs itself live via its own $wire.$set() call
-            // (debounced 500ms in its Blade view); RichEditor needs the same
-            // ->live() debounce here so the preview below it stays in sync.
-            : RichEditor::make('question_text')->live(debounce: '500ms');
+        $component = static::textEditor($editorMode, 'question_text');
+
+        // CkEditorField syncs itself live via its own $wire.$set() call
+        // (debounced 500ms in its Blade view); RichEditor needs the same
+        // ->live() debounce here so the preview below it stays in sync.
+        if ($component instanceof RichEditor) {
+            $component->live(debounce: '500ms');
+        }
 
         return $component
             ->label(fn (Get $get) => $label ?? ($get('question_type') === QuestionType::Cq ? __('Stimulus') : __('Question text')))
@@ -256,9 +277,35 @@ class QuestionFormSchema
                 ->required()
                 ->rule(McqOptionsSchema::exactlyOneCorrectOptionRule()),
 
-            CkEditorField::make('explanation')
+            ...static::explanationComponents(),
+        ];
+    }
+
+    /**
+     * An MCQ's optional explanation, under its heading the choice of its
+     * own editor on one line — Rich Text to start with, whichever editor
+     * the question text is in.
+     *
+     * @return array<Component>
+     */
+    protected static function explanationComponents(): array
+    {
+        return [
+            static::editorSwitch('explanation_editor_mode', 'explanation')
                 ->label(__('Explanation (optional)'))
+                ->default(EditorMode::RichText)
+                // Left unpicked, the explanation is simply in Rich Text.
+                ->required(false)
                 ->columnSpanFull(),
+
+            Group::make()
+                ->columnSpanFull()
+                ->live()
+                ->schema(fn (Get $get) => [
+                    static::textEditor($get('explanation_editor_mode') ?? EditorMode::RichText, 'explanation')
+                        ->hiddenLabel()
+                        ->columnSpanFull(),
+                ]),
         ];
     }
 

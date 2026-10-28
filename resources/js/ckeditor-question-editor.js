@@ -10,6 +10,8 @@ import {
     List,
     Paragraph,
     Plugin,
+    Table,
+    TableToolbar,
     toWidget,
     Underline,
     Undo,
@@ -239,14 +241,19 @@ window.createQuestionCkEditor = async function createQuestionCkEditor(element, {
             'undo', 'redo', '|',
             'bold', 'italic', 'underline', '|',
             'bulletedList', 'numberedList', '|',
-            'blockQuote', 'link', '|',
+            'blockQuote', 'link', 'insertTable', '|',
             'insertMathTex',
         ];
 
     const editor = await ClassicEditor.create(element, {
         licenseKey: 'GPL',
-        plugins: [Essentials, Paragraph, Bold, Italic, Underline, Link, List, BlockQuote, Undo, MathTex],
+        plugins: [Essentials, Paragraph, Bold, Italic, Underline, Link, List, BlockQuote, Table, TableToolbar, Undo, MathTex],
         toolbar,
+        // The buttons that appear over a table being edited: add or remove
+        // rows and columns, mark a header row, join cells.
+        table: {
+            contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells'],
+        },
         initialData: initialData || '',
     });
 

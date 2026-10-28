@@ -175,6 +175,8 @@ class QuestionJsonImporter
             ->fill([
                 'options' => $item['options'],
                 'explanation' => $item['explanation'],
+                // Its formulas (and tables) are CKEditor's kind of content too.
+                'explanation_editor_mode' => EditorMode::CkEditor,
                 'marks' => $item['marks'] ?? Question::DEFAULT_MCQ_MARKS,
             ])
             ->setRelation('cqParts', collect());

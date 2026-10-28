@@ -122,10 +122,11 @@ final class QuestionJsonReader
                 ? __('"answer" on a sub-question (may be left out): its answer.')
                 : null,
             __('Maths: write every formula as LaTeX between $ signs, write every backslash twice (:twice, not \frac), and keep Bangla text outside the $ signs.', ['twice' => '\\\\frac']),
-            __('Images: where a question, a stimulus, a CQ sub-question or an option has a figure (a diagram, graph, circuit, or a table drawn as a picture), crop that figure into an image file of its own and give its file name in "image" — beside the text of a question, a stimulus or a sub-question; an option with a figure is written as an object, {"text": "…", "image": "…"}, its "text" "" when the figure is all of it.'),
+            __('Images: where a question, a stimulus, a CQ sub-question or an option has a figure (a diagram, graph or circuit), crop that figure into an image file of its own and give its file name in "image" — beside the text of a question, a stimulus or a sub-question; an option with a figure is written as an object, {"text": "…", "image": "…"}, its "text" "" when the figure is all of it.'),
             __('Name the image files with English letters, digits and hyphens only, ending in .png, .jpg or .webp, every name different: q12.png for question 12, q12-c.png for its option C, q12-part2.png for its second sub-question, s3.png for the stimulus of question 3.'),
             __('Do not describe a figure in the text or put it inside the text. Give all the image files together in one ZIP, without folders, named exactly as in the JSON.'),
-            __('Plain text only — no HTML, no Markdown.'),
+            __('Tables: a table of text in a question, a stimulus, an explanation, a sub-question or an answer is written as text, not as an image — as a Markdown table: each row on a line of its own, its cells between | signs, a |---|---| line under the header row, and every row with as many cells as the header (in JSON a new line is written :newline). Formulas may go in the cells; an option cannot have a table.', ['newline' => '\n']),
+            __('Apart from that, plain text only — no HTML, no other Markdown.'),
         ]));
 
         return collect($rules)->map(fn (string $rule): string => "- {$rule}")->implode("\n")."\n\n".$this->sampleJson();
@@ -143,7 +144,14 @@ final class QuestionJsonReader
             'options' => ['$2$', '$3$', '$\frac{9}{2}$', '$9$'],
             'answer' => 2,
             'difficulty' => $this->withDifficulty ? Difficulty::Easy->value : null,
-            'explanation' => '$3^2 = 9$, তাই $x = 3$।',
+            // A table, as the guide says to write one.
+            'explanation' => implode("\n", [
+                '$3^2 = 9$, তাই $x = 3$। কয়েকটি বর্গ:',
+                '| $x$ | $x^2$ |',
+                '|---|---|',
+                '| $2$ | $4$ |',
+                '| $3$ | $9$ |',
+            ]),
         ], fn (mixed $value): bool => $value !== null);
 
         $cq = array_filter([
@@ -357,13 +365,13 @@ final class QuestionJsonReader
                 if (! is_string($text) || (trim($text) === '' && blank($option['image'] ?? null))) {
                     $problems[] = __(':name needs its "text", or an "image"', ['name' => $name]);
                 } elseif (trim($text) !== '') {
-                    array_push($problems, ...$this->textProblems($text, $name));
+                    array_push($problems, ...$this->textProblems($text, $name, allowsTables: false));
                 }
 
                 continue;
             }
 
-            array_push($problems, ...$this->textProblems($option, $name));
+            array_push($problems, ...$this->textProblems($option, $name, allowsTables: false));
         }
 
         $answer = $item['answer'] ?? null;
@@ -428,7 +436,7 @@ final class QuestionJsonReader
     /**
      * @return array<int, string>
      */
-    private function textProblems(mixed $text, string $name): array
+    private function textProblems(mixed $text, string $name, bool $allowsTables = true): array
     {
         if (! is_string($text) || trim($text) === '') {
             return [__(':name is missing', ['name' => $name])];
@@ -436,7 +444,7 @@ final class QuestionJsonReader
 
         return array_map(
             fn (string $problem): string => __(':name — :problem', ['name' => $name, 'problem' => $problem]),
-            QuestionImportText::problemsIn($text),
+            QuestionImportText::problemsIn($text, $allowsTables),
         );
     }
 
@@ -529,7 +537,7 @@ final class QuestionJsonReader
         }
 
         $type = $this->typeOf($item);
-        $html = fn (?string $text): ?string => filled($text) ? QuestionImportText::toHtml($text) : null;
+        $html = fn (?string $text, bool $allowsTables = true): ?string => filled($text) ? QuestionImportText::toHtml($text, $allowsTables) : null;
 
         $question = [
             'type' => $type,
@@ -559,7 +567,7 @@ final class QuestionJsonReader
             'options' => collect($item['options'])
                 ->map(fn (string|array $option, int $index): array => [
                     // An option that is only its figure has no text.
-                    'option' => $html(is_array($option) ? (string) ($option['text'] ?? '') : $option) ?? '',
+                    'option' => $html(is_array($option) ? (string) ($option['text'] ?? '') : $option, false) ?? '',
                     'image' => is_array($option) ? $this->imageOf($option) : null,
                     'is_correct' => $index + 1 === (int) $item['answer'],
                 ])

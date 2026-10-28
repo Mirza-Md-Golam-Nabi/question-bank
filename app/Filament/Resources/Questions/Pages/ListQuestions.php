@@ -8,9 +8,4 @@ use App\Filament\Support\Pages\Questions\ListQuestionsByChapterPage;
 class ListQuestions extends ListQuestionsByChapterPage
 {
     protected static string $resource = QuestionResource::class;
-
-    protected function offersCardView(): bool
-    {
-        return true;
-    }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Models\Concerns;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
+
 /**
  * What a student's pick of an MCQ option is recorded as, and what counts as
  * the right one — for a question-bank MCQ and a past paper's alike, so the
@@ -19,10 +21,26 @@ trait HasMcqOptions
     public static function answerValueOf(array $option): string
     {
         $text = (string) ($option['option'] ?? '');
-        // An editor leaves "<p>&nbsp;</p>" behind in an option with no words.
-        $hasText = preg_replace('/[\s\x{00A0}]+/u', '', html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !== '';
 
-        return ! $hasText && filled($option['image'] ?? null) ? (string) $option['image'] : $text;
+        return ! static::hasWords($text) && filled($option['image'] ?? null) ? (string) $option['image'] : $text;
+    }
+
+    /**
+     * An explanation emptied in its editor ("<p></p>") is no explanation.
+     */
+    protected function explanation(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => static::hasWords((string) $value) || preg_match('/<(img|table)\b/i', (string) $value) ? $value : null,
+        );
+    }
+
+    /**
+     * An editor leaves "<p>&nbsp;</p>" behind when nothing is written.
+     */
+    private static function hasWords(string $html): bool
+    {
+        return preg_replace('/[\s\x{00A0}]+/u', '', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !== '';
     }
 
     /**

@@ -71,6 +71,7 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | `question_image` | public disk-এর পাথ |
 | `options` (JSON) | শুধু MCQ: `[{option, image, is_correct}]`; ঠিক একটা `is_correct` |
 | `explanation` (nullable) | শুধু MCQ: সঠিক উত্তরের ব্যাখ্যা (HTML); দেখায় শুধু যেখানে সঠিক উত্তর দেখায় |
+| `explanation_editor_mode` | `richtext` / `ckeditor` — ব্যাখ্যা কোন এডিটরে লেখা (ডিফল্ট `richtext`; আগের সব ব্যাখ্যা ও JSON-এর ব্যাখ্যা `ckeditor`) |
 | `marks` | MCQ-তে লেখক দেয়; CQ-তে অংশগুলোর যোগফল, নিজে থেকে বসে |
 | `difficulty` | লেখকের বাছাই; যথেষ্ট উত্তর জমলে সিস্টেম বদলায় |
 | `answer_count`, `correct_answer_count` | difficulty-র গণনা (শুধু Teacher-এর পরীক্ষা থেকে) |
@@ -99,7 +100,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `rejection_reason`; unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
 | `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by` — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
 | `board_mcq_stimuli` | `board_question_paper_id`, `text`, `editor_mode`, `image` — প্রশ্নপত্রের উদ্দীপক; মুছলে তার প্রশ্নও মোছে |
-| `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `explanation` (nullable), `marks`, `order_index` |
+| `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `explanation` (nullable), `explanation_editor_mode`, `marks`, `order_index` |
 | `board_cq_questions` | `board_question_paper_id`, `question_text`, `editor_mode`, `question_image`, `marks`, `order_index` |
 | `board_cq_question_parts` | `board_cq_question_id`, `part_type`, `part_order`, `part_text`, `part_image`, `answer` (nullable), `marks` |
 

@@ -5,9 +5,12 @@ namespace App\Services;
 /**
  * One piece of text of an imported question — a question, an option, a CQ
  * sub-question — as it is written in the JSON: plain text with any maths
- * between dollar signs (`$x^2$`). Decides what is wrong with such a text
- * and turns it into the HTML questions are stored as, where a formula is
- * `<span class="qb-katex-embed">latex</span>`.
+ * between dollar signs (`$x^2$`), and, except in an option, tables written
+ * the Markdown way (`| a | b |` rows, a `|---|---|` line under the header).
+ * Decides what is wrong with such a text and turns it into the HTML
+ * questions are stored as, where a formula is
+ * `<span class="qb-katex-embed">latex</span>` and a table is CKEditor's
+ * `<figure class="table"><table>…</table></figure>`.
  *
  * Whether KaTeX can actually draw a formula is only known in the browser;
  * what can be told here is whether it is put together properly.
@@ -26,12 +29,67 @@ class QuestionImportText
     private const FORMULA_PATTERN = '/(?<!\\\\)(\${1,2})(.+?)(?<!\\\\)\1/su';
 
     /**
+     * The line under a table's header row: `|---|:---:|`, its outer pipes
+     * optional.
+     */
+    private const TABLE_DIVIDER_PATTERN = '/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/';
+
+    /**
      * What is wrong with the text, in the user's language — empty when
      * nothing is.
      *
      * @return array<int, string>
      */
-    public static function problemsIn(string $text): array
+    public static function problemsIn(string $text, bool $allowsTables = true): array
+    {
+        $problems = [];
+
+        foreach (self::blocks($text) as $block) {
+            if (! isset($block['rows'])) {
+                array_push($problems, ...self::inlineProblems($block['text']));
+
+                continue;
+            }
+
+            if (! $allowsTables) {
+                $problems[] = __('an option cannot have a table');
+
+                continue;
+            }
+
+            array_push($problems, ...self::tableProblems($block['rows']));
+
+            foreach ($block['rows'] as $cells) {
+                foreach ($cells as $cell) {
+                    array_push($problems, ...self::inlineProblems($cell));
+                }
+            }
+        }
+
+        return array_values(array_unique($problems));
+    }
+
+    /**
+     * Everything is escaped, so nothing in the JSON can arrive as markup —
+     * a table is built here from its cells, never taken as written.
+     */
+    public static function toHtml(string $text, bool $allowsTables = true): string
+    {
+        if (! $allowsTables) {
+            return '<p>'.self::inlineHtml(trim($text)).'</p>';
+        }
+
+        return collect(self::blocks($text))
+            ->map(fn (array $block): string => isset($block['rows'])
+                ? self::tableHtml($block['rows'])
+                : '<p>'.self::inlineHtml(trim($block['text'])).'</p>')
+            ->implode('');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function inlineProblems(string $text): array
     {
         $problems = [];
 
@@ -41,23 +99,148 @@ class QuestionImportText
                 : self::plainTextProblems($segment['text'])));
         }
 
-        return array_values(array_unique($problems));
+        return $problems;
     }
 
     /**
-     * Everything is escaped, so nothing in the JSON can arrive as markup.
+     * A stretch of text with its formulas, as HTML with no paragraph
+     * around it. `\$` and `\|` are a plain dollar sign and bar.
      */
-    public static function toHtml(string $text): string
+    private static function inlineHtml(string $text): string
     {
         $html = '';
 
-        foreach (self::segments(trim($text)) as $segment) {
+        foreach (self::segments($text) as $segment) {
             $html .= $segment['is_formula']
                 ? '<span class="qb-katex-embed">'.e(trim($segment['text'])).'</span>'
-                : nl2br(e(str_replace('\$', '$', $segment['text'])), false);
+                : nl2br(e(str_replace(['\$', '\|'], ['$', '|'], $segment['text'])), false);
         }
 
-        return "<p>{$html}</p>";
+        return $html;
+    }
+
+    /**
+     * The text cut into its paragraphs and its tables, in order. A table is
+     * a header row, the divider line under it, and every `|` row after
+     * that; anything else — a lone `|x|` included — is text.
+     *
+     * @return array<int, array{text: string}|array{rows: array<int, array<int, string>>}>
+     */
+    private static function blocks(string $text): array
+    {
+        $lines = preg_split('/\R/u', trim($text)) ?: [''];
+        $blocks = [];
+        $paragraph = [];
+
+        for ($index = 0; $index < count($lines); $index++) {
+            if (! self::isTableRow($lines[$index]) || ! preg_match(self::TABLE_DIVIDER_PATTERN, $lines[$index + 1] ?? '')) {
+                $paragraph[] = $lines[$index];
+
+                continue;
+            }
+
+            if (trim(implode("\n", $paragraph)) !== '') {
+                $blocks[] = ['text' => implode("\n", $paragraph)];
+            }
+
+            $paragraph = [];
+            $rows = [self::cellsOf($lines[$index])];
+            $index += 2;
+
+            while ($index < count($lines) && self::isTableRow($lines[$index])) {
+                $rows[] = self::cellsOf($lines[$index]);
+                $index++;
+            }
+
+            $index--;
+            $blocks[] = ['rows' => $rows];
+        }
+
+        if ($blocks === [] || trim(implode("\n", $paragraph)) !== '') {
+            $blocks[] = ['text' => implode("\n", $paragraph)];
+        }
+
+        return $blocks;
+    }
+
+    private static function isTableRow(string $line): bool
+    {
+        return str_starts_with(trim($line), '|');
+    }
+
+    /**
+     * A row's cells: split at each `|` that is not written `\|` and not
+     * inside a formula (where it may be an absolute value, `$|x|$`).
+     *
+     * @return array<int, string>
+     */
+    private static function cellsOf(string $line): array
+    {
+        // The bars at the two ends of a row only close it off.
+        $line = preg_replace('/^\|/', '', trim($line)) ?? $line;
+        $line = preg_replace('/(?<!\\\\)\|$/', '', $line) ?? $line;
+        $cells = [];
+        $cell = '';
+        $inFormula = false;
+        $previous = '';
+
+        foreach (mb_str_split($line) as $character) {
+            $isEscaped = $previous === '\\';
+            $previous = $character;
+
+            if ($character === '$' && ! $isEscaped) {
+                $inFormula = ! $inFormula;
+            }
+
+            if ($character === '|' && ! $isEscaped && ! $inFormula) {
+                $cells[] = trim($cell);
+                $cell = '';
+
+                continue;
+            }
+
+            $cell .= $character;
+        }
+
+        $cells[] = trim($cell);
+
+        return $cells;
+    }
+
+    /**
+     * @param  array<int, array<int, string>>  $rows  The header row first.
+     * @return array<int, string>
+     */
+    private static function tableProblems(array $rows): array
+    {
+        $columns = count($rows[0]);
+
+        if (count($rows) < 2) {
+            return [__('a table has no rows under its header')];
+        }
+
+        foreach (array_slice($rows, 1) as $cells) {
+            if (count($cells) !== $columns) {
+                return [__('a table row has :count cells, but its header has :columns', ['count' => count($cells), 'columns' => $columns])];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  array<int, array<int, string>>  $rows  The header row first.
+     */
+    private static function tableHtml(array $rows): string
+    {
+        $row = fn (array $cells, string $tag): string => '<tr>'.collect($cells)
+            ->map(fn (string $cell): string => "<{$tag}>".self::inlineHtml($cell)."</{$tag}>")
+            ->implode('').'</tr>';
+
+        return '<figure class="table"><table>'
+            .'<thead>'.$row(array_shift($rows), 'th').'</thead>'
+            .'<tbody>'.collect($rows)->map(fn (array $cells): string => $row($cells, 'td'))->implode('').'</tbody>'
+            .'</table></figure>';
     }
 
     /**

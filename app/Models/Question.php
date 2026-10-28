@@ -28,7 +28,7 @@ use LogicException;
 
 #[Fillable([
     'chapter_id', 'topic_id', 'stimulus_id', 'stimulus_order', 'question_type', 'question_text', 'editor_mode', 'question_image', 'options',
-    'explanation', 'marks', 'difficulty', 'status', 'created_by', 'approved_by',
+    'explanation', 'explanation_editor_mode', 'marks', 'difficulty', 'status', 'created_by', 'approved_by',
     'rejection_reason', 'parent_id', 'version', 'is_latest', 'is_private',
 ])]
 #[ObservedBy(QuestionObserver::class)]
@@ -57,6 +57,7 @@ class Question extends Model
         return [
             'question_type' => QuestionType::class,
             'editor_mode' => EditorMode::class,
+            'explanation_editor_mode' => EditorMode::class,
             'difficulty' => Difficulty::class,
             'status' => QuestionStatus::class,
             'options' => 'array',
