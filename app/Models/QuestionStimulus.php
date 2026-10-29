@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\IsStimulus;
+use App\Services\QuestionDuplicateScreening;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +31,19 @@ class QuestionStimulus extends Model
     public const MAX_QUESTIONS = 6;
 
     protected $table = 'question_stimuli';
+
+    /**
+     * A stimulus is part of each of its questions: changing it has them
+     * checked for duplicates again.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (self $stimulus): void {
+            if ($stimulus->wasChanged(['text', 'image'])) {
+                $stimulus->questions()->where('is_latest', true)->get()->each(QuestionDuplicateScreening::queue(...));
+            }
+        });
+    }
 
     public function chapter(): BelongsTo
     {

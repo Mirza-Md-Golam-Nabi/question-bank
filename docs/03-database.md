@@ -81,8 +81,14 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | `parent_id`, `version`, `is_latest` | versioning; `parent_id` সবসময় প্রথম সংস্করণকে নির্দেশ করে |
 | `is_private` | School-এর নিজের প্রশ্ন (School লিখলে নিজে থেকে; নতুন সংস্করণেও): শুধু সেই School দেখে, pool/Admin-এর রিভিউতে কখনো না, status সবসময় `pending` — [12-school-link.md](12-school-link.md) |
 | `deleted_at` | soft delete |
+| `duplicate_status` | পেছনের ডুপ্লিকেট যাচাই: `checking` / `clear` / `suspected` (ডিফল্ট `clear`; নতুন বা বদলানো প্রশ্ন `checking`, School-এর নিজেরটা সবসময় `clear`)। শুধু `clear` pool-এ, পরীক্ষায় ও approve-এ যায় — [05-question-bank.md](05-question-bank.md#পেছনের-ডুপ্লিকেট-যাচাই-queue) |
+| `duplicate_guard` (nullable), `duplicate_size` (nullable) | যাচাইয়ের "fingerprint": সংখ্যা/সূত্র/না-বাচক শব্দের sha1, আর প্রশ্নের তিন-অক্ষরের টুকরোর সংখ্যা — শুধু এই দুটো মেলা প্রশ্নই পড়া হয়। যাচাই হলে বসে; ফাঁকা থাকলে সবসময় পড়া হয় |
 
-Index: `(status, is_latest)`, `(chapter_id, status, is_latest)`, `(created_by)`, `(created_by, is_private, is_latest)`।
+Index: `(status, is_latest)`, `(chapter_id, status, is_latest)`, `(created_by)`, `(created_by, is_private, is_latest)`, `(duplicate_status)`, `(chapter_id, question_type, duplicate_guard, duplicate_size)`।
+
+### `question_duplicate_matches`
+
+পেছনের যাচাইয়ে একটা প্রশ্ন অধ্যায়ের কোন প্রশ্নগুলোর মতো দেখতে (সবচেয়ে বেশি মিলের ৫টা): `question_id`, `matched_question_id`, `percent`, `is_exact`। Admin "রাখুন" বললে মুছে যায়; দুই প্রশ্নের যেকোনোটা স্থায়ীভাবে মুছলে সাথে মুছে যায়।
 
 ### `question_cq_parts`
 

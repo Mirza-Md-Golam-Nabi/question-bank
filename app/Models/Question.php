@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Difficulty;
+use App\Enums\DuplicateCheckStatus;
 use App\Enums\EditorMode;
 use App\Enums\QuestionApprovalAction;
 use App\Enums\QuestionStatus;
@@ -60,6 +61,7 @@ class Question extends Model
             'explanation_editor_mode' => EditorMode::class,
             'difficulty' => Difficulty::class,
             'status' => QuestionStatus::class,
+            'duplicate_status' => DuplicateCheckStatus::class,
             'options' => 'array',
             'is_latest' => 'boolean',
             'is_private' => 'boolean',
@@ -127,6 +129,15 @@ class Question extends Model
     }
 
     /**
+     * The questions already in the chapter this one looked like when it was
+     * checked in the background, the most alike first.
+     */
+    public function duplicateMatches(): HasMany
+    {
+        return $this->hasMany(QuestionDuplicateMatch::class)->orderByDesc('is_exact')->orderByDesc('percent');
+    }
+
+    /**
      * The questions a user wrote themselves, whatever their status — what
      * the Teacher's and the Staff's own question lists show.
      */
@@ -166,6 +177,35 @@ class Question extends Model
     }
 
     /**
+     * What a question is checked against in the background
+     * (QuestionDuplicateScreening): the chapter's settled current questions
+     * of its type, but a School's own and rejected ones — every one of them,
+     * whoever wrote it — narrowed through one index to the ones that can be
+     * its duplicate: the same guard and a size in range. A question not
+     * fingerprinted yet is always read.
+     *
+     * @param  array{0: int, 1: int}  $sizeRange
+     */
+    public function scopeDuplicateScreeningCandidatesFor(Builder $query, self $question, string $guard, array $sizeRange): Builder
+    {
+        return $query->where('chapter_id', $question->chapter_id)
+            ->where('question_type', $question->question_type)
+            ->where(fn (Builder $query) => $query
+                ->where(fn (Builder $query) => $query->where('duplicate_guard', $guard)->whereBetween('duplicate_size', $sizeRange))
+                ->orWhereNull('duplicate_guard'))
+            ->where('is_latest', true)
+            ->where('is_private', false)
+            ->where('duplicate_status', DuplicateCheckStatus::Clear)
+            ->where('status', '!=', QuestionStatus::Rejected)
+            ->whereKeyNot($question->id)
+            // The other questions of its own stimulus group are not held against it.
+            ->when($question->stimulus_id !== null, fn (Builder $query) => $query->where(fn (Builder $query) => $query
+                ->whereNull('stimulus_id')
+                ->orWhere('stimulus_id', '!=', $question->stimulus_id)))
+            ->with(['cqParts', 'stimulus']);
+    }
+
+    /**
      * Whether two rows are versions of one question.
      */
     public function isVersionOf(self $other): bool
@@ -178,11 +218,13 @@ class Question extends Model
      * approved and the current version. Reused by exam pickers, self-practice
      * auto/manual selection, and exam-attach validation. A School's own
      * question is never approved; it is left out here as well, so it can't
-     * reach the pool even by mistake.
+     * reach the pool even by mistake. Neither does one still being checked
+     * for duplicates, or waiting for the Admin as a possible duplicate.
      */
     public function scopeApprovedPool(Builder $query): Builder
     {
-        return $query->where('status', QuestionStatus::Approved)->where('is_latest', true)->where('is_private', false);
+        return $query->where('status', QuestionStatus::Approved)->where('is_latest', true)->where('is_private', false)
+            ->where('duplicate_status', DuplicateCheckStatus::Clear);
     }
 
     /**
@@ -222,11 +264,13 @@ class Question extends Model
      * question, and a rejected one can't go on a new exam at all. The only
      * place this exception to the approved-only rule is written; students'
      * self-practice stays on approvedPool(). A School's own questions are
-     * pending for good, so this is also what puts them on its exams.
+     * pending for good, so this is also what puts them on its exams. A
+     * question still being checked for duplicates, or waiting for the
+     * Admin as a possible one, goes on no exam — the teacher's own neither.
      */
     public function scopeUsableInExamBy(Builder $query, User $teacher): Builder
     {
-        return $query->where('is_latest', true)->where(fn (Builder $query) => $query
+        return $query->where('is_latest', true)->where('duplicate_status', DuplicateCheckStatus::Clear)->where(fn (Builder $query) => $query
             ->where('status', QuestionStatus::Approved)
             ->orWhere(fn (Builder $query) => $query
                 ->where('status', QuestionStatus::Pending)
@@ -375,6 +419,11 @@ class Question extends Model
     {
         $this->ensureNotPrivate();
 
+        // As it is now — the check runs apart from whoever holds this copy.
+        if (self::query()->whereKey($this->id)->value('duplicate_status') !== DuplicateCheckStatus::Clear) {
+            throw new LogicException('A question waiting on the duplicate check is not approved.');
+        }
+
         DB::transaction(function () use ($approver) {
             foreach ($this->groupToReview(QuestionStatus::Approved) as $question) {
                 $question->approveAlone($approver);
@@ -407,7 +456,9 @@ class Question extends Model
 
     /**
      * This question, with — under a shared stimulus — the other current
-     * questions of its group not already in `$status`.
+     * questions of its group not already in `$status`. One of them still
+     * on the duplicate check is not approved with the rest; it waits for
+     * the Admin's word on it.
      *
      * @return SupportCollection<int, self>
      */
@@ -422,6 +473,7 @@ class Question extends Model
             ->where('is_latest', true)
             ->whereKeyNot($this->id)
             ->where('status', '!=', $status)
+            ->when($status === QuestionStatus::Approved, fn (Builder $query) => $query->where('duplicate_status', DuplicateCheckStatus::Clear))
             ->get()
             ->prepend($this);
     }

@@ -11,6 +11,7 @@
      * @var bool $showAnswers
      * @var bool $reviewing  Shows where the question is in review, its version and who wrote it (unless the viewer did).
      */
+    use App\Enums\DuplicateCheckStatus;
     use App\Enums\QuestionStatus;
     use App\Enums\QuestionType;
     use App\Filament\Support\QuestionDisplay;
@@ -32,6 +33,14 @@
 
         @if ($reviewing)
             <x-filament::badge :color="$question->status->getColor()">{{ $question->status->getLabel() }}</x-filament::badge>
+
+            {{-- Still on the background duplicate check, or waiting for the
+                 Admin's word on it — never which question it looks like. --}}
+            @if ($question->duplicate_status !== DuplicateCheckStatus::Clear)
+                <x-filament::badge :color="$question->duplicate_status->getColor()" icon="heroicon-m-document-duplicate">
+                    {{ $question->duplicate_status->getLabel() }}
+                </x-filament::badge>
+            @endif
 
             @if ($question->version > 1)
                 <x-filament::badge color="gray">{{ __('v') }}{{ $question->version }}</x-filament::badge>

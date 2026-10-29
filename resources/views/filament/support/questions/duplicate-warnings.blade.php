@@ -9,7 +9,7 @@
 @endphp
 
 @if ($matches !== [])
-    <div class="space-y-3" x-data x-init="window.renderKatexEmbeds?.($el)">
+    <div class="qb-duplicate-warnings w-full space-y-3" x-data x-init="window.renderKatexEmbeds?.($el)">
         @foreach ($matches as $match)
             <x-question-duplicate :match="$match" />
         @endforeach

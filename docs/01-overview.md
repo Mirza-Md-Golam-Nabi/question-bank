@@ -58,10 +58,10 @@ Student ─ self-practice: Auto / Manual / নিজের ভুলগুলো
 
 ## মূল ধারণাগুলো
 
-- **Approved pool:** `status = approved` এবং `is_latest = true` এমন প্রশ্ন। অন্যের প্রশ্ন শুধু এই অবস্থাতেই দেখা ও ব্যবহার করা যায়। → [05-question-bank.md](05-question-bank.md)
+- **Approved pool:** `status = approved`, `is_latest = true` এবং ডুপ্লিকেট যাচাইয়ে `clear` এমন প্রশ্ন। অন্যের প্রশ্ন শুধু এই অবস্থাতেই দেখা ও ব্যবহার করা যায়। → [05-question-bank.md](05-question-bank.md)
 - **Version:** approved প্রশ্ন এডিট করলে পুরনোটা অক্ষত থাকে, নতুন একটা pending সংস্করণ তৈরি হয়; তাই পুরনো পরীক্ষা কখনো বদলায় না।
 - **Delivery mode:** পরীক্ষা `online` (শুধু MCQ), `offline` (প্রিন্ট, MCQ + CQ) বা `both`। CQ কখনো অনলাইনে নেওয়া হয় না। → [06-exams.md](06-exams.md)
 - **উত্তর প্রকাশ:** Teacher-এর পরীক্ষায় জমা দেওয়ার পর student শুধু স্কোর দেখে; Teacher প্রকাশ করলে তবে উত্তর। উত্তর ফাঁস ঠেকানোর এই নিয়মটা ভুলের অনুশীলনেও মানা হয়। → [07-student-practice.md](07-student-practice.md)
 - **হিসাব জমা থাকে, বারবার গোনা হয় না:** difficulty, ভুলের তালিকা আর Teacher-এর পরিসংখ্যান খাতা জমার সময়ই হালনাগাদ হয়, তাই পুরনো পরীক্ষার হিস্টোরি মুছলেও এগুলো থাকে।
-- **কোনো cron নেই:** দিনের ও মাসের সীমা, subscription-এর মেয়াদ, উত্তর প্রকাশের সময়, wallet credit-এর মেয়াদ, referral reward পাকা হওয়া — সবই দরকারের মুহূর্তে তারিখ মিলিয়ে দেখা হয়; ব্যাকগ্রাউন্ডে কিছু চালাতে হয় না।
+- **সময়ের হিসাবে কোনো cron নেই:** দিনের ও মাসের সীমা, subscription-এর মেয়াদ, উত্তর প্রকাশের সময়, wallet credit-এর মেয়াদ, referral reward পাকা হওয়া — সবই দরকারের মুহূর্তে তারিখ মিলিয়ে দেখা হয়। Cron লাগে শুধু queue চালাতে (পেছনের ডুপ্লিকেট যাচাই)। → [10-testing-and-deploy.md](10-testing-and-deploy.md)
 - **ব্যবসায়িক সংখ্যা কোডে নেই:** শতাংশ, দিন, সীমা — সব Admin-এর settings-এ। → [09-admin-settings.md](09-admin-settings.md)

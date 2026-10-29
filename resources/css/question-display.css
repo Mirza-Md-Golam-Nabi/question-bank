@@ -268,6 +268,12 @@
     color: #d1d5db;
 }
 
+/* Under a form's duplicate message the boxes sit in an inline row of
+   Filament's; there they take the whole width. */
+.fi-sc.fi-inline > :has(.qb-duplicate-warnings) {
+    flex: 1 1 100%;
+}
+
 /* The import preview's cards stay light in dark mode, and so does this box in them. */
 .dark .qb-question-preview .qb-question-duplicate {
     background-color: #fffbeb;

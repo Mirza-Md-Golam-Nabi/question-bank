@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support;
 
+use App\Enums\DuplicateCheckStatus;
 use App\Enums\QuestionStatus;
 use App\Models\Question;
 use Filament\Actions\BulkActionGroup;
@@ -50,6 +51,14 @@ class QuestionsTable
                 TextColumn::make('marks'),
                 TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor())
                     ->visible(self::showsReview()),
+                // Shown only while the question is still on the background
+                // duplicate check or waiting for the Admin's word on it.
+                TextColumn::make('duplicate_status')->label(__('Duplicate check'))->badge()
+                    ->state(fn (Question $record): ?DuplicateCheckStatus => $record->duplicate_status === DuplicateCheckStatus::Clear ? null : $record->duplicate_status)
+                    ->color(fn (DuplicateCheckStatus $state): string => $state->getColor())
+                    ->placeholder('—')
+                    ->visible(self::showsReview())
+                    ->toggleable(),
                 TextColumn::make('version')->label(__('v'))->toggleable(),
                 TextColumn::make('creator.name')->label(__('Created by')),
                 TextColumn::make('created_at')->localDateTime()->sortable(),

@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\DuplicateCheckStatus;
 use App\Enums\QuestionStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
@@ -96,9 +97,13 @@ class QuestionPolicy
         return $this->isAdmin($user);
     }
 
+    /**
+     * Not while the question is still being checked for duplicates, or
+     * waits for the Admin as a possible one (QuestionDuplicateScreening).
+     */
     public function approve(User $user, Question $question): bool
     {
-        return $this->managesAsAdmin($user, $question);
+        return $this->managesAsAdmin($user, $question) && $question->duplicate_status === DuplicateCheckStatus::Clear;
     }
 
     public function reject(User $user, Question $question): bool

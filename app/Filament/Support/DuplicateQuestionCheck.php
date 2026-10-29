@@ -17,10 +17,10 @@ use App\Services\DuplicateQuestionFinder;
 use Closure;
 use Filament\Forms\Components\Checkbox;
 use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 /**
  * The duplicate check of a question form, on saving: the same question is
@@ -38,6 +38,14 @@ class DuplicateQuestionCheck
     public const FIELD = 'save_despite_duplicate';
 
     /**
+     * What each form's check found on saving, by the box's state path — so
+     * the question shown under the message is not looked for twice.
+     *
+     * @var array<string, DuplicateMatch|null>
+     */
+    private static array $found = [];
+
+    /**
      * @param  Closure(Get, ?Model): ?DuplicateMatch  $find  What the form's question (or one of its questions) duplicates.
      */
     public static function field(Closure $find): Checkbox
@@ -49,23 +57,32 @@ class DuplicateQuestionCheck
             ->columnSpanFull()
             ->extraFieldWrapperAttributes(fn (Checkbox $component): array => $component->getState()
                 || $component->getLivewire()->getErrorBag()->has($component->getStatePath()) ? [] : ['class' => 'hidden'])
-            ->rule(fn (Get $get, ?Model $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($find, $get, $record): void {
+            ->rule(fn (Get $get, ?Model $record, Checkbox $component): Closure => function (string $attribute, mixed $value, Closure $fail) use ($find, $get, $record, $component): void {
                 $match = $find($get, $record);
+                self::$found[$component->getStatePath()] = $match;
 
                 if ($match === null || ($value && ! $match->isExact)) {
                     return;
                 }
 
-                $details = [
-                    'percent' => $match->percent,
-                    'question' => Str::limit(trim(html_entity_decode(strip_tags((string) $match->question->question_text))), 120),
-                ];
-
                 $message = $match->isExact
-                    ? __('The same question is already there: “:question”. It will not be saved again.', $details)
-                    : __('This looks like a question already there (:percent% alike): “:question”. If it is a different question, tick the box and save again.', $details);
+                    ? __('The same question is already there (below). It will not be saved again.')
+                    : __('This looks like a question already there (:percent% alike, below). If it is a different question, tick the box and save again.', ['percent' => $match->percent]);
 
                 $fail($match->subject ? "{$match->subject}: {$message}" : $message);
+            })
+            // The question it looks like, whole — formulas, options, the
+            // right answer — under the message, as the JSON preview shows it.
+            ->belowErrorMessage(function (Checkbox $component, Get $get, ?Model $record) use ($find): ?View {
+                $statePath = $component->getStatePath();
+
+                if (! $component->getLivewire()->getErrorBag()->has($statePath)) {
+                    return null;
+                }
+
+                $match = array_key_exists($statePath, self::$found) ? self::$found[$statePath] : $find($get, $record);
+
+                return $match ? view('filament.support.questions.duplicate-warnings', ['matches' => [$match]]) : null;
             });
     }
 

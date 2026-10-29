@@ -66,6 +66,18 @@
 
 `deploy.sh` (cPanel): `git pull` → `composer install` → maintenance mode → `migrate --force` → cache পরিষ্কার ও পুনর্গঠন → queue restart → maintenance mode বন্ধ।
 
+### Cron (queue চালানোর জন্য, একবার বসাতে হয়)
+
+পেছনের ডুপ্লিকেট যাচাই queue-তে চলে (`QUEUE_CONNECTION=database`)। shared hosting-এ সবসময় চলা worker রাখা যায় না, তাই cPanel → Cron Jobs-এ প্রতি মিনিটে:
+
+```
+* * * * * cd /home/<user>/<app-folder> && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Scheduler (`routes/console.php`) প্রতি মিনিটে `queue:work --stop-when-empty` চালায়, queue খালি হলে থেমে যায়; একটা চলার সময় আরেকটা শুরু হয় না। Cron না বসালে নতুন প্রশ্ন "ডুপ্লিকেট যাচাই চলছে"-তে আটকে থাকবে — pool-এ বা পরীক্ষায় যাবে না। আটকে আছে কি না Admin-এর "সম্ভাব্য ডুপ্লিকেট" পেজের "যাচাই চলছে" ফিল্টারে দেখা যায়; ব্যর্থ job `failed_jobs`-এ।
+
+প্রথমবার deploy-এর পরে একবার আগে থেকে থাকা প্রশ্নে খোঁজা: পেজের "আগে থেকে থাকা প্রশ্নে ডুপ্লিকেট খুঁজুন", অথবা SSH থাকলে `php artisan questions:screen-duplicates`।
+
 ### যা `deploy.sh` করে না
 
 **Frontend build।** `public/build` Git-এ যায় না, আর স্ক্রিপ্ট `npm run build` চালায় না। তাই `resources/css` বা `resources/js`-এ কিছু বদলালে:

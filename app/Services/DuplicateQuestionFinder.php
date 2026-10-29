@@ -94,6 +94,61 @@ final class DuplicateQuestionFinder
         return $best;
     }
 
+    /**
+     * Every candidate `$question` duplicates, the most alike first — at
+     * most `$limit` of them.
+     *
+     * @param  iterable<Model>  $candidates
+     * @return list<DuplicateMatch>
+     */
+    public function matches(Model $question, iterable $candidates, int $limit): array
+    {
+        $found = [];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== $question && ($match = $this->compare($question, $candidate))) {
+                $found[] = $match;
+            }
+        }
+
+        usort($found, fn (DuplicateMatch $one, DuplicateMatch $two): int => [$two->isExact, $two->percent] <=> [$one->isExact, $one->percent]);
+
+        return array_slice($found, 0, $limit);
+    }
+
+    /**
+     * What a stored question is looked up by, so that only the few that can
+     * be its duplicates are ever read: its guard (numbers, formulas and
+     * turning words, which must be the same) and its size (how many letter
+     * pieces its question has).
+     *
+     * @return array{guard: string, size: int}
+     */
+    public function fingerprint(Model $question): array
+    {
+        $profile = $this->profile($question);
+
+        return ['guard' => sha1($profile['guard']), 'size' => count($profile['questionGrams'])];
+    }
+
+    /**
+     * The sizes a question of `$size` can be the Admin's percentage alike
+     * to — outside them even complete overlap falls short (likeness()).
+     *
+     * @return array{0: int, 1: int}
+     */
+    public function sizeRange(int $size): array
+    {
+        // Whole numbers throughout, so a size right on the edge is never
+        // lost to rounding.
+        $rest = 200 - $this->similarPercent;
+
+        return [
+            intdiv($size * $this->similarPercent + $rest - 1, $rest),
+            intdiv($size * $rest, max($this->similarPercent, 1)),
+        ];
+    }
+
     public function compare(Model $question, Model $other): ?DuplicateMatch
     {
         $one = $this->profile($question);

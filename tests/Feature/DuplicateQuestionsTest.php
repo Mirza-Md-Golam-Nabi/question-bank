@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Difficulty;
+use App\Enums\DuplicateCheckStatus;
 use App\Enums\PaperSourceType;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
@@ -21,6 +22,7 @@ use App\Models\Question;
 use App\Models\User;
 use App\Services\DuplicateQuestionFinder;
 use App\Services\PastPaperJsonImporter;
+use App\Services\QuestionDuplicateScreening;
 use App\Services\QuestionImportText;
 use App\Services\QuestionJsonImporter;
 use Database\Seeders\RoleSeeder;
@@ -248,7 +250,11 @@ describe('writing one in a form', function () {
     it('saves a possible duplicate only once the box is ticked', function () {
         $form = ($this->form)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions);
 
-        livewire(CreateQuestion::class)->fillForm($form)->call('create')->assertHasFormErrors([DuplicateQuestionCheck::FIELD]);
+        // The question it looks like shows whole under the message — its options and right answer too.
+        livewire(CreateQuestion::class)->fillForm($form)->call('create')
+            ->assertHasFormErrors([DuplicateQuestionCheck::FIELD])
+            ->assertSeeHtml('qb-question-duplicate')
+            ->assertSee('কেলভিন');
         expect(Question::count())->toBe(1);
 
         livewire(CreateQuestion::class)->fillForm([...$form, DuplicateQuestionCheck::FIELD => true])->call('create')->assertHasNoFormErrors();
@@ -317,6 +323,10 @@ it('shows the Admin, when approving, the question already in the chapter it look
     ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, attributes: ['status' => QuestionStatus::Approved]);
     $pending = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions);
     $this->actingAs($this->admin);
+
+    // The background check held it first; the Admin has called it a question of its own.
+    expect($pending->refresh()->duplicate_status)->toBe(DuplicateCheckStatus::Suspected);
+    QuestionDuplicateScreening::keep($pending, $this->admin);
 
     expect(DuplicateQuestionCheck::forApproval($pending))->toHaveCount(1);
 

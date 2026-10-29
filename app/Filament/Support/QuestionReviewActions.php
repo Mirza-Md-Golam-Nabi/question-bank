@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support;
 
+use App\Enums\DuplicateCheckStatus;
 use App\Enums\QuestionStatus;
 use App\Models\Question;
 use App\Models\User;
@@ -177,8 +178,18 @@ class QuestionReviewActions
         $chapterQuestions = [];
 
         foreach ($questions as $question) {
+            $question->refresh();
+
+            // Held by the background duplicate check, for the Admin's word on
+            // the "Possible duplicates" page first.
+            if ($question->status !== QuestionStatus::Approved && $question->duplicate_status !== DuplicateCheckStatus::Clear) {
+                $duplicates++;
+
+                continue;
+            }
+
             // A group's earlier question may have approved this one already.
-            if (! self::canApprove($question->refresh())) {
+            if (! self::canApprove($question)) {
                 continue;
             }
 
@@ -258,6 +269,10 @@ class QuestionReviewActions
         return self::canApprove($record) || self::canReject($record);
     }
 
+    /**
+     * Not one still on the background duplicate check or waiting there for
+     * the Admin's word (QuestionPolicy::approve()).
+     */
     private static function canApprove(Question $record): bool
     {
         return $record->status !== QuestionStatus::Approved && (bool) Auth::user()?->can('approve', $record);

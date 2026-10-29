@@ -3,18 +3,16 @@
 namespace App\Filament\Support\Pages\Questions;
 
 use App\Filament\Support\Concerns\NavigatesAdjacentChapters;
+use App\Filament\Support\Concerns\SwitchesCardAndTableView;
 use App\Filament\Support\QuestionJsonImportAction;
 use App\Filament\Support\StimulusGroupActions;
 use App\Models\Chapter;
-use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\Layout\View;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
-use Livewire\Attributes\Url;
 
 /**
  * The terminal step of the Class → Subject → Chapter drill-down: the
@@ -32,14 +30,9 @@ use Livewire\Attributes\Url;
 abstract class ListQuestionsByChapterPage extends ListRecords
 {
     use NavigatesAdjacentChapters;
+    use SwitchesCardAndTableView;
 
     public Chapter|int|string $chapter;
-
-    /**
-     * 'cards' or 'table' — in the URL, so the choice survives a reload.
-     */
-    #[Url(as: 'view')]
-    public string $display = 'cards';
 
     public function mount(int|string|null $chapter = null): void
     {
@@ -93,20 +86,9 @@ abstract class ListQuestionsByChapterPage extends ListRecords
         return $table;
     }
 
-    public function showsCards(): bool
+    protected function displayUrl(string $display): string
     {
-        return $this->display !== 'table';
-    }
-
-    protected function switchDisplayAction(): Action
-    {
-        $toTable = $this->showsCards();
-
-        return Action::make('switchDisplay')
-            ->label($toTable ? __('Table view') : __('Card view'))
-            ->icon($toTable ? Heroicon::OutlinedTableCells : Heroicon::OutlinedSquares2x2)
-            ->color('gray')
-            ->url(static::getResource()::getUrl('list', ['chapter' => $this->chapter->id, 'view' => $toTable ? 'table' : 'cards']));
+        return static::getResource()::getUrl('list', ['chapter' => $this->chapter->id, 'view' => $display]);
     }
 
     protected function getHeaderActions(): array
