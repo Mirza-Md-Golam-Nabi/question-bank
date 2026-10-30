@@ -309,8 +309,8 @@ class QuestionImportText
             $problems[] = self::singleBackslashProblem();
         }
 
-        if (preg_match('/[\x{0980}-\x{09FF}]/u', $latex)) {
-            $problems[] = __('a formula contains Bangla letters — keep Bangla text outside the $ signs');
+        if (preg_match('/[\x{0980}-\x{09FF}]/u', self::withoutTextArguments($latex))) {
+            $problems[] = __('a formula contains Bangla letters outside \text{…} — write Bangla inside a formula as :example', ['example' => '\\\\text{মোট সরণ}']);
         }
 
         if (mb_strlen($latex) > self::MAX_FORMULA_LENGTH) {
@@ -335,6 +335,41 @@ class QuestionImportText
     private static function singleBackslashProblem(): string
     {
         return __('a backslash was written once — in JSON every backslash of a formula is written twice (:twice, not \frac)', ['twice' => '\\\\frac']);
+    }
+
+    /**
+     * The formula with what is inside its text commands (`\text{…}`,
+     * `\mbox{…}`…) taken out: KaTeX draws that as ordinary text, so Bangla
+     * is fine there — in the maths itself it comes out broken.
+     */
+    private static function withoutTextArguments(string $latex): string
+    {
+        $result = '';
+        $length = strlen($latex);
+        $index = 0;
+
+        while ($index < $length) {
+            if (! preg_match('/\G\\\\(?:text(?:rm|bf|it|sf|tt|normal|up)?|mbox)\s*\{/', $latex, $match, 0, $index)) {
+                $result .= $latex[$index++];
+
+                continue;
+            }
+
+            // Past the argument's closing brace, nested braces included.
+            $index += strlen($match[0]);
+
+            for ($depth = 1; $index < $length && $depth > 0; $index++) {
+                if ($latex[$index] === '\\') {
+                    $index++;
+                } elseif ($latex[$index] === '{') {
+                    $depth++;
+                } elseif ($latex[$index] === '}') {
+                    $depth--;
+                }
+            }
+        }
+
+        return $result;
     }
 
     private static function hasBalancedBraces(string $latex): bool

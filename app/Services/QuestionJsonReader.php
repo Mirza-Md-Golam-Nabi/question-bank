@@ -121,7 +121,7 @@ final class QuestionJsonReader
             $this->withCqAnswers && $this->onlyType !== QuestionType::Mcq
                 ? __('"answer" on a sub-question (may be left out): its answer.')
                 : null,
-            __('Maths: write every formula as LaTeX between $ signs, write every backslash twice (:twice, not \frac), and keep Bangla text outside the $ signs.', ['twice' => '\\\\frac']),
+            __('Maths: write every formula as LaTeX between $ signs, write every backslash twice (:twice, not \frac); Bangla words inside a formula go in :text, other Bangla text outside the $ signs.', ['twice' => '\\\\frac', 'text' => '\\\\text{…}']),
             __('Images: where a question, a stimulus, a CQ sub-question or an option has a figure (a diagram, graph or circuit), crop that figure into an image file of its own and give its file name in "image" — beside the text of a question, a stimulus or a sub-question; an option with a figure is written as an object, {"text": "…", "image": "…"}, its "text" "" when the figure is all of it.'),
             __('Name the image files with English letters, digits and hyphens only, ending in .png, .jpg or .webp, every name different: q12.png for question 12, q12-c.png for its option C, q12-part2.png for its second sub-question, s3.png for the stimulus of question 3.'),
             __('Do not describe a figure in the text or put it inside the text. Give all the image files together in one ZIP, without folders, named exactly as in the JSON.'),

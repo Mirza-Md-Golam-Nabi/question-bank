@@ -6,6 +6,8 @@
 
 ## ২০২৬-১০-৩০
 
+- **JSON-এর সূত্রে বাংলা:** `$…$`-এর ভেতরে `\text{…}`/`\mbox{…}`-এ লেখা বাংলা এখন নেওয়া হয় (যেমন `\frac{\text{মোট সরণ}}{\text{মোট সময়}}`); সূত্রের বাকি অংশে বাংলা থাকলে আগের মতো আটকায়, বার্তায় `\text{…}` লেখার উপায় বলে। AI-এর ফরম্যাট-নির্দেশও সেভাবে বদলানো। → [05-question-bank.md](05-question-bank.md)
+
 - **JSON-এ কিছু বাদ যায় না:** Admin ও Teacher-এর অধ্যায়ের JSON-এ হুবহু বা সম্ভাব্য ডুপ্লিকেটও যোগ হয় (প্রিভিউতে "Admin সিদ্ধান্ত নেবেন", টিকের তালিকা নেই) — পেছনের যাচাই সেগুলো "সম্ভাব্য ডুপ্লিকেট"-এ পাঠায়, বাদ দেওয়া Admin-এর হাতে। School-এর JSON ও প্রশ্নপত্রের JSON আগের মতো (সেগুলো পেছনে যাচাই হয় না)। → [05-question-bank.md](05-question-bank.md)
 - **ক্রম "Oldest" / "Latest":** অধ্যায়ের প্রশ্ন-তালিকা ও "প্রশ্ন বাছাই" picker-এ দুটো বোতাম (`OrdersOldestOrLatest`, `?order=latest`); Filament-এর "Sort by" মেনু আর "Oldest first/Newest first" বাদ। → [05-question-bank.md](05-question-bank.md), [06-exams.md](06-exams.md)
 

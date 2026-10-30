@@ -272,6 +272,7 @@ it('finds what is wrong with a formula', function (string $text) {
     'begin without end' => ['$\begin{matrix} a & b$'],
     'mismatched environments' => ['$\begin{matrix} a \end{pmatrix}$'],
     'Bangla inside a formula' => ['$x = পাঁচ$'],
+    'Bangla after a \text{…}' => ['$\text{বেগ} = দূরত্ব$'],
     'too long' => ['$'.str_repeat('x', QuestionImportText::MAX_FORMULA_LENGTH + 1).'$'],
 ]);
 
@@ -285,6 +286,7 @@ it('finds nothing wrong with well-formed text', function (string $text) {
     'arrows are not \left or \right' => ['$A \leftarrow B \rightarrow C \leftrightarrow D$'],
     'escaped brackets and line breaks' => ['$\{1, 2\} \\\\ \begin{cases} a \\\\ b \end{cases}$'],
     'a literal dollar sign' => ['দাম \$5'],
+    'Bangla in \text{…} inside a formula' => ['গড়বেগ $= \frac{\text{মোট সরণ}}{\mbox{মোট {সময়}}}$'],
 ]);
 
 it('refuses more questions than the admin allows at once', function () {
