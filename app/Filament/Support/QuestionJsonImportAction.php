@@ -132,12 +132,13 @@ class QuestionJsonImportAction
      * `$parse` builds — the images not taken listed by name, each question
      * that is already there, or may be (`$duplicates`), beside the one it
      * looks like, and the possible duplicates to tick to add anyway. When
-     * the Admin is to decide on them instead (`$leavesDuplicatesToAdmin`),
-     * nothing is ticked or left out: the preview only says so.
+     * the Admin is to decide on the questions already there as they are
+     * (`$leavesDuplicatesToAdmin`), those are added rather than left out —
+     * the preview says so — and only the possible duplicates are ticked.
      *
      * @param  Closure(string, Get, ImportedImages): Collection<int, mixed>  $parse  Builds the questions with their images, or throws a ValidationException listing every problem.
      * @param  Closure(Collection<int, mixed>): array<int, DuplicateMatch>  $duplicates  Which of them look like questions already there.
-     * @param  (Closure(): bool)|null  $leavesDuplicatesToAdmin  Whether every question is added, a duplicate waiting for the Admin.
+     * @param  (Closure(): bool)|null  $leavesDuplicatesToAdmin  Whether a question already there as it is is added, waiting for the Admin.
      * @param  array<Component>  $fields
      */
     protected static function configure(Action $action, string $guide, Closure $parse, Closure $duplicates, ?Closure $leavesDuplicatesToAdmin = null, array $fields = []): Action
@@ -205,9 +206,9 @@ class QuestionJsonImportAction
                         CheckboxList::make(self::ACCEPTED_FIELD)
                             ->label(__('Possible duplicates to add anyway'))
                             ->helperText(__('Each is shown above beside the question it looks like. One left unticked is not added.'))
-                            ->options(fn (Get $get, object $livewire): array => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)))
+                            ->options(fn (Get $get, object $livewire): array => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire), $leftToAdmin()))
                             ->allowHtml()
-                            ->visible(fn (Get $get, object $livewire): bool => ! $leftToAdmin() && static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)) !== [])
+                            ->visible(fn (Get $get, object $livewire): bool => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire), $leftToAdmin()) !== [])
                             ->bulkToggleable()
                             ->selectAllAction(fn (Action $action): Action => $action->label(__('Accept all')))
                             ->deselectAllAction(fn (Action $action): Action => $action->label(__('Accept none'))),
@@ -284,12 +285,15 @@ class QuestionJsonImportAction
      * question in the preview above.
      *
      * @param  array{questions: Collection<int, mixed>, matches: array<int, DuplicateMatch>, notTaken: array<string, string>}  $review
+     * @param  bool  $leftToAdmin  Whether the questions already there as they are are added (so not asked about).
      * @return array<int, string>
      */
-    protected static function possibleDuplicateOptions(array $review): array
+    protected static function possibleDuplicateOptions(array $review, bool $leftToAdmin = false): array
     {
+        $matches = $leftToAdmin ? ImportedQuestions::withoutExact($review['matches']) : $review['matches'];
+
         return collect(ImportedQuestions::units($review['questions']))
-            ->filter(fn (array $unit): bool => ImportedQuestions::isPossibleDuplicate($unit, $review['matches']))
+            ->filter(fn (array $unit): bool => ImportedQuestions::isPossibleDuplicate($unit, $matches))
             ->map(fn (array $unit): string => view('filament.support.questions.duplicate-option', [
                 'label' => __('Question :numbers — :percent% alike', [
                     'numbers' => count($unit) > 1 ? ($unit[0] + 1).'–'.(end($unit) + 1) : $unit[0] + 1,

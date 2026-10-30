@@ -88,13 +88,12 @@ class QuestionJsonImporter
     }
 
     /**
-     * Saves the questions of the JSON as the signed-in user's own — every
-     * one of them when they go through the background duplicate check
-     * (QuestionDuplicateScreening), which holds what looks like a question
-     * already there for the Admin. A School's own are not checked there, so
-     * for a School one already there as it is is left out, and a possible
-     * duplicate only added when accepted — a stimulus's questions always
-     * together.
+     * Saves the questions of the JSON as the signed-in user's own. A
+     * possible duplicate is only added when accepted — a stimulus's
+     * questions always together. One already there as it is is added when
+     * it goes through the background duplicate check
+     * (QuestionDuplicateScreening), which holds it for the Admin; a
+     * School's own are not checked there, so for a School it is left out.
      *
      * @param  array<int, int>  $accepted  The possible duplicates to add anyway, by the place of their (unit's first) question.
      * @return array{added: int, skipped: int, possible_duplicates: int}
@@ -107,7 +106,11 @@ class QuestionJsonImporter
 
         $images ??= ImportedImages::none();
         $questions = $this->parse($json, $chapter, $topicId, $defaultDifficulty, $images);
-        $matches = QuestionDuplicateScreening::screensQuestionsBy(Auth::user()) ? [] : $this->duplicates($questions, $chapter);
+        $matches = $this->duplicates($questions, $chapter);
+
+        if (QuestionDuplicateScreening::screensQuestionsBy(Auth::user())) {
+            $matches = ImportedQuestions::withoutExact($matches);
+        }
 
         $result = DB::transaction(fn (): array => ImportedQuestions::save($questions, $matches, $accepted, function (Question $question): void {
             $parts = $question->cqParts;

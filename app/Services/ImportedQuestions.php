@@ -217,6 +217,20 @@ final class ImportedQuestions
     }
 
     /**
+     * The matches without those of questions already there as they are —
+     * for a writer whose questions go through the background duplicate
+     * check (QuestionDuplicateScreening): such a question is added, the
+     * Admin deciding on it, and only the possible duplicates are asked about.
+     *
+     * @param  array<int, DuplicateMatch>  $matches
+     * @return array<int, DuplicateMatch>
+     */
+    public static function withoutExact(array $matches): array
+    {
+        return array_filter($matches, fn (DuplicateMatch $match): bool => ! $match->isExact);
+    }
+
+    /**
      * Saves the questions, each stimulus first. A unit already there is
      * left out; a possible duplicate is added only when the user accepted
      * it (by the place of its first question).

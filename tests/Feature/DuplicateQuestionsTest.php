@@ -132,32 +132,40 @@ describe('adding from JSON', function () {
         $this->import = fn (array $entries, array $accepted = []): array => $this->importer->import(json_encode($entries), $this->chapter, null, Difficulty::Easy, $accepted);
     });
 
-    it('adds every question of a teacher\'s or an Admin\'s JSON, the duplicates held for the Admin', function (string $writer) {
+    it('adds the same question of a teacher\'s or an Admin\'s JSON for the Admin, a possible duplicate only when it is accepted', function (string $writer) {
         $this->actingAs($this->{$writer});
         ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, User::factory()->teacher()->create(), ['status' => QuestionStatus::Approved]);
-
-        expect(($this->import)([
+        $entries = [
             ($this->entry)('নিচের কোনটি মৌলিক রাশি', array_reverse($this->siOptions)),
             ($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions),
             ($this->entry)('একেবারে নতুন প্রশ্ন?', ['ক', 'খ']),
-        ]))->toBe(['added' => 3, 'skipped' => 0, 'possible_duplicates' => 0]);
+        ];
 
-        expect(Question::query()->latest('id')->take(3)->pluck('duplicate_status')->map->value->all())
-            ->toBe([DuplicateCheckStatus::Clear->value, DuplicateCheckStatus::Suspected->value, DuplicateCheckStatus::Suspected->value]);
+        expect(($this->import)($entries))->toBe(['added' => 2, 'skipped' => 0, 'possible_duplicates' => 1]);
+
+        expect(Question::query()->latest('id')->take(2)->pluck('duplicate_status')->map->value->all())
+            ->toBe([DuplicateCheckStatus::Clear->value, DuplicateCheckStatus::Suspected->value]);
+
+        expect(($this->import)($entries, accepted: [1]))->toMatchArray(['possible_duplicates' => 0])
+            ->and(Question::query()->latest('id')->skip(1)->first()->duplicate_status)->toBe(DuplicateCheckStatus::Suspected);
     })->with(['teacher', 'admin']);
 
-    it('says in the preview that a look-alike is added and left to the Admin — nothing to tick', function () {
+    it('says in the preview that the same question is left to the Admin, and asks about a look-alike', function () {
         $this->actingAs($this->teacher);
         ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions);
         Filament::setCurrentPanel(Filament::getPanel('teacher'));
-        $json = json_encode([($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions)]);
+        $json = json_encode([
+            ($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions),
+            ($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions),
+        ]);
 
         livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
             ->mountAction('importQuestionsFromJson')
             ->fillForm(['json' => $json])
             ->assertMountedActionModalSeeHtml('qb-question-duplicate')
             ->assertMountedActionModalSee(__('It will be added; the Admin decides on it under “Possible duplicates”.'))
-            ->assertFormFieldHidden(QuestionJsonImportAction::ACCEPTED_FIELD);
+            ->assertFormFieldVisible(QuestionJsonImportAction::ACCEPTED_FIELD)
+            ->assertMountedActionModalSee(__('Accept all'));
     });
 });
 
