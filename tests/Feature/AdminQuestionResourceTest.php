@@ -588,12 +588,16 @@ describe('a chapter\'s question list', function () {
     it('lists the questions oldest first, either view, and latest first on "Latest"', function (string $display) {
         Livewire::withQueryParams(['view' => $display]);
 
+        // The dropdown says the order in use, changed in the same request.
         livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
             ->assertCanSeeTableRecords($this->questions, inOrder: true)
+            ->assertSee(__('Sort by: :order', ['order' => __('Oldest')]))
             ->callAction(TestAction::make('latest')->table())
             ->assertSet('order', 'latest')
+            ->assertSee(__('Sort by: :order', ['order' => __('Latest')]))
             ->assertCanSeeTableRecords($this->questions->reverse(), inOrder: true)
             ->callAction(TestAction::make('oldest')->table())
+            ->assertSee(__('Sort by: :order', ['order' => __('Oldest')]))
             ->assertCanSeeTableRecords($this->questions, inOrder: true);
     })->with(['cards', 'table']);
 

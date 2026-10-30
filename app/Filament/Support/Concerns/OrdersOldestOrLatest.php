@@ -41,7 +41,9 @@ trait OrdersOldestOrLatest
     public function orderDropdown(): ActionGroup
     {
         return ActionGroup::make([$this->oldestAction(), $this->latestAction()])
-            ->label(__('Sort by: :order', ['order' => $this->order === 'latest' ? __('Latest') : __('Oldest')]))
+            // Read when drawn, not when built: the table is built before an
+            // order chosen in the same request takes effect.
+            ->label(fn (): string => __('Sort by: :order', ['order' => $this->order === 'latest' ? __('Latest') : __('Oldest')]))
             ->icon('heroicon-m-arrows-up-down')
             ->color('gray')
             ->button();
@@ -53,7 +55,7 @@ trait OrdersOldestOrLatest
             ->label($label)
             ->icon($icon)
             ->size('sm')
-            ->color($this->order === $order ? 'primary' : 'gray')
+            ->color(fn (): string => $this->order === $order ? 'primary' : 'gray')
             ->action(function () use ($order): void {
                 $this->order = $order;
                 $this->resetPage();
