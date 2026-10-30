@@ -68,13 +68,14 @@
 
 ### Cron (queue চালানোর জন্য, একবার বসাতে হয়)
 
-পেছনের ডুপ্লিকেট যাচাই queue-তে চলে (`QUEUE_CONNECTION=database`)। shared hosting-এ সবসময় চলা worker রাখা যায় না, তাই cPanel → Cron Jobs-এ প্রতি মিনিটে:
+পেছনের ডুপ্লিকেট যাচাই queue-তে চলে (`QUEUE_CONNECTION=database`)। Worker চালায় cPanel → Cron Jobs-এর একটা লাইন, সাইটপ্রতি একটা (লাইভ ও টেস্ট আলাদা lock ফাইলে) — প্রতি মিনিটে চেষ্টা করে, কিন্তু `flock` একটা চলার সময় আরেকটা শুরু হতে দেয় না; worker ~৫৫ মিনিট পর নিজে থামে, পরের মিনিটে নতুনটা শুরু হয়:
 
 ```
-* * * * * cd /home/<user>/<app-folder> && php artisan schedule:run >> /dev/null 2>&1
+* * * * * /usr/bin/flock -n /tmp/nextfusi_queue_qbank.lock /usr/local/bin/ea-php83 /home/nextfusi/qbank.nextfusion.top/artisan queue:work --max-time=3330 --tries=3 --sleep=1 --timeout=600 >> /home/nextfusi/qbank.nextfusion.top/storage/logs/queue-worker.log 2>&1
+* * * * * /usr/bin/flock -n /tmp/nextfusi_queue_qbank_test.lock /usr/local/bin/ea-php83 /home/nextfusi/qbank-test.nextfusion.top/artisan queue:work --max-time=3330 --tries=3 --sleep=1 --timeout=600 >> /home/nextfusi/qbank-test.nextfusion.top/storage/logs/queue-worker.log 2>&1
 ```
 
-Scheduler (`routes/console.php`) প্রতি মিনিটে `queue:work --stop-when-empty` চালায়, queue খালি হলে থেমে যায়; একটা চলার সময় আরেকটা শুরু হয় না। Cron না বসালে নতুন প্রশ্ন "ডুপ্লিকেট যাচাই চলছে"-তে আটকে থাকবে — pool-এ বা পরীক্ষায় যাবে না। আটকে আছে কি না Admin-এর "সম্ভাব্য ডুপ্লিকেট" পেজের "যাচাই চলছে" ফিল্টারে দেখা যায়; ব্যর্থ job `failed_jobs`-এ।
+`--timeout=600` লাগে, কারণ আগে থেকে থাকা প্রশ্নে খোঁজার job (অধ্যায়প্রতি) বড় অধ্যায়ে ৬০ সেকেন্ডের বেশি নিতে পারে। কোনো scheduled কাজ নেই, তাই `schedule:run` লাগে না। Cron না বসালে নতুন প্রশ্ন "ডুপ্লিকেট যাচাই চলছে"-তে আটকে থাকবে — pool-এ বা পরীক্ষায় যাবে না। আটকে আছে কি না Admin-এর "সম্ভাব্য ডুপ্লিকেট" পেজের "যাচাই চলছে" ফিল্টারে দেখা যায়; ব্যর্থ job `failed_jobs`-এ।
 
 প্রথমবার deploy-এর পরে একবার আগে থেকে থাকা প্রশ্নে খোঁজা: পেজের "আগে থেকে থাকা প্রশ্নে ডুপ্লিকেট খুঁজুন", অথবা SSH থাকলে `php artisan questions:screen-duplicates`।
 
