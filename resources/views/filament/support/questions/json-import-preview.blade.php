@@ -11,12 +11,13 @@
      * @var \Illuminate\Support\Collection<int, \App\Models\Question|\App\Models\BoardMcqQuestion|\App\Models\BoardCqQuestion> $questions
      * @var array<int, \App\Services\DuplicateMatch> $matches  By the question's place in $questions.
      * @var array<string, string> $notTaken  The images given but not taken, by file name, with why.
+     * @var bool $leftToAdmin  Whether every question is added, one that looks like a question already there waiting for the Admin.
      */
     $unrenderableMessage = __(':count formula(s) could not be drawn — they are shown in red.');
 
     // The places of the questions left out without asking: all of their
-    // unit is already there.
-    $alreadyThere = collect(\App\Services\ImportedQuestions::units($questions))
+    // unit is already there — none when the Admin decides.
+    $alreadyThere = $leftToAdmin ? [] : collect(\App\Services\ImportedQuestions::units($questions))
         ->filter(fn (array $unit): bool => \App\Services\ImportedQuestions::isAlreadyThere($unit, $matches))
         ->flatten()
         ->all();
@@ -84,7 +85,11 @@
                         <x-question-duplicate
                             :match="$match"
                             :earlier-number="$earlier === false ? null : $earlier + 1"
-                            :note="in_array($number - 1, $alreadyThere, strict: true) ? __('It will not be added.') : null"
+                            :note="match (true) {
+                                $leftToAdmin => __('It will be added; the Admin decides on it under “Possible duplicates”.'),
+                                in_array($number - 1, $alreadyThere, strict: true) => __('It will not be added.'),
+                                default => null,
+                            }"
                         />
                     @endif
                 </div>

@@ -1455,5 +1455,10 @@
     "A duplicate of a question already in the chapter.": "অধ্যায়ে আগে থেকে থাকা একটা প্রশ্নের ডুপ্লিকেট।",
     "The new question": "নতুন প্রশ্ন",
     "Questions already there it looks like": "আগে থেকে থাকা যেসব প্রশ্নের সাথে মেলে",
-    "The questions it looked like are no longer there.": "যে প্রশ্নগুলোর সাথে মিলেছিল সেগুলো আর নেই।"
+    "The questions it looked like are no longer there.": "যে প্রশ্নগুলোর সাথে মিলেছিল সেগুলো আর নেই।",
+    "ID": "আইডি",
+    "Oldest": "পুরনো",
+    "Latest": "নতুন",
+    "It will be added; the Admin decides on it under “Possible duplicates”.": "এটা যোগ হবে; Admin “সম্ভাব্য ডুপ্লিকেট”-এ এর সিদ্ধান্ত নেবেন।",
+    "Sort by: :order": "সাজানো: :order"
 }

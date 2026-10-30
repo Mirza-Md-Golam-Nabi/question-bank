@@ -2,6 +2,7 @@
 
 use App\Enums\CqPartType;
 use App\Enums\Difficulty;
+use App\Enums\DuplicateCheckStatus;
 use App\Enums\EditorMode;
 use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
@@ -306,7 +307,18 @@ it('refuses a topic of another chapter', function () {
     expect(Question::count())->toBe(0);
 });
 
-it('leaves out a question the user already has in the chapter, or that is pasted twice', function () {
+it('adds a question the teacher already has in the chapter, or pastes twice — held for the Admin, not left out', function () {
+    ($this->import)([($this->mcq)()]);
+
+    $result = ($this->import)([($this->mcq)(), ($this->mcq)(['question' => 'নতুন?']), ($this->mcq)(['question' => 'নতুন?'])]);
+
+    expect($result)->toBe(['added' => 3, 'skipped' => 0, 'possible_duplicates' => 0])
+        ->and(Question::count())->toBe(4)
+        ->and(Question::query()->where('duplicate_status', DuplicateCheckStatus::Suspected)->count())->toBe(2);
+});
+
+it('leaves out a question a School already has in the chapter, or that is pasted twice', function () {
+    $this->actingAs(User::factory()->school()->create());
     ($this->import)([($this->mcq)()]);
 
     $result = ($this->import)([($this->mcq)(), ($this->mcq)(['question' => 'নতুন?']), ($this->mcq)(['question' => 'নতুন?'])]);

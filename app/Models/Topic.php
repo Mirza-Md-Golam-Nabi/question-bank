@@ -23,4 +23,19 @@ class Topic extends Model
     {
         return $this->hasMany(Question::class);
     }
+
+    /**
+     * A chapter's topics in their order, as select options — none when no
+     * chapter is given.
+     *
+     * @return array<int, string>
+     */
+    public static function optionsFor(int|string|null $chapterId): array
+    {
+        if (blank($chapterId)) {
+            return [];
+        }
+
+        return self::query()->where('chapter_id', $chapterId)->ordered()->pluck('name', 'id')->all();
+    }
 }

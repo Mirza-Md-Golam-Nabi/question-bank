@@ -3,13 +3,18 @@
 namespace App\Filament\Support\Pages\Questions;
 
 use App\Filament\Support\Concerns\NavigatesAdjacentChapters;
+use App\Filament\Support\Concerns\OrdersOldestOrLatest;
 use App\Filament\Support\Concerns\SwitchesCardAndTableView;
 use App\Filament\Support\QuestionJsonImportAction;
 use App\Filament\Support\StimulusGroupActions;
 use App\Models\Chapter;
+use App\Models\Topic;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Tables\Columns\Layout\View;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,6 +35,7 @@ use Illuminate\Database\Eloquent\Builder;
 abstract class ListQuestionsByChapterPage extends ListRecords
 {
     use NavigatesAdjacentChapters;
+    use OrdersOldestOrLatest;
     use SwitchesCardAndTableView;
 
     public Chapter|int|string $chapter;
@@ -70,7 +76,22 @@ abstract class ListQuestionsByChapterPage extends ListRecords
             // By what the question says (and its topic) in both views — the
             // card view has no columns of its own to search by.
             ->searchable()
-            ->searchUsing(fn (Builder $query, string $search) => $query->matching($search));
+            ->searchUsing(fn (Builder $query, string $search) => $query->matching($search))
+            // By ID, the oldest or the latest first (the dropdown in the
+            // table's toolbar, beside the search). Never the whole chapter on
+            // one page.
+            ->defaultSort(fn (Builder $query): Builder => $query->orderBy($query->qualifyColumn('id'), $this->orderDirection()))
+            ->pushToolbarActions([$this->orderDropdown()])
+            ->paginationPageOptions([10, 25, 50])
+            ->pushFilters([
+                SelectFilter::make('topic_id')
+                    ->label(__('Topic'))
+                    ->placeholder(__('All topics'))
+                    ->options(Topic::optionsFor($this->chapter->id)),
+            ])
+            // Open above the list, each applied the moment it is picked.
+            ->filtersLayout(FiltersLayout::AboveContent)
+            ->deferFilters(false);
 
         // Every row here shares the one class, subject, and chapter already
         // named in the breadcrumbs, so those columns would only repeat
@@ -79,16 +100,16 @@ abstract class ListQuestionsByChapterPage extends ListRecords
         $table->getColumn('chapter.classSubject.subject.name')?->hidden();
         $table->getColumn('chapter.name')?->hidden();
 
-        if ($this->showsCards()) {
-            $table->columns([View::make('filament.support.questions.question-table-card')]);
-        }
+        $table->columns($this->showsCards()
+            ? [View::make('filament.support.questions.question-table-card')]
+            : [TextColumn::make('id')->label(__('ID')), ...$table->getColumnsLayout()]);
 
         return $table;
     }
 
     protected function displayUrl(string $display): string
     {
-        return static::getResource()::getUrl('list', ['chapter' => $this->chapter->id, 'view' => $display]);
+        return static::getResource()::getUrl('list', ['chapter' => $this->chapter->id, 'view' => $display, 'order' => $this->order]);
     }
 
     protected function getHeaderActions(): array

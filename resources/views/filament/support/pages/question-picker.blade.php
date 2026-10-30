@@ -114,6 +114,10 @@
                                 </p>
 
                                 <div class="flex flex-wrap items-center gap-2">
+                                    {{-- The list by ID, the oldest or the latest first. --}}
+                                    {{ $this->oldestAction }}
+                                    {{ $this->latestAction }}
+
                                     {{-- Picks from every page of the list (one request), up to
                                          the number of questions still asked for. --}}
                                     <x-filament::button

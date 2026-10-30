@@ -181,3 +181,15 @@ it('asks for the class first, and for a plan', function () {
 
     livewire(BuildPracticeExam::class)->assertSee(__('You need a plan to practise'));
 });
+
+it('lists the questions oldest first, and latest first on "Latest"', function () {
+    $questions = collect(range(1, 3))->map(fn () => ($this->mcq)());
+
+    $page = livewire(BuildPracticeExam::class)->set('data', ($this->filters)());
+
+    expect(($this->listedIds)($page))->toBe($questions->pluck('id')->all());
+
+    $page->callAction('latest');
+
+    expect(($this->listedIds)($page))->toBe($questions->pluck('id')->reverse()->values()->all());
+});

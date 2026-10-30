@@ -11,6 +11,7 @@ use App\Services\DuplicateMatch;
 use App\Services\ImportedImages;
 use App\Services\ImportedQuestions;
 use App\Services\PastPaperJsonImporter;
+use App\Services\QuestionDuplicateScreening;
 use App\Services\QuestionJsonImporter;
 use App\Services\QuestionJsonReader;
 use Closure;
@@ -66,6 +67,7 @@ class QuestionJsonImportAction
             guide: QuestionJsonImporter::formatGuide(),
             parse: fn (string $json, Get $get, ImportedImages $images): Collection => $importer->parse($json, $chapter, $get('topic_id'), static::difficulty($get('difficulty')), $images),
             duplicates: fn (Collection $questions): array => $importer->duplicates($questions, $chapter),
+            leavesDuplicatesToAdmin: fn (): bool => QuestionDuplicateScreening::screensQuestionsBy(auth()->user()),
             fields: [
                 // The topic select lists the topics of whichever
                 // chapter the form names.
@@ -129,14 +131,19 @@ class QuestionJsonImportAction
      * (checked by `$parse`), and a preview step showing the questions
      * `$parse` builds — the images not taken listed by name, each question
      * that is already there, or may be (`$duplicates`), beside the one it
-     * looks like, and the possible duplicates to tick to add anyway.
+     * looks like, and the possible duplicates to tick to add anyway. When
+     * the Admin is to decide on them instead (`$leavesDuplicatesToAdmin`),
+     * nothing is ticked or left out: the preview only says so.
      *
      * @param  Closure(string, Get, ImportedImages): Collection<int, mixed>  $parse  Builds the questions with their images, or throws a ValidationException listing every problem.
      * @param  Closure(Collection<int, mixed>): array<int, DuplicateMatch>  $duplicates  Which of them look like questions already there.
+     * @param  (Closure(): bool)|null  $leavesDuplicatesToAdmin  Whether every question is added, a duplicate waiting for the Admin.
      * @param  array<Component>  $fields
      */
-    protected static function configure(Action $action, string $guide, Closure $parse, Closure $duplicates, array $fields = []): Action
+    protected static function configure(Action $action, string $guide, Closure $parse, Closure $duplicates, ?Closure $leavesDuplicatesToAdmin = null, array $fields = []): Action
     {
+        $leftToAdmin = fn (): bool => $leavesDuplicatesToAdmin !== null && $leavesDuplicatesToAdmin();
+
         return $action
             ->label(__('Add from JSON'))
             ->icon(Heroicon::OutlinedCodeBracket)
@@ -187,7 +194,7 @@ class QuestionJsonImportAction
                         ViewField::make('unrenderable_formulas')
                             ->hiddenLabel()
                             ->view('filament.support.questions.json-import-preview')
-                            ->viewData(fn (Get $get, object $livewire): array => static::review($parse, $duplicates, $get, $livewire))
+                            ->viewData(fn (Get $get, object $livewire): array => [...static::review($parse, $duplicates, $get, $livewire), 'leftToAdmin' => $leftToAdmin()])
                             ->default(0)
                             ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail) {
                                 if ((int) $value > 0) {
@@ -200,7 +207,7 @@ class QuestionJsonImportAction
                             ->helperText(__('Each is shown above beside the question it looks like. One left unticked is not added.'))
                             ->options(fn (Get $get, object $livewire): array => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)))
                             ->allowHtml()
-                            ->visible(fn (Get $get, object $livewire): bool => static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)) !== [])
+                            ->visible(fn (Get $get, object $livewire): bool => ! $leftToAdmin() && static::possibleDuplicateOptions(static::review($parse, $duplicates, $get, $livewire)) !== [])
                             ->bulkToggleable()
                             ->selectAllAction(fn (Action $action): Action => $action->label(__('Accept all')))
                             ->deselectAllAction(fn (Action $action): Action => $action->label(__('Accept none'))),

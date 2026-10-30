@@ -128,6 +128,47 @@ describe('telling a duplicate', function () {
 
 describe('adding from JSON', function () {
     beforeEach(function () {
+        $this->importer = app(QuestionJsonImporter::class);
+        $this->import = fn (array $entries, array $accepted = []): array => $this->importer->import(json_encode($entries), $this->chapter, null, Difficulty::Easy, $accepted);
+    });
+
+    it('adds every question of a teacher\'s or an Admin\'s JSON, the duplicates held for the Admin', function (string $writer) {
+        $this->actingAs($this->{$writer});
+        ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, User::factory()->teacher()->create(), ['status' => QuestionStatus::Approved]);
+
+        expect(($this->import)([
+            ($this->entry)('নিচের কোনটি মৌলিক রাশি', array_reverse($this->siOptions)),
+            ($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions),
+            ($this->entry)('একেবারে নতুন প্রশ্ন?', ['ক', 'খ']),
+        ]))->toBe(['added' => 3, 'skipped' => 0, 'possible_duplicates' => 0]);
+
+        expect(Question::query()->latest('id')->take(3)->pluck('duplicate_status')->map->value->all())
+            ->toBe([DuplicateCheckStatus::Clear->value, DuplicateCheckStatus::Suspected->value, DuplicateCheckStatus::Suspected->value]);
+    })->with(['teacher', 'admin']);
+
+    it('says in the preview that a look-alike is added and left to the Admin — nothing to tick', function () {
+        $this->actingAs($this->teacher);
+        ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions);
+        Filament::setCurrentPanel(Filament::getPanel('teacher'));
+        $json = json_encode([($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions)]);
+
+        livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+            ->mountAction('importQuestionsFromJson')
+            ->fillForm(['json' => $json])
+            ->assertMountedActionModalSeeHtml('qb-question-duplicate')
+            ->assertMountedActionModalSee(__('It will be added; the Admin decides on it under “Possible duplicates”.'))
+            ->assertFormFieldHidden(QuestionJsonImportAction::ACCEPTED_FIELD);
+    });
+});
+
+/**
+ * A School's own questions are never checked in the background nor seen by
+ * the Admin (CLAUDE.md rule 12), so its JSON still leaves out the same
+ * question and asks about a look-alike.
+ */
+describe('adding from JSON as a School', function () {
+    beforeEach(function () {
+        $this->teacher = User::factory()->school()->create();
         $this->actingAs($this->teacher);
         $this->importer = app(QuestionJsonImporter::class);
         $this->import = fn (array $entries, array $accepted = []): array => $this->importer->import(json_encode($entries), $this->chapter, null, Difficulty::Easy, $accepted);
@@ -173,7 +214,7 @@ describe('adding from JSON', function () {
         expect(($this->import)([$group]))->toBe(['added' => 0, 'skipped' => 2, 'possible_duplicates' => 0]);
     });
 
-    it('only holds a teacher\'s question against questions that teacher may see', function () {
+    it('only holds a School\'s question against questions that School may see', function () {
         ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, User::factory()->teacher()->create());
 
         expect(($this->import)([($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions)]))->toBe(['added' => 1, 'skipped' => 0, 'possible_duplicates' => 0]);
@@ -181,7 +222,7 @@ describe('adding from JSON', function () {
 
     it('shows a possible duplicate beside the question it looks like, to add with "Accept all"', function () {
         ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions);
-        Filament::setCurrentPanel(Filament::getPanel('teacher'));
+        Filament::setCurrentPanel(Filament::getPanel('school'));
         $json = json_encode([($this->entry)('নিচের কোনটি মৌলিক রাশি?', $this->nearOptions)]);
 
         livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
@@ -200,6 +241,9 @@ describe('adding from JSON', function () {
         expect(Question::count())->toBe(2);
     });
 
+    // Past papers are not checked in the background either — the same
+    // question coming back in other years is what they are — so a paper's
+    // JSON still leaves out the same question and asks about a look-alike.
     it('works the same on a past paper, against that paper\'s list', function () {
         $paper = BoardQuestionPaper::factory()->admission(PaperSourceType::Medical)->create(['created_by' => $this->admin->id]);
         $this->actingAs($this->admin);

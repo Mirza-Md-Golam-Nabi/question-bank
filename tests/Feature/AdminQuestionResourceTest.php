@@ -576,3 +576,36 @@ it('searches a chapter\'s questions in the card view by their text, stimulus or 
         ->assertCanSeeTableRecords([$byTopic])
         ->assertCanNotSeeTableRecords([$byText, $byStimulus, $other]);
 });
+
+describe('a chapter\'s question list', function () {
+    beforeEach(function () {
+        $this->topic = Topic::create(['chapter_id' => $this->chapter->id, 'name' => 'Vectors', 'order_index' => 1]);
+        $this->questions = collect(range(1, 3))->map(fn (int $i) => Question::factory()->for($this->chapter)->create([
+            'topic_id' => $i === 2 ? $this->topic->id : null,
+        ]));
+    });
+
+    it('lists the questions oldest first, either view, and latest first on "Latest"', function (string $display) {
+        Livewire::withQueryParams(['view' => $display]);
+
+        livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+            ->assertCanSeeTableRecords($this->questions, inOrder: true)
+            ->callAction(TestAction::make('latest')->table())
+            ->assertSet('order', 'latest')
+            ->assertCanSeeTableRecords($this->questions->reverse(), inOrder: true)
+            ->callAction(TestAction::make('oldest')->table())
+            ->assertCanSeeTableRecords($this->questions, inOrder: true);
+    })->with(['cards', 'table']);
+
+    it('narrows the list to one topic of the chapter', function () {
+        livewire(ListQuestions::class, ['chapter' => $this->chapter->id])
+            ->filterTable('topic_id', $this->topic->id)
+            ->assertCanSeeTableRecords([$this->questions[1]])
+            ->assertCanNotSeeTableRecords([$this->questions[0], $this->questions[2]]);
+    });
+
+    it('never offers the whole chapter on one page', function () {
+        expect(livewire(ListQuestions::class, ['chapter' => $this->chapter->id])->instance()->getTable()->getPaginationPageOptions())
+            ->toBe([10, 25, 50]);
+    });
+});

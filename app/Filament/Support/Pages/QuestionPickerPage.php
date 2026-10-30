@@ -4,6 +4,7 @@ namespace App\Filament\Support\Pages;
 
 use App\Enums\ExamDeliveryMode;
 use App\Enums\QuestionType;
+use App\Filament\Support\Concerns\OrdersOldestOrLatest;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Filament\Support\ContentHierarchySchema;
 use App\Models\Chapter;
@@ -44,6 +45,7 @@ use Livewire\WithPagination;
  */
 abstract class QuestionPickerPage extends Page
 {
+    use OrdersOldestOrLatest;
     use TranslatesPageLabels;
     use WithPagination;
 
@@ -343,15 +345,18 @@ abstract class QuestionPickerPage extends Page
     #[Computed]
     public function questions(): ?LengthAwarePaginator
     {
+        $direction = $this->orderDirection();
+
         return $this->filteredQuestions()
             ?->with(['topic:id,name', 'cqParts', 'stimulus'])
             // 'mcq' sorts after 'cq', so descending lists MCQ first.
             ->orderByDesc('question_type')
-            // The questions of one stimulus side by side, where the first
-            // of them would stand, in their own order.
-            ->orderByRaw('coalesce((select min(grouped.id) from questions as grouped where grouped.stimulus_id = questions.stimulus_id), questions.id)')
+            // By ID, the oldest or the latest first; the questions of one
+            // stimulus side by side, where the first of them would stand,
+            // in their own order.
+            ->orderByRaw("coalesce((select min(grouped.id) from questions as grouped where grouped.stimulus_id = questions.stimulus_id), questions.id) {$direction}")
             ->orderBy('questions.stimulus_order')
-            ->orderBy('questions.id')
+            ->orderBy('questions.id', $direction)
             ->paginate(self::QUESTIONS_PER_PAGE);
     }
 

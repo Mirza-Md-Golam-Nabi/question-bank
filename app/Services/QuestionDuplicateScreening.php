@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DuplicateCheckStatus;
+use App\Enums\UserRole;
 use App\Jobs\ScreenChapterForDuplicates;
 use App\Jobs\ScreenQuestionForDuplicates;
 use App\Models\Question;
@@ -58,6 +59,17 @@ final class QuestionDuplicateScreening
         }
 
         ScreenQuestionForDuplicates::dispatch($question->id)->afterCommit();
+    }
+
+    /**
+     * Whether what this user writes is checked here — everyone's but a
+     * School's, whose questions are its own (CLAUDE.md rule 12). Such a
+     * writer's JSON is added whole: whatever looks like a question already
+     * there waits for the Admin's word instead of being left out.
+     */
+    public static function screensQuestionsBy(User $writer): bool
+    {
+        return $writer->role !== UserRole::School;
     }
 
     /**

@@ -69,10 +69,7 @@ class ContentHierarchySchema
     {
         return Select::make('topic_id')
             ->label(__('Topic'))
-            ->options(fn (Get $get) => Topic::query()
-                ->where('chapter_id', $get('chapter_id'))
-                ->ordered()
-                ->pluck('name', 'id'));
+            ->options(fn (Get $get): array => Topic::optionsFor($get('chapter_id')));
     }
 
     /**
