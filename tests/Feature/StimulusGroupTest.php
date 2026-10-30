@@ -25,6 +25,8 @@ use App\Services\TeacherExamBuilder;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 use function Pest\Livewire\livewire;
@@ -170,6 +172,22 @@ describe('a stimulus group in the question bank', function () {
             ->assertActionVisible(TestAction::make('editStimulusGroup')->table($question));
 
         livewire(TeacherEditQuestion::class, ['record' => $question->id])->assertRedirect();
+    });
+
+    it('may be only its image, but not empty', function () {
+        Storage::fake('public');
+        $this->actingAs($this->teacher);
+        Filament::setCurrentPanel(Filament::getPanel('teacher'));
+
+        livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+            ->callAction('createStimulusGroup', data: ($this->form)(overrides: ['question_text' => null]))
+            ->assertHasFormErrors(['question_text' => 'required']);
+
+        livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+            ->callAction('createStimulusGroup', data: ($this->form)(overrides: ['question_text' => null, 'question_image' => UploadedFile::fake()->image('s44.png')]))
+            ->assertHasNoFormErrors();
+
+        expect(QuestionStimulus::sole())->text->toBe('')->image->not->toBeNull();
     });
 });
 

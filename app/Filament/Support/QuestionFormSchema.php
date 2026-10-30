@@ -107,8 +107,9 @@ class QuestionFormSchema
      * live preview of both.
      *
      * @param  string|null  $label  Null: "Stimulus" for a CQ, "Question text" otherwise (by the form's `question_type`).
+     * @param  bool  $textOrImage  Whether the image alone is enough (a shared stimulus that is only its figure).
      */
-    public static function textImageAndPreview(string $imageDirectory, ?string $label = null): Group
+    public static function textImageAndPreview(string $imageDirectory, ?string $label = null, bool $textOrImage = false): Group
     {
         return Group::make()
             ->schema([
@@ -118,7 +119,7 @@ class QuestionFormSchema
                         // Before the form is filled (as in an action's
                         // modal) the radio's own default applies, so the
                         // text never starts in the other editor's format.
-                        static::questionTextComponent($get('editor_mode') ?? EditorModePreference::for(auth()->user()), $label),
+                        static::questionTextComponent($get('editor_mode') ?? EditorModePreference::for(auth()->user()), $label, $textOrImage),
                     ]),
 
                 FileUpload::make('question_image')
@@ -238,7 +239,7 @@ class QuestionFormSchema
     /**
      * The question text in the editor the `editor_mode` radio picked.
      */
-    protected static function questionTextComponent(EditorMode $editorMode, ?string $label = null): Component
+    protected static function questionTextComponent(EditorMode $editorMode, ?string $label = null, bool $textOrImage = false): Component
     {
         $component = static::textEditor($editorMode, 'question_text');
 
@@ -251,7 +252,7 @@ class QuestionFormSchema
 
         return $component
             ->label(fn (Get $get) => $label ?? ($get('question_type') === QuestionType::Cq ? __('Stimulus') : __('Question text')))
-            ->required();
+            ->required(fn (Get $get): bool => ! $textOrImage || blank($get('question_image')));
     }
 
     /**

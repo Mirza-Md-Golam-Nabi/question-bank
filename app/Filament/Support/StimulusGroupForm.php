@@ -46,7 +46,7 @@ class StimulusGroupForm
     {
         return [
             Grid::make(4)->columnSpanFull()->schema([
-                QuestionFormSchema::textImageAndPreview("{$imageDirectory}-stimuli", __('Stimulus'))->columnSpan(2),
+                QuestionFormSchema::textImageAndPreview("{$imageDirectory}-stimuli", __('Stimulus'), textOrImage: true)->columnSpan(2),
 
                 Group::make()
                     ->columnSpan(2)
@@ -143,7 +143,8 @@ class StimulusGroupForm
     public static function stimulus(array $data): array
     {
         return [
-            'text' => $data['question_text'],
+            // A stimulus that is only its figure has no text.
+            'text' => $data['question_text'] ?? '',
             'image' => $data['question_image'] ?? null,
             'editor_mode' => $data['editor_mode'],
         ];

@@ -121,6 +121,24 @@ it('checks an explanation like any other text', function () {
     expect(Question::count())->toBe(0);
 });
 
+it('takes a stimulus that is only its image, but not one with neither text nor image', function () {
+    $group = fn (array $stimulus): array => [[...$stimulus, 'questions' => [
+        ($this->mcq)(['question' => 'উদ্দীপকের প্রথম প্রশ্ন?']),
+        ($this->mcq)(['question' => 'উদ্দীপকের দ্বিতীয় প্রশ্ন?']),
+    ]]];
+
+    expect(($this->problems)($group(['stimulus' => '', 'image' => null])))->toHaveCount(1);
+
+    $json = json_encode($group(['stimulus' => '', 'image' => 's44.png']));
+    $result = $this->importer->import($json, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($json));
+
+    $stimulus = Question::with('stimulus')->first()->stimulus;
+
+    expect($result['added'])->toBe(2)
+        ->and($stimulus->text)->toBe('')
+        ->and($stimulus->image)->not->toBeNull();
+});
+
 it('approves an admin\'s imported questions straight away, like the ones typed into the form', function () {
     $this->actingAs(User::factory()->admin()->create());
 

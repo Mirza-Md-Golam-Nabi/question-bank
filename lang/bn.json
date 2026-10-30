@@ -1039,7 +1039,7 @@
     "New stimulus with MCQs": "উদ্দীপকসহ MCQ",
     "Edit stimulus and its questions": "উদ্দীপক ও তার প্রশ্ন এডিট",
     "Write the stimulus once, then the questions that use it. The paper heads them with their numbers itself (\"Read the stimulus below and answer questions 5 and 6\").": "উদ্দীপক একবার লিখুন, তারপর তার প্রশ্নগুলো। প্রশ্নপত্রে নম্বরসহ শিরোনাম (\"নিচের উদ্দীপকটি পড়ে ৫ ও ৬ নম্বর প্রশ্নের উত্তর দাও\") নিজে থেকেই বসবে।",
-    "MCQs that share a stimulus go in one object: \"stimulus\" is its text, and \"questions\" lists :min to :max MCQs. Do not write \"answer questions 42 and 43\" — the paper numbers them itself.": "একই উদ্দীপকের MCQ-গুলো একটা object-এ: \"stimulus\" উদ্দীপকের লেখা, আর \"questions\"-এ :min থেকে :maxটি MCQ। \"৪২ ও ৪৩ নম্বর প্রশ্নের উত্তর দাও\" লিখবেন না — নম্বর প্রশ্নপত্র নিজেই বসায়।",
+    "MCQs that share a stimulus go in one object: \"stimulus\" is its text (\"\" when its \"image\" is all of it), and \"questions\" lists :min to :max MCQs. Do not write \"answer questions 42 and 43\" — the paper numbers them itself.": "একই উদ্দীপকের MCQ-গুলো একটা object-এ: \"stimulus\" উদ্দীপকের লেখা (শুধু \"image\" দিয়েই উদ্দীপক হলে \"\"), আর \"questions\"-এ :min থেকে :maxটি MCQ। \"৪২ ও ৪৩ নম্বর প্রশ্নের উত্তর দাও\" লিখবেন না — নম্বর প্রশ্নপত্র নিজেই বসায়।",
     "the stimulus": "উদ্দীপক",
     "\"questions\" of a stimulus must be a list of :min to :max MCQs": "উদ্দীপকের \"questions\"-এ :min থেকে :maxটি MCQ-এর তালিকা থাকতে হবে",
     "only MCQs can share a stimulus": "শুধু MCQ-ই উদ্দীপক ভাগ করতে পারে",

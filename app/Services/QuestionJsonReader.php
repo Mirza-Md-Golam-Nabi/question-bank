@@ -116,7 +116,7 @@ final class QuestionJsonReader
                 ? __('"explanation" (optional — leave it out or empty when there is none): why the answer is the right one.')
                 : null,
             $this->onlyType !== QuestionType::Cq
-                ? __('MCQs that share a stimulus go in one object: "stimulus" is its text, and "questions" lists :min to :max MCQs. Do not write "answer questions 42 and 43" — the paper numbers them itself.', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])
+                ? __('MCQs that share a stimulus go in one object: "stimulus" is its text ("" when its "image" is all of it), and "questions" lists :min to :max MCQs. Do not write "answer questions 42 and 43" — the paper numbers them itself.', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])
                 : null,
             $this->withCqAnswers && $this->onlyType !== QuestionType::Mcq
                 ? __('"answer" on a sub-question (may be left out): its answer.')
@@ -297,8 +297,9 @@ final class QuestionJsonReader
             return [__('this list takes CQs only — add MCQs in the MCQ list')];
         }
 
+        // A stimulus may be only its figure: then its text is left empty.
         $problems = [
-            ...$this->textProblems($item['stimulus'], __('the stimulus')),
+            ...(filled($item['image'] ?? null) && blank($item['stimulus']) ? [] : $this->textProblems($item['stimulus'], __('the stimulus'))),
             ...$this->imageProblems($item, __('the stimulus')),
         ];
         $questions = $item['questions'] ?? null;
@@ -527,7 +528,7 @@ final class QuestionJsonReader
     {
         if ($this->isGroup($item)) {
             return [
-                'stimulus' => QuestionImportText::toHtml($item['stimulus']),
+                'stimulus' => blank($item['stimulus']) ? '' : QuestionImportText::toHtml($item['stimulus']),
                 'stimulus_image' => $this->imageOf($item),
                 'questions' => array_map(
                     fn (array $question): array => $this->normalize(['type' => QuestionType::Mcq->value, ...$question]),
