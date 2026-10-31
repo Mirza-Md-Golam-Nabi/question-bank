@@ -13,6 +13,7 @@ use App\Services\DuplicateMatch;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,11 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
     protected function listedRelations(): array
     {
         return ['stimulus'];
+    }
+
+    protected function inListOrder(Builder $query): Builder
+    {
+        return $query->inPaperOrder();
     }
 
     protected function formComponents(): array

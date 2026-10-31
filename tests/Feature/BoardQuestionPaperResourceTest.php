@@ -14,6 +14,7 @@ use App\Models\Board;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
 use App\Models\BoardMcqQuestion;
+use App\Models\BoardMcqStimulus;
 use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
 use App\Models\User;
@@ -114,6 +115,47 @@ it('numbers the cards through the whole list, across its pages', function () {
         ->assertSeeHtmlInOrder(['<span>1.</span>', '<span>2.</span>', '<span>5.</span>'])
         ->call('gotoPage', 2, 'paperCqQuestionsRelationManagerPage')
         ->assertSeeHtml('<span>6.</span>');
+});
+
+it('shows a shared stimulus once, above its questions, headed with their numbers', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    $stimulus = BoardMcqStimulus::factory()->create(['board_question_paper_id' => $paper->id, 'text' => '<p>Shared passage</p>']);
+    $question = fn (array $attributes) => BoardMcqQuestion::factory()->create(['board_question_paper_id' => $paper->id, ...$attributes]);
+
+    $question(['order_index' => 1, 'question_text' => '<p>Lone first</p>']);
+    $question(['order_index' => 2, 'stimulus_id' => $stimulus->id, 'stimulus_order' => 2, 'question_text' => '<p>Group second</p>']);
+    $question(['order_index' => 3, 'question_text' => '<p>Lone between</p>']);
+    $question(['order_index' => 4, 'stimulus_id' => $stimulus->id, 'stimulus_order' => 1, 'question_text' => '<p>Group first</p>']);
+
+    $html = livewire(PaperMcqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->assertSeeHtmlInOrder([
+            'Lone first',
+            'Read the stimulus below and answer questions 2 and 3.',
+            'Shared passage',
+            '<span>2.</span>', 'Group first',
+            '<span>3.</span>', 'Group second',
+            '<span>4.</span>', 'Lone between',
+        ])
+        ->html();
+
+    expect(substr_count($html, 'Shared passage'))->toBe(1);
+});
+
+it('shows the stimulus again on the next page when its questions run across two', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    $stimulus = BoardMcqStimulus::factory()->create(['board_question_paper_id' => $paper->id, 'text' => '<p>Shared passage</p>']);
+    BoardMcqQuestion::factory()->count(4)->sequence(fn ($sequence) => ['order_index' => $sequence->index])->create(['board_question_paper_id' => $paper->id]);
+    BoardMcqQuestion::factory()->count(2)->sequence(fn ($sequence) => ['stimulus_order' => $sequence->index + 1])->create([
+        'board_question_paper_id' => $paper->id,
+        'stimulus_id' => $stimulus->id,
+        'order_index' => 4,
+    ]);
+
+    livewire(PaperMcqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->set('tableRecordsPerPage', 5)
+        ->assertSeeHtmlInOrder(['Read the stimulus below and answer question 5.', 'Shared passage', '<span>5.</span>'])
+        ->call('gotoPage', 2, 'paperMcqQuestionsRelationManagerPage')
+        ->assertSeeHtmlInOrder(['Read the stimulus below and answer question 6.', 'Shared passage', '<span>6.</span>']);
 });
 
 it('keeps the cards numbered while they are being reordered', function () {
