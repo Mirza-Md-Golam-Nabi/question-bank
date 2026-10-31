@@ -123,6 +123,7 @@ final class QuestionJsonReader
                 : null,
             __('Maths: write every formula as LaTeX between $ signs, write every backslash twice (:twice, not \frac); Bangla words inside a formula go in :text, other Bangla text outside the $ signs.', ['twice' => '\\\\frac', 'text' => '\\\\text{…}']),
             __('Images: where a question, a stimulus, a CQ sub-question or an option has a figure (a diagram, graph or circuit), crop that figure into an image file of its own and give its file name in "image" — beside the text of a question, a stimulus or a sub-question; an option with a figure is written as an object, {"text": "…", "image": "…"}, its "text" "" when the figure is all of it.'),
+            __('When a figure is all there is to a question or a stimulus, leave its text empty ("question": "", "stimulus": "") and name the figure in "image" — one of the two must be there.'),
             __('Name the image files with English letters, digits and hyphens only, ending in .png, .jpg or .webp, every name different: q12.png for question 12, q12-c.png for its option C, q12-part2.png for its second sub-question, s3.png for the stimulus of question 3.'),
             __('Do not describe a figure in the text or put it inside the text. Give all the image files together in one ZIP, without folders, named exactly as in the JSON.'),
             __('Tables: a table of text in a question, a stimulus, an explanation, a sub-question or an answer is written as text, not as an image — as a Markdown table: each row on a line of its own, its cells between | signs, a |---|---| line under the header row, and every row with as many cells as the header (in JSON a new line is written :newline). Formulas may go in the cells; an option cannot have a table.', ['newline' => '\n']),
@@ -270,7 +271,7 @@ final class QuestionJsonReader
         }
 
         $problems = [
-            ...$this->textProblems($item['question'] ?? null, __('the question text')),
+            ...$this->textOrImageProblems($item['question'] ?? null, $item, __('the question')),
             ...$this->imageProblems($item, __('the question')),
         ];
 
@@ -297,9 +298,8 @@ final class QuestionJsonReader
             return [__('this list takes CQs only — add MCQs in the MCQ list')];
         }
 
-        // A stimulus may be only its figure: then its text is left empty.
         $problems = [
-            ...(filled($item['image'] ?? null) && blank($item['stimulus']) ? [] : $this->textProblems($item['stimulus'], __('the stimulus'))),
+            ...$this->textOrImageProblems($item['stimulus'], $item, __('the stimulus')),
             ...$this->imageProblems($item, __('the stimulus')),
         ];
         $questions = $item['questions'] ?? null;
@@ -315,7 +315,7 @@ final class QuestionJsonReader
                 : ($this->typeOf($question) !== QuestionType::Mcq || isset($question['parts'])
                     ? [__('only MCQs can share a stimulus')]
                     : [
-                        ...$this->textProblems($question['question'] ?? null, __('the question text')),
+                        ...$this->textOrImageProblems($question['question'] ?? null, $question, __('the question')),
                         ...$this->imageProblems($question, __('the question')),
                         ...($this->withDifficulty && isset($question['difficulty']) && ! $this->difficultyOf($question)
                             ? [__('"difficulty" must be one of: :values', ['values' => implode(', ', array_column(Difficulty::cases(), 'value'))])]
@@ -435,6 +435,22 @@ final class QuestionJsonReader
     }
 
     /**
+     * A question or a stimulus may be only its figure — then its text is
+     * left empty — but it must have one of the two.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<int, string>
+     */
+    private function textOrImageProblems(mixed $text, array $item, string $name): array
+    {
+        if (! blank($text)) {
+            return $this->textProblems($text, $name);
+        }
+
+        return filled($item['image'] ?? null) ? [] : [__(':name needs its "text", or an "image"', ['name' => $name])];
+    }
+
+    /**
      * @return array<int, string>
      */
     private function textProblems(mixed $text, string $name, bool $allowsTables = true): array
@@ -528,7 +544,7 @@ final class QuestionJsonReader
     {
         if ($this->isGroup($item)) {
             return [
-                'stimulus' => blank($item['stimulus']) ? '' : QuestionImportText::toHtml($item['stimulus']),
+                'stimulus' => $this->textOrEmptyHtml($item['stimulus']),
                 'stimulus_image' => $this->imageOf($item),
                 'questions' => array_map(
                     fn (array $question): array => $this->normalize(['type' => QuestionType::Mcq->value, ...$question]),
@@ -542,7 +558,7 @@ final class QuestionJsonReader
 
         $question = [
             'type' => $type,
-            'question' => QuestionImportText::toHtml($item['question']),
+            'question' => $this->textOrEmptyHtml($item['question'] ?? null),
             'image' => $this->imageOf($item),
             'difficulty' => $this->withDifficulty ? $this->difficultyOf($item) : null,
         ];
@@ -576,6 +592,14 @@ final class QuestionJsonReader
             'marks' => $item['marks'] ?? null,
             'explanation' => $html($item['explanation'] ?? null),
         ];
+    }
+
+    /**
+     * An acceptable text as stored — what is only its figure has none.
+     */
+    private function textOrEmptyHtml(mixed $text): string
+    {
+        return blank($text) ? '' : QuestionImportText::toHtml($text);
     }
 
     /**

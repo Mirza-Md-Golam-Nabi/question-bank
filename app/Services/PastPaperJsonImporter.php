@@ -2,18 +2,15 @@
 
 namespace App\Services;
 
-use App\Enums\EditorMode;
 use App\Enums\QuestionType;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
 use App\Models\BoardMcqQuestion;
 use App\Models\BoardMcqStimulus;
 use App\Models\BoardQuestionPaper;
-use App\Models\Question;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -22,18 +19,12 @@ use Illuminate\Validation\ValidationException;
  * Adds many questions to a past paper at once from pasted JSON — into its
  * MCQ list or its CQ list, one kind at a time. Reading and judging the
  * JSON is QuestionJsonReader's (the same format as the question bank's,
- * with optional explanations and CQ answers and no difficulty); this turns
- * what it read into the paper's own questions, after those already there.
- *
- * Images are added afterwards, by editing a question.
+ * with optional explanations and CQ answers and no difficulty), and what
+ * both importers do with it ImportedQuestions'; this says only what is the
+ * paper's own: its models, and that they go after the questions already there.
  */
 class PastPaperJsonImporter
 {
-    /**
-     * The field of the import form the problems are reported against.
-     */
-    public const ERROR_KEY = QuestionJsonReader::ERROR_KEY;
-
     /**
      * Where the images of imported past-paper questions are kept.
      */
@@ -54,9 +45,7 @@ class PastPaperJsonImporter
             fn (array $item): Model => $this->build($item, $paper),
             fn (string $text, ?string $image): BoardMcqStimulus => new BoardMcqStimulus([
                 'board_question_paper_id' => $paper->id,
-                'text' => $text,
-                'image' => $image,
-                'editor_mode' => EditorMode::CkEditor,
+                ...ImportedQuestions::stimulusAttributes($text, $image),
             ]),
             $images ?? ImportedImages::none(),
         );
@@ -93,23 +82,13 @@ class PastPaperJsonImporter
         $questions = $this->parse($json, $paper, $type, $images);
         $matches = $this->duplicates($questions, $paper, $type);
         $list = $type === QuestionType::Mcq ? $paper->mcqQuestions() : $paper->cqQuestions();
+        $lastOrder = null;
 
-        $result = DB::transaction(function () use ($questions, $matches, $accepted, $list, $images): array {
-            $nextOrder = (int) (clone $list)->max('order_index');
-
-            return ImportedQuestions::save($questions, $matches, $accepted, function (Model $question) use (&$nextOrder): void {
-                $parts = $question->relationLoaded('cqParts') ? $question->cqParts : collect();
-                $question->unsetRelation('cqParts');
-                $question->order_index = ++$nextOrder;
-                $question->save();
-
-                if ($question instanceof BoardCqQuestion) {
-                    $question->parts()->saveMany($parts);
-                }
-            }, fn (Model $model) => $images->publish($model, self::IMAGE_DIRECTORY));
+        $result = ImportedQuestions::save($questions, $matches, $accepted, $images, self::IMAGE_DIRECTORY, function (Model $question) use ($list, &$lastOrder): void {
+            $lastOrder ??= (int) (clone $list)->max('order_index');
+            $question->order_index = ++$lastOrder;
         });
 
-        $images->discard();
         $paper->markEditedBy(Auth::user());
 
         Log::info('Past paper questions imported from JSON.', [
@@ -138,11 +117,7 @@ class PastPaperJsonImporter
     {
         $common = [
             'board_question_paper_id' => $paper->id,
-            'question_text' => $item['question'],
-            // The formulas are CKEditor's kind of content, so that is the
-            // editor the question opens in when it is edited later.
-            'editor_mode' => EditorMode::CkEditor,
-            'question_image' => $item['image'],
+            ...ImportedQuestions::questionAttributes($item),
         ];
 
         if ($item['type'] === QuestionType::Cq) {
@@ -151,13 +126,6 @@ class PastPaperJsonImporter
             ));
         }
 
-        return new BoardMcqQuestion([
-            ...$common,
-            'options' => $item['options'],
-            'explanation' => $item['explanation'],
-            // Its formulas (and tables) are CKEditor's kind of content too.
-            'explanation_editor_mode' => EditorMode::CkEditor,
-            'marks' => $item['marks'] ?? Question::DEFAULT_MCQ_MARKS,
-        ]);
+        return new BoardMcqQuestion([...$common, ...ImportedQuestions::mcqAttributes($item)]);
     }
 }

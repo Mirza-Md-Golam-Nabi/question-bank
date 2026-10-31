@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\EditorMode;
 use App\Filament\Support\QuestionBlocks;
+use App\Models\Question;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -52,6 +55,53 @@ final class ImportedQuestions
                     ->setRelation('stimulus', $shared),
             )->all();
         })->values();
+    }
+
+    /**
+     * What any question takes from its read entry. The formulas are
+     * CKEditor's kind of content, so that is the editor it opens in when
+     * edited later — here and in the two below.
+     *
+     * @param  array<string, mixed>  $item  One question as read, its images already paths.
+     * @return array<string, mixed>
+     */
+    public static function questionAttributes(array $item): array
+    {
+        return [
+            'question_text' => $item['question'],
+            'editor_mode' => EditorMode::CkEditor,
+            'question_image' => $item['image'],
+        ];
+    }
+
+    /**
+     * What an MCQ takes from its read entry, on top of questionAttributes().
+     *
+     * @param  array<string, mixed>  $item  One question as read, its images already paths.
+     * @return array<string, mixed>
+     */
+    public static function mcqAttributes(array $item): array
+    {
+        return [
+            'options' => $item['options'],
+            'explanation' => $item['explanation'],
+            'explanation_editor_mode' => EditorMode::CkEditor,
+            'marks' => $item['marks'] ?? Question::DEFAULT_MCQ_MARKS,
+        ];
+    }
+
+    /**
+     * What a shared stimulus takes from its read entry.
+     *
+     * @return array<string, mixed>
+     */
+    public static function stimulusAttributes(string $text, ?string $image): array
+    {
+        return [
+            'text' => $text,
+            'image' => $image,
+            'editor_mode' => EditorMode::CkEditor,
+        ];
     }
 
     /**
@@ -231,20 +281,35 @@ final class ImportedQuestions
     }
 
     /**
-     * Saves the questions, each stimulus first. A unit already there is
-     * left out; a possible duplicate is added only when the user accepted
-     * it (by the place of its first question).
+     * Saves the questions all together, each stimulus first and each CQ's
+     * parts with it, their images moved to `$imageDirectory`; the import's
+     * temporary images go afterwards. A unit already there is left out; a
+     * possible duplicate is added only when the user accepted it (by the
+     * place of its first question).
      *
      * @param  Collection<int, Model>  $questions  What build() returned.
      * @param  array<int, DuplicateMatch>  $matches  What duplicates() found.
      * @param  array<int, int>  $accepted  The possible duplicates to add anyway.
-     * @param  Closure(Model): void  $save  Saves one question (and anything of its own, like a CQ's parts).
-     * @param  (Closure(Model): void)|null  $prepare  Done to each stimulus and question just before it is saved (its images published).
+     * @param  (Closure(Model): void)|null  $beforeSave  Done to each question just before it is saved (its place in a list).
      * @return array{added: int, skipped: int, possible_duplicates: int} How many questions were added, left out as already there, and left out as possible duplicates.
      */
-    public static function save(Collection $questions, array $matches, array $accepted, Closure $save, ?Closure $prepare = null): array
+    public static function save(Collection $questions, array $matches, array $accepted, ImportedImages $images, string $imageDirectory, ?Closure $beforeSave = null): array
     {
-        $questions = $questions->values();
+        $result = DB::transaction(fn (): array => self::saveUnits($questions->values(), $matches, $accepted, $images, $imageDirectory, $beforeSave));
+
+        $images->discard();
+
+        return $result;
+    }
+
+    /**
+     * @param  Collection<int, Model>  $questions
+     * @param  array<int, DuplicateMatch>  $matches
+     * @param  array<int, int>  $accepted
+     * @return array{added: int, skipped: int, possible_duplicates: int}
+     */
+    private static function saveUnits(Collection $questions, array $matches, array $accepted, ImportedImages $images, string $imageDirectory, ?Closure $beforeSave): array
+    {
         $result = ['added' => 0, 'skipped' => 0, 'possible_duplicates' => 0];
 
         foreach (self::units($questions) as $first => $unit) {
@@ -263,7 +328,7 @@ final class ImportedQuestions
             $stimulus = QuestionBlocks::stimulusOf($questions[$first]);
 
             if ($stimulus) {
-                $prepare && $prepare($stimulus);
+                $images->publish($stimulus, $imageDirectory);
                 $stimulus->save();
             }
 
@@ -275,12 +340,27 @@ final class ImportedQuestions
                     $question->unsetRelation('stimulus');
                 }
 
-                $prepare && $prepare($question);
-                $save($question);
+                $images->publish($question, $imageDirectory);
+                $beforeSave && $beforeSave($question);
+                self::saveWithParts($question);
                 $result['added']++;
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Saves one question, then the sub-questions a CQ was built with.
+     */
+    private static function saveWithParts(Model $question): void
+    {
+        $parts = $question->relationLoaded('cqParts') ? $question->cqParts : collect();
+        $question->unsetRelation('cqParts');
+        $question->save();
+
+        if ($parts->isNotEmpty()) {
+            $question->cqParts()->saveMany($parts);
+        }
     }
 }

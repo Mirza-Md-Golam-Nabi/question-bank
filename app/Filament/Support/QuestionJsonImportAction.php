@@ -67,6 +67,13 @@ class QuestionJsonImportAction
             guide: QuestionJsonImporter::formatGuide(),
             parse: fn (string $json, Get $get, ImportedImages $images): Collection => $importer->parse($json, $chapter, $get('topic_id'), static::difficulty($get('difficulty')), $images),
             duplicates: fn (Collection $questions): array => $importer->duplicates($questions, $chapter),
+            import: function (string $json, array $data, array $accepted, ImportedImages $images) use ($chapter, $importer): array {
+                $result = $importer->import($json, $chapter, $data['topic_id'] ?? null, static::difficulty($data['difficulty']), $accepted, $images);
+
+                TopicPreference::remember(auth()->user(), $chapter->id, $data['topic_id'] ?? null);
+
+                return $result;
+            },
             leavesDuplicatesToAdmin: fn (): bool => QuestionDuplicateScreening::screensQuestionsBy(auth()->user()),
             fields: [
                 // The topic select lists the topics of whichever
@@ -83,22 +90,7 @@ class QuestionJsonImportAction
                     ->required()
                     ->native(false),
             ],
-        )->action(function (array $data, Action $action) use ($chapter, $importer): void {
-            $images = static::images($data[ImportedQuestions::IMAGES_KEY] ?? null);
-
-            $result = static::importOrHalt(fn (): array => $importer->import(
-                $data[QuestionJsonImporter::ERROR_KEY],
-                $chapter,
-                $data['topic_id'] ?? null,
-                static::difficulty($data['difficulty']),
-                static::accepted($data),
-                $images,
-            ), $action);
-
-            TopicPreference::remember(auth()->user(), $chapter->id, $data['topic_id'] ?? null);
-
-            static::notifyAdded($result, $images);
-        });
+        );
     }
 
     /**
@@ -116,13 +108,8 @@ class QuestionJsonImportAction
             guide: PastPaperJsonImporter::reader($type)->formatGuide(),
             parse: fn (string $json, Get $get, ImportedImages $images): Collection => $importer->parse($json, $paper, $type, $images),
             duplicates: fn (Collection $questions): array => $importer->duplicates($questions, $paper, $type),
-        )->action(function (array $data, Action $action) use ($paper, $type, $importer): void {
-            $images = static::images($data[ImportedQuestions::IMAGES_KEY] ?? null);
-
-            $result = static::importOrHalt(fn (): array => $importer->import($data[PastPaperJsonImporter::ERROR_KEY], $paper, $type, static::accepted($data), $images), $action);
-
-            static::notifyAdded($result, $images);
-        });
+            import: fn (string $json, array $data, array $accepted, ImportedImages $images): array => $importer->import($json, $paper, $type, $accepted, $images),
+        );
     }
 
     /**
@@ -135,13 +122,15 @@ class QuestionJsonImportAction
      * the Admin is to decide on the questions already there as they are
      * (`$leavesDuplicatesToAdmin`), those are added rather than left out —
      * the preview says so — and only the possible duplicates are ticked.
+     * Submitting runs `$import` and says what came of it.
      *
      * @param  Closure(string, Get, ImportedImages): Collection<int, mixed>  $parse  Builds the questions with their images, or throws a ValidationException listing every problem.
      * @param  Closure(Collection<int, mixed>): array<int, DuplicateMatch>  $duplicates  Which of them look like questions already there.
+     * @param  Closure(string, array<string, mixed>, array<int, int>, ImportedImages): array{added: int, skipped: int, possible_duplicates: int}  $import  Adds the questions of the JSON, given the form's data, the possible duplicates accepted and the images.
      * @param  (Closure(): bool)|null  $leavesDuplicatesToAdmin  Whether a question already there as it is is added, waiting for the Admin.
      * @param  array<Component>  $fields
      */
-    protected static function configure(Action $action, string $guide, Closure $parse, Closure $duplicates, ?Closure $leavesDuplicatesToAdmin = null, array $fields = []): Action
+    protected static function configure(Action $action, string $guide, Closure $parse, Closure $duplicates, Closure $import, ?Closure $leavesDuplicatesToAdmin = null, array $fields = []): Action
     {
         $leftToAdmin = fn (): bool => $leavesDuplicatesToAdmin !== null && $leavesDuplicatesToAdmin();
 
@@ -213,7 +202,14 @@ class QuestionJsonImportAction
                             ->selectAllAction(fn (Action $action): Action => $action->label(__('Accept all')))
                             ->deselectAllAction(fn (Action $action): Action => $action->label(__('Accept none'))),
                     ]),
-            ]);
+            ])
+            ->action(function (array $data, Action $action) use ($import): void {
+                $images = static::images($data[ImportedQuestions::IMAGES_KEY] ?? null);
+
+                $result = static::importOrHalt(fn (): array => $import($data[QuestionJsonReader::ERROR_KEY], $data, static::accepted($data), $images), $action);
+
+                static::notifyAdded($result, $images);
+            });
     }
 
     /**

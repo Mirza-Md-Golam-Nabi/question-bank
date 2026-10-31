@@ -9,6 +9,7 @@ use App\Models\QuestionStimulus;
 use App\Services\DuplicateMatch;
 use Closure;
 use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
@@ -46,7 +47,7 @@ class StimulusGroupForm
     {
         return [
             Grid::make(4)->columnSpanFull()->schema([
-                QuestionFormSchema::textImageAndPreview("{$imageDirectory}-stimuli", __('Stimulus'), textOrImage: true)->columnSpan(2),
+                QuestionFormSchema::textImageAndPreview("{$imageDirectory}-stimuli", __('Stimulus'))->columnSpan(2),
 
                 Group::make()
                     ->columnSpan(2)
@@ -61,7 +62,17 @@ class StimulusGroupForm
 
                     CkEditorField::make('question_text')
                         ->label(__('Question text'))
-                        ->required()
+                        // A question may be only its figure.
+                        ->required(fn (Get $get): bool => blank($get('question_image')))
+                        ->validationMessages(['required' => __('Write the text, or add an image.')])
+                        ->columnSpanFull(),
+
+                    FileUpload::make('question_image')
+                        ->label(__('Diagram / image (optional)'))
+                        ->image()
+                        ->disk('public')->visibility('public')
+                        ->directory($imageDirectory)
+                        ->live()
                         ->columnSpanFull(),
 
                     ...QuestionFormSchema::mcqComponents("{$imageDirectory}-options"),
@@ -125,6 +136,7 @@ class StimulusGroupForm
             'questions' => $questions->map(fn (Model $question): array => [
                 'id' => $question->id,
                 'question_text' => $question->question_text,
+                'question_image' => $question->question_image,
                 'options' => QuestionFormData::fillOptions($question->options),
                 'explanation' => $question->explanation,
                 'explanation_editor_mode' => $question->explanation_editor_mode,
@@ -165,7 +177,9 @@ class StimulusGroupForm
             ->map(fn (array $item, int $index): array => [
                 'id' => filled($item['id'] ?? null) ? (int) $item['id'] : null,
                 'attributes' => [
-                    'question_text' => $item['question_text'],
+                    // A question that is only its figure has no text.
+                    'question_text' => $item['question_text'] ?? '',
+                    'question_image' => $item['question_image'] ?? null,
                     // The questions are written in CKEditor (with its maths).
                     'editor_mode' => EditorMode::CkEditor,
                     'options' => QuestionFormData::storedOptions($item['options'] ?? []),

@@ -225,6 +225,53 @@ it('pre-selects the CKEditor mode when editing a question authored with it', fun
         ]);
 });
 
+it('needs a question\'s text only without an image, for an MCQ and a CQ alike', function () {
+    Storage::fake('public');
+    $classSubject = ClassSubject::find($this->chapter->class_subject_id);
+    $form = [
+        'academic_class_id' => $classSubject->academic_class_id,
+        'class_subject_id' => $classSubject->id,
+        'chapter_id' => $this->chapter->id,
+        'difficulty' => 'easy',
+        'editor_mode' => EditorMode::CkEditor->value,
+        'question_text' => null,
+    ];
+    $parts = [
+        'knowledge' => ['text' => '<p>K</p>', 'marks' => 1],
+        'comprehension' => ['text' => '<p>C</p>', 'marks' => 2],
+        'application' => ['text' => '<p>A</p>', 'marks' => 3],
+        'higher_application' => ['text' => '<p>H</p>', 'marks' => 4],
+    ];
+    $image = fn (): array => [UploadedFile::fake()->image('figure.png')];
+
+    livewire(CreateQuestion::class)
+        ->fillForm([...$form, 'question_type' => 'cq', 'cq_parts' => $parts])
+        ->call('create')
+        ->assertHasFormErrors(['question_text' => 'required']);
+
+    $options = [
+        ['option' => '<p>One</p>', 'is_correct' => true],
+        ['option' => '<p>Two</p>', 'is_correct' => false],
+    ];
+
+    livewire(CreateQuestion::class)
+        ->fillForm([...$form, 'question_type' => 'mcq', 'marks' => 1, 'options' => $options])
+        ->call('create')
+        ->assertHasFormErrors(['question_text' => 'required']);
+
+    livewire(CreateQuestion::class)
+        ->fillForm([...$form, 'question_type' => 'mcq', 'marks' => 1, 'options' => $options, 'question_image' => $image()])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    livewire(CreateQuestion::class)
+        ->fillForm([...$form, 'question_type' => 'cq', 'cq_parts' => $parts, 'question_image' => $image()])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Question::where('question_text', '')->count())->toBe(2);
+});
+
 it('creates an auto-approved mcq question as admin', function () {
     $classSubject = ClassSubject::find($this->chapter->class_subject_id);
 

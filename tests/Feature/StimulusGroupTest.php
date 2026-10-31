@@ -189,6 +189,44 @@ describe('a stimulus group in the question bank', function () {
 
         expect(QuestionStimulus::sole())->text->toBe('')->image->not->toBeNull();
     });
+
+    it('takes a question that is only its image, keeps it when edited, but not one with neither', function () {
+        Storage::fake('public');
+        $this->actingAs($this->teacher);
+        Filament::setCurrentPanel(Filament::getPanel('teacher'));
+
+        $question = fn (array $overrides): array => [
+            'question_text' => '<p>প্রশ্ন?</p>',
+            'options' => [
+                ['option' => 'ক', 'is_correct' => true],
+                ['option' => 'খ', 'is_correct' => false],
+            ],
+            'marks' => 1,
+            'difficulty' => 'easy',
+            ...$overrides,
+        ];
+
+        livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+            ->callAction('createStimulusGroup', data: ($this->form)([$question(['question_text' => null]), $question([])]))
+            ->assertHasFormErrors();
+
+        expect(Question::count())->toBe(0);
+
+        livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+            ->callAction('createStimulusGroup', data: ($this->form)([$question(['question_text' => null, 'question_image' => [UploadedFile::fake()->image('q1.png')]]), $question([])]))
+            ->assertHasNoFormErrors();
+
+        $imageOnly = Question::where('question_text', '')->sole();
+        $image = $imageOnly->question_image;
+
+        expect($image)->not->toBeNull();
+
+        livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+            ->callAction(TestAction::make('editStimulusGroup')->table($imageOnly), data: ['question_text' => '<p>নতুন উদ্দীপক।</p>'])
+            ->assertHasNoFormErrors();
+
+        expect($imageOnly->fresh())->question_text->toBe('')->question_image->toBe($image);
+    });
 });
 
 describe('on an exam', function () {

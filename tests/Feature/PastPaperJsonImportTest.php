@@ -91,6 +91,56 @@ it('adds CQs with their parts, the answers given, and the marks summed', functio
         ->and($cq->parts->first()->answer)->toContain('ক-এর উত্তর');
 });
 
+it('takes a CQ whose stimulus is only its image, the same way as a chapter', function () {
+    expect(($this->problems)([($this->cq)(['question' => ''])], QuestionType::Cq))->toHaveCount(1);
+
+    $json = json_encode([
+        ($this->cq)(['question' => '', 'image' => 'q6.png']),
+        ($this->cq)(['question' => '', 'image' => 'q7.png']),
+    ]);
+    $result = $this->importer->import($json, $this->paper, QuestionType::Cq, images: imagesNamedIn($json));
+
+    $cqs = $this->paper->cqQuestions()->with('parts')->get();
+
+    expect($result)->toBe(['added' => 2, 'skipped' => 0, 'possible_duplicates' => 0])
+        ->and($cqs->pluck('order_index')->all())->toBe([1, 2])
+        ->and($cqs[0]->question_text)->toBe('')
+        ->and($cqs[0]->question_image)->toStartWith(PastPaperJsonImporter::IMAGE_DIRECTORY.'/')
+        ->and($cqs[0]->parts)->toHaveCount(4);
+});
+
+it('takes an MCQ that is only its image, but not one with neither text nor image', function () {
+    expect(($this->problems)([($this->mcq)(['question' => ''])]))->toHaveCount(1);
+
+    $json = json_encode([($this->mcq)(['question' => '', 'image' => 'q1.png'])]);
+    $this->importer->import($json, $this->paper, QuestionType::Mcq, images: imagesNamedIn($json));
+
+    $mcq = $this->paper->mcqQuestions()->sole();
+
+    expect($mcq->question_text)->toBe('')
+        ->and($mcq->question_image)->toStartWith(PastPaperJsonImporter::IMAGE_DIRECTORY.'/');
+
+    livewire(PaperMcqQuestionsRelationManager::class, ['ownerRecord' => $this->paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->callAction(TestAction::make('edit')->table($mcq), ['marks' => 2])
+        ->assertHasNoFormErrors();
+
+    expect((float) $mcq->refresh()->marks)->toBe(2.0)
+        ->and($mcq->question_text)->toBe('');
+});
+
+it('lets an image-only CQ of a paper be edited without typing a stimulus', function () {
+    $json = json_encode([($this->cq)(['question' => '', 'image' => 'q6.png'])]);
+    $this->importer->import($json, $this->paper, QuestionType::Cq, images: imagesNamedIn($json));
+    $cq = $this->paper->cqQuestions()->sole();
+
+    livewire(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $this->paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->callAction(TestAction::make('edit')->table($cq), ['cq_parts' => ['knowledge' => ['text' => '<p>নতুন ক?</p>', 'marks' => 1]]])
+        ->assertHasNoFormErrors();
+
+    expect($cq->refresh()->question_text)->toBe('')
+        ->and($cq->parts()->where('part_order', 1)->value('part_text'))->toContain('নতুন ক?');
+});
+
 it('takes only its own kind of question in each list', function () {
     expect(($this->problems)([($this->cq)()], QuestionType::Mcq))->toHaveCount(1)
         ->and(($this->problems)([($this->cq)()], QuestionType::Mcq)[0])->toContain('MCQs only')

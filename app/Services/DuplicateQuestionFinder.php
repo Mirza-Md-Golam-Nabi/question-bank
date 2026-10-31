@@ -236,13 +236,22 @@ final class DuplicateQuestionFinder
         $stimulus = QuestionBlocks::stimulusOf($question);
         $asked = self::normalize(($stimulus ? $stimulus->text.' ' : '').$question->question_text);
 
+        // A stimulus or a question that is only its figure is told apart by
+        // it: two such questions are never "the same" for being blank.
+        $figures = collect([
+            $stimulus && self::hasNoText($stimulus->text) ? self::pictureName($stimulus->image) : null,
+            self::hasNoText($question->question_text) ? self::pictureName($question->question_image) : null,
+        ])->filter()->map(fn (string $picture): string => '#'.$picture);
+
+        $askedText = trim($asked['text'].' '.$figures->implode(' '));
+
         // An MCQ is answered by its options, a CQ by its sub-questions.
         $isMcq = $question->options !== null;
         // An option that is (or has) a picture is told apart by it too:
         // two picture-only options are never "the same" for being blank.
         $answers = collect($isMcq ? $question->options : $question->cqParts)
             ->map(fn (mixed $answer): string => trim(self::normalize(data_get($answer, $isMcq ? 'option' : 'part_text'))['text']
-                .($isMcq && ($picture = self::optionPicture($answer)) ? ' #'.$picture : '')));
+                .($isMcq && ($picture = self::pictureName(data_get($answer, 'image'))) ? ' #'.$picture : '')));
 
         // Options are the same in any order; sub-questions keep theirs.
         $answers = ($isMcq ? $answers->sort() : $answers)->implode(' | ');
@@ -260,21 +269,25 @@ final class DuplicateQuestionFinder
 
         return [
             'type' => $type instanceof BackedEnum ? (string) $type->value : (string) $type,
-            'question' => $asked['text'],
+            'question' => $askedText,
             'answers' => $answers,
             'guard' => implode("\x00", [implode(',', $numbers), implode(',', $formulas), implode(',', $turning)]),
-            'questionGrams' => self::grams($asked['text']),
+            'questionGrams' => self::grams($askedText),
             'answerGrams' => self::grams($answers),
         ];
     }
 
-    /**
-     * An option's picture, by its file name — stored as one path, but still
-     * a list of uploads (path or file) while the form is being filled in.
-     */
-    private static function optionPicture(mixed $option): ?string
+    private static function hasNoText(?string $html): bool
     {
-        $picture = data_get($option, 'image');
+        return blank(html_entity_decode(strip_tags((string) $html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    /**
+     * A picture, by its file name — stored as one path, but still a list of
+     * uploads (path or file) while the form is being filled in.
+     */
+    private static function pictureName(mixed $picture): ?string
+    {
         $picture = is_array($picture) ? reset($picture) : $picture;
 
         if ($picture instanceof UploadedFile) {

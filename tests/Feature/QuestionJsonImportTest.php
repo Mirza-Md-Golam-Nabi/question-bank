@@ -14,8 +14,10 @@ use App\Models\Chapter;
 use App\Models\Question;
 use App\Models\Topic;
 use App\Models\User;
+use App\Services\QuestionDuplicateScreening;
 use App\Services\QuestionImportText;
 use App\Services\QuestionJsonImporter;
+use App\Services\QuestionJsonReader;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\ViewErrorBag;
@@ -41,7 +43,7 @@ beforeEach(function () {
         try {
             ($this->import)($questions);
         } catch (ValidationException $exception) {
-            return $exception->errors()[QuestionJsonImporter::ERROR_KEY];
+            return $exception->errors()[QuestionJsonReader::ERROR_KEY];
         }
 
         return [];
@@ -137,6 +139,70 @@ it('takes a stimulus that is only its image, but not one with neither text nor i
     expect($result['added'])->toBe(2)
         ->and($stimulus->text)->toBe('')
         ->and($stimulus->image)->not->toBeNull();
+});
+
+it('takes an MCQ that is only its image, alone or under a stimulus, but not one with neither text nor image', function () {
+    expect(($this->problems)([($this->mcq)(['question' => ''])])[0])->toContain('needs its "text", or an "image"');
+
+    $json = json_encode([
+        ($this->mcq)(['question' => '', 'image' => 'q1.png']),
+        // Told apart by the figure: not "the same" as the one above.
+        ($this->mcq)(['question' => '', 'image' => 'q2.png']),
+        ['stimulus' => 'একটি উদ্দীপক।', 'questions' => [
+            ($this->mcq)(['question' => '', 'image' => 'q3.png']),
+            ($this->mcq)(['question' => 'দ্বিতীয়?']),
+        ]],
+    ]);
+
+    $result = $this->importer->import($json, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($json));
+
+    expect($result)->toBe(['added' => 4, 'skipped' => 0, 'possible_duplicates' => 0])
+        ->and(Question::where('question_text', '')->whereNotNull('question_image')->count())->toBe(3);
+});
+
+it('takes a CQ whose stimulus is only its image, but not one with neither text nor image', function () {
+    expect(($this->problems)([($this->cq)(['question' => ''])]))->toHaveCount(1);
+
+    $json = json_encode([($this->cq)(['question' => '', 'image' => 'q6.png'])]);
+    $result = $this->importer->import($json, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($json));
+
+    $question = Question::sole();
+
+    expect($result['added'])->toBe(1)
+        ->and($question->question_text)->toBe('')
+        ->and($question->question_image)->not->toBeNull()
+        ->and((float) $question->marks)->toBe(10.0)
+        ->and($question->cqParts)->toHaveCount(4);
+});
+
+it('tells image-only stimuli apart by their images, so the same sub-questions are no duplicate', function () {
+    $school = User::factory()->school()->create();
+    $this->actingAs($school);
+
+    $json = json_encode([
+        ($this->cq)(['question' => '', 'image' => 'q1.png']),
+        ($this->cq)(['question' => '', 'image' => 'q2.png']),
+        // The same figure again is the same question.
+        ($this->cq)(['question' => '', 'image' => 'q2.png']),
+    ]);
+
+    $result = $this->importer->import($json, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($json));
+
+    expect($result)->toBe(['added' => 2, 'skipped' => 1, 'possible_duplicates' => 0]);
+});
+
+it('does not hold image-only stimuli for the Admin when only their sub-questions are alike', function () {
+    $json = json_encode([
+        ($this->cq)(['question' => '', 'image' => 'q1.png']),
+        ($this->cq)(['question' => '', 'image' => 'q2.png']),
+    ]);
+
+    $this->importer->import($json, $this->chapter, null, Difficulty::Medium, images: imagesNamedIn($json));
+
+    Question::pluck('id')->each(fn (int $id) => QuestionDuplicateScreening::make()->screen($id));
+
+    expect(Question::count())->toBe(2)
+        ->and(Question::pluck('duplicate_status')->unique()->all())->toBe([DuplicateCheckStatus::Clear]);
 });
 
 it('approves an admin\'s imported questions straight away, like the ones typed into the form', function () {

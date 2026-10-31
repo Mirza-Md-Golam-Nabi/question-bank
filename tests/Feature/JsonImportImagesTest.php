@@ -15,6 +15,7 @@ use App\Services\ImportedImages;
 use App\Services\ImportedQuestions;
 use App\Services\PastPaperJsonImporter;
 use App\Services\QuestionJsonImporter;
+use App\Services\QuestionJsonReader;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Http\UploadedFile;
@@ -151,7 +152,7 @@ it('only takes a plain file name as an image, and an option with an image may ha
     try {
         ($this->import)([['question' => 'প্রথম?', 'image' => $image, 'options' => ['ক', 'খ'], 'answer' => 1]], []);
     } catch (ValidationException $exception) {
-        $problems = $exception->errors()[QuestionJsonImporter::ERROR_KEY];
+        $problems = $exception->errors()[QuestionJsonReader::ERROR_KEY];
     }
 
     expect($problems[0] ?? '')->toContain('"image" of the question must be the file name of an image');
@@ -161,7 +162,7 @@ it('wants an option to have its text or an image', function () {
     try {
         ($this->import)([['question' => 'প্রথম?', 'options' => ['ক', ['text' => '']], 'answer' => 1]], []);
     } catch (ValidationException $exception) {
-        expect($exception->errors()[QuestionJsonImporter::ERROR_KEY][0])->toContain('option 2 needs its "text", or an "image"');
+        expect($exception->errors()[QuestionJsonReader::ERROR_KEY][0])->toContain('option 2 needs its "text", or an "image"');
 
         return;
     }

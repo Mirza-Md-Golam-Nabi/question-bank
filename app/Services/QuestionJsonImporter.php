@@ -3,25 +3,23 @@
 namespace App\Services;
 
 use App\Enums\Difficulty;
-use App\Enums\EditorMode;
 use App\Enums\QuestionType;
 use App\Models\Chapter;
 use App\Models\Question;
 use App\Models\QuestionCqPart;
 use App\Models\QuestionStimulus;
 use App\Models\Topic;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Adds many questions to one chapter at once from pasted JSON. Reading and
- * judging the JSON is QuestionJsonReader's; this turns what it read into
- * the chapter's questions.
+ * judging the JSON is QuestionJsonReader's, and what both importers do with
+ * it ImportedQuestions'; this says only what is the chapter's own: its
+ * models, its topic and difficulty, and who has duplicates left to the Admin.
  *
  * Nothing about a question's fate is decided here: each one is created the
  * ordinary way, so it starts pending or approved exactly as a question
@@ -30,11 +28,6 @@ use Illuminate\Validation\ValidationException;
  */
 class QuestionJsonImporter
 {
-    /**
-     * The field of the import form the problems are reported against.
-     */
-    public const ERROR_KEY = QuestionJsonReader::ERROR_KEY;
-
     /**
      * Where the images of imported questions are kept.
      */
@@ -53,7 +46,7 @@ class QuestionJsonImporter
         $items = self::reader()->read($json);
 
         if (filled($topicId) && ! Topic::where('chapter_id', $chapter->id)->whereKey($topicId)->exists()) {
-            throw ValidationException::withMessages([self::ERROR_KEY => [__('The chosen topic does not belong to this chapter.')]]);
+            throw ValidationException::withMessages([QuestionJsonReader::ERROR_KEY => [__('The chosen topic does not belong to this chapter.')]]);
         }
 
         return ImportedQuestions::build(
@@ -61,10 +54,8 @@ class QuestionJsonImporter
             fn (array $item): Question => $this->build($item, $chapter, $topicId, $defaultDifficulty),
             fn (string $text, ?string $image): QuestionStimulus => new QuestionStimulus([
                 'chapter_id' => $chapter->id,
-                'text' => $text,
-                'image' => $image,
-                'editor_mode' => EditorMode::CkEditor,
                 'created_by' => Auth::id(),
+                ...ImportedQuestions::stimulusAttributes($text, $image),
             ]),
             $images ?? ImportedImages::none(),
         );
@@ -112,14 +103,7 @@ class QuestionJsonImporter
             $matches = ImportedQuestions::withoutExact($matches);
         }
 
-        $result = DB::transaction(fn (): array => ImportedQuestions::save($questions, $matches, $accepted, function (Question $question): void {
-            $parts = $question->cqParts;
-            $question->unsetRelation('cqParts');
-            $question->save();
-            $question->cqParts()->saveMany($parts);
-        }, fn (Model $model) => $images->publish($model, self::IMAGE_DIRECTORY)));
-
-        $images->discard();
+        $result = ImportedQuestions::save($questions, $matches, $accepted, $images, self::IMAGE_DIRECTORY);
 
         Log::info('Questions imported from JSON.', [
             'imported_by' => Auth::id(),
@@ -164,12 +148,8 @@ class QuestionJsonImporter
             'chapter_id' => $chapter->id,
             'topic_id' => filled($topicId) ? (int) $topicId : null,
             'question_type' => $item['type'],
-            'question_text' => $item['question'],
-            // The formulas are CKEditor's kind of content, so that is the
-            // editor the question opens in when it is edited later.
-            'editor_mode' => EditorMode::CkEditor,
-            'question_image' => $item['image'],
             'difficulty' => $item['difficulty'] ?? $defaultDifficulty,
+            ...ImportedQuestions::questionAttributes($item),
         ]);
 
         if ($item['type'] === QuestionType::Cq) {
@@ -179,13 +159,7 @@ class QuestionJsonImporter
         }
 
         return $question
-            ->fill([
-                'options' => $item['options'],
-                'explanation' => $item['explanation'],
-                // Its formulas (and tables) are CKEditor's kind of content too.
-                'explanation_editor_mode' => EditorMode::CkEditor,
-                'marks' => $item['marks'] ?? Question::DEFAULT_MCQ_MARKS,
-            ])
+            ->fill(ImportedQuestions::mcqAttributes($item))
             ->setRelation('cqParts', collect());
     }
 }
