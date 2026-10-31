@@ -3,6 +3,7 @@
 namespace App\Filament\Support\RelationManagers;
 
 use App\Enums\QuestionType;
+use App\Filament\Support\Concerns\SwitchesCardAndTableView;
 use App\Filament\Support\DuplicateQuestionCheck;
 use App\Filament\Support\EditorModePreference;
 use App\Filament\Support\QuestionJsonImportAction;
@@ -17,8 +18,11 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
+use Filament\Tables\Columns\Layout\View;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -30,11 +34,16 @@ use Illuminate\Support\Str;
  * Admin's and a Staff member's paper; who may change it is the paper's to
  * say (BoardQuestionPaper::isEditableBy()).
  *
+ * Each question shown whole as a card by default, with a button to the
+ * table's columns (SwitchesCardAndTableView).
+ *
  * A subclass says which list it is and how one of its questions is written
  * and stored.
  */
 abstract class PaperQuestionsRelationManager extends RelationManager
 {
+    use SwitchesCardAndTableView;
+
     /**
      * @return array<Component>
      */
@@ -44,6 +53,13 @@ abstract class PaperQuestionsRelationManager extends RelationManager
      * Which kind of question this list holds.
      */
     abstract protected function questionType(): QuestionType;
+
+    /**
+     * What a row of this list shows beside the question itself.
+     *
+     * @return array<int, string>
+     */
+    abstract protected function listedRelations(): array;
 
     /**
      * The form's state as a row of this list (and anything stored beside it).
@@ -95,27 +111,37 @@ abstract class PaperQuestionsRelationManager extends RelationManager
 
     public function isReadOnly(): bool
     {
-        return ! $this->paper()->isEditableBy(Auth::user());
+        // Asked for every row's buttons; read once per request.
+        return once(fn (): bool => ! $this->paper()->isEditableBy(Auth::user()));
     }
 
     public function table(Table $table): Table
     {
+        // A card is there to be read: only its Edit button opens the form.
+        if ($this->showsCards()) {
+            $table->recordAction(null);
+        }
+
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with($this->listedRelations()))
             ->reorderable('order_index')
             ->defaultSort('order_index')
-            ->columns([
-                TextColumn::make('order_index')->label('#')->rowIndex(),
-                TextColumn::make('question_text')
-                    ->label(__('Question'))
-                    ->state(fn (Model $record): string => Str::limit(trim(html_entity_decode(strip_tags($record->question_text))), 120))
-                    // Which questions share a stimulus.
-                    ->description(fn (Model $record): ?string => $record->getAttribute('stimulus_id')
-                        ? __('Stimulus: :text', ['text' => Str::limit(trim(html_entity_decode(strip_tags($record->stimulus->text))), 60)])
-                        : null)
-                    ->wrap(),
-                TextColumn::make('marks')->alignCenter(),
-            ])
+            ->columns($this->showsCards()
+                ? [View::make('filament.support.questions.paper-question-card')]
+                : [
+                    TextColumn::make('order_index')->label('#')->rowIndex(),
+                    TextColumn::make('question_text')
+                        ->label(__('Question'))
+                        ->state(fn (Model $record): string => Str::limit(trim(html_entity_decode(strip_tags($record->question_text))), 120))
+                        // Which questions share a stimulus.
+                        ->description(fn (Model $record): ?string => $record->getAttribute('stimulus_id')
+                            ? __('Stimulus: :text', ['text' => Str::limit(trim(html_entity_decode(strip_tags($record->stimulus->text))), 60)])
+                            : null)
+                        ->wrap(),
+                    TextColumn::make('marks')->alignCenter(),
+                ])
             ->headerActions([
+                $this->switchDisplayAction(),
                 CreateAction::make()
                     ->modalWidth(Width::SevenExtraLarge)
                     ->using(fn (array $data): Model => $this->saved($this->createQuestion([
@@ -130,6 +156,7 @@ abstract class PaperQuestionsRelationManager extends RelationManager
                 ...$this->extraRecordActions(),
                 // A question under a shared stimulus is edited with its group.
                 EditAction::make()
+                    ->iconButton()
                     ->hidden(fn (Model $record): bool => $record->getAttribute('stimulus_id') !== null)
                     ->modalWidth(Width::SevenExtraLarge)
                     ->mutateRecordDataUsing(fn (Model $record, array $data): array => $this->fillForm($record, $data))
@@ -138,6 +165,29 @@ abstract class PaperQuestionsRelationManager extends RelationManager
                     ->iconButton()
                     ->after(fn () => $this->paper()->markEditedBy(Auth::user())),
             ]);
+    }
+
+    /**
+     * A question's number on a card: its place in the whole list, across pages.
+     */
+    public function questionNumber(Model $question): int
+    {
+        $records = $this->getTableRecords();
+        // While reordering, the table holds every question, without pages.
+        $isPaged = $records instanceof Paginator;
+        $position = collect($isPaged ? $records->items() : $records)->search(fn (Model $record): bool => $record->is($question));
+
+        return ($isPaged ? $records->firstItem() : 1) + $position;
+    }
+
+    protected function displayUrl(string $display): string
+    {
+        return $this->pageClass::getUrl([
+            'record' => $this->getOwnerRecord(),
+            // Stays on this list, not the page's first.
+            'relation' => array_search(static::class, $this->pageClass::getResource()::getRelations()),
+            'view' => $display,
+        ]);
     }
 
     protected function paper(): BoardQuestionPaper

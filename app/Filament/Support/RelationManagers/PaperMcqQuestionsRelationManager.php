@@ -29,6 +29,11 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
         return QuestionType::Mcq;
     }
 
+    protected function listedRelations(): array
+    {
+        return ['stimulus'];
+    }
+
     protected function formComponents(): array
     {
         return PaperQuestionForms::mcq();

@@ -102,7 +102,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 
 | টেবিল | কলাম |
 |---|---|
-| `boards` | `name`, `name_bn`, `short_name`, `short_name_bn` (ইংরেজি ও বাংলা, পূর্ণ ও সংক্ষিপ্ত), `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন), `order_index` |
+| `boards` | `name`, `name_bn`, `short_name`, `short_name_bn` (ইংরেজি ও বাংলা, পূর্ণ ও সংক্ষিপ্ত), `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন) |
 | `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `rejection_reason`; unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
 | `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by` — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
 | `board_mcq_stimuli` | `board_question_paper_id`, `text`, `editor_mode`, `image` — প্রশ্নপত্রের উদ্দীপক; মুছলে তার প্রশ্নও মোছে |

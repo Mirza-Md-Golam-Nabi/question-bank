@@ -112,7 +112,7 @@ abstract class PastPapersPage extends Page implements HasTable
                     ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null, fn (Builder $query, string $type) => $query->whereHas('board', fn (Builder $board) => $board->where('type', $type)))),
                 SelectFilter::make('board_id')
                     ->label(__('Source'))
-                    ->options(fn (): array => Board::ordered()->get()->mapWithKeys(fn (Board $board) => [$board->id => $board->display_name])->all())
+                    ->options(fn (): array => Board::orderedByDisplayName()->get()->mapWithKeys(fn (Board $board) => [$board->id => $board->display_name])->all())
                     ->searchable(),
                 SelectFilter::make('class')
                     ->label(__('Class'))

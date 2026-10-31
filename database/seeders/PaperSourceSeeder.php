@@ -24,10 +24,10 @@ class PaperSourceSeeder extends Seeder
             return;
         }
 
-        foreach ($this->sources() as $index => [$type, $nameBn, $name, $shortBn, $short]) {
+        foreach ($this->sources() as [$type, $nameBn, $name, $shortBn, $short]) {
             Board::updateOrCreate(
                 ['name' => $name],
-                ['name_bn' => $nameBn, 'short_name_bn' => $shortBn, 'short_name' => $short, 'type' => $type, 'order_index' => $index + 1],
+                ['name_bn' => $nameBn, 'short_name_bn' => $shortBn, 'short_name' => $short, 'type' => $type],
             );
         }
     }

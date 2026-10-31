@@ -22,7 +22,6 @@ class BoardFactory extends Factory
             'name_bn' => $name.' (bn)',
             'short_name' => strtoupper(substr($name, 0, 3)),
             'short_name_bn' => mb_substr($name, 0, 3).'-bn',
-            'order_index' => 0,
         ];
     }
 

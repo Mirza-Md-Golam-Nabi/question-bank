@@ -17,6 +17,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class BoardResource extends Resource
 {
@@ -56,22 +57,18 @@ class BoardResource extends Resource
                     ->options(PaperSourceType::class)
                     ->default(PaperSourceType::Board)
                     ->required(),
-                TextInput::make('order_index')
-                    ->label(__('Display order'))
-                    ->numeric()
-                    ->default(0)
-                    ->required(),
             ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
-            ->defaultSort('order_index')
+            ->defaultSort('name')
             ->columns([
                 TextColumn::make('short_name')->label(__('Short'))->badge()
                     ->state(fn (Board $record): string => $record->display_short_name),
-                TextColumn::make('name')->searchable(['name', 'name_bn'])->sortable()
+                TextColumn::make('name')->searchable(['name', 'name_bn'])
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderedByDisplayName($direction))
                     ->state(fn (Board $record): string => $record->display_name),
                 TextColumn::make('type')->label(__('Kind'))->badge(),
                 TextColumn::make('question_papers_count')->label(__('Papers'))->counts('questionPapers'),
@@ -79,7 +76,7 @@ class BoardResource extends Resource
             ->filters([
                 SelectFilter::make('type')->label(__('Kind'))->options(PaperSourceType::class),
             ])
-            ->recordActions(TableActions::editAndDelete())
+            ->recordActions(TableActions::editAndDelete(iconButtons: true))
             ->toolbarActions(TableActions::bulkDelete());
     }
 

@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Enums\PaperSourceType;
-use App\Models\Concerns\HasOrderIndex;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,10 +19,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Named in English (`name`, `short_name`) and Bangla (`name_bn`,
  * `short_name_bn`); what is shown follows the active language.
  */
-#[Fillable(['name', 'name_bn', 'short_name', 'short_name_bn', 'type', 'order_index'])]
+#[Fillable(['name', 'name_bn', 'short_name', 'short_name_bn', 'type'])]
 class Board extends Model
 {
-    use HasFactory, HasOrderIndex;
+    use HasFactory;
 
     protected $attributes = [
         'type' => 'board',
@@ -38,6 +38,18 @@ class Board extends Model
     public function questionPapers(): HasMany
     {
         return $this->hasMany(BoardQuestionPaper::class);
+    }
+
+    /**
+     * A to Z by what display_name shows, in the database.
+     */
+    public function scopeOrderedByDisplayName(Builder $query, string $direction = 'asc'): Builder
+    {
+        $direction = $direction === 'desc' ? 'desc' : 'asc';
+
+        return app()->getLocale() === 'bn'
+            ? $query->orderByRaw("COALESCE(NULLIF(name_bn, ''), name) {$direction}")
+            : $query->orderBy('name', $direction);
     }
 
     /**

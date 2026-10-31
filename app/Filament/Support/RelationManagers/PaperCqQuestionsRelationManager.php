@@ -27,6 +27,11 @@ class PaperCqQuestionsRelationManager extends PaperQuestionsRelationManager
         return QuestionType::Cq;
     }
 
+    protected function listedRelations(): array
+    {
+        return ['cqParts'];
+    }
+
     protected function formComponents(): array
     {
         return PaperQuestionForms::cq();

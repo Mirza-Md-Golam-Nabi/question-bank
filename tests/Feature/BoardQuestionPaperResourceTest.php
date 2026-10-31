@@ -11,6 +11,8 @@ use App\Filament\Staff\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPape
 use App\Filament\Support\RelationManagers\PaperCqQuestionsRelationManager;
 use App\Filament\Support\RelationManagers\PaperMcqQuestionsRelationManager;
 use App\Models\Board;
+use App\Models\BoardCqQuestion;
+use App\Models\BoardCqQuestionPart;
 use App\Models\BoardMcqQuestion;
 use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
@@ -18,6 +20,8 @@ use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
+use Livewire\Livewire;
 
 use function Pest\Livewire\livewire;
 
@@ -49,6 +53,115 @@ it('creates a board paper and opens it, so its questions are added one by one', 
     expect($paper->status)->toBe(QuestionStatus::Pending)
         ->and($paper->class_subject_id)->toBe($this->classSubject->id)
         ->and($paper->duration_minutes)->toBe(25);
+});
+
+it('lists only the sources of the chosen kind, and every source until one is chosen', function () {
+    $sourceIds = fn (Select $field): array => array_keys($field->getOptions());
+
+    livewire(CreateBoardQuestionPaper::class)
+        ->assertFormFieldExists('board_id', fn (Select $field): bool => collect($sourceIds($field))->sort()->values()->all() === [$this->board->id, $this->university->id])
+        ->fillForm(['source_type' => PaperSourceType::University->value])
+        ->assertFormFieldExists('board_id', fn (Select $field): bool => $sourceIds($field) === [$this->university->id]);
+});
+
+it('lists the sources by name, A to Z', function () {
+    $job = Board::factory()->ofType(PaperSourceType::Job);
+    $zila = $job->create(['name' => 'Zila Exam', 'name_bn' => 'Zila Exam']);
+    $bank = $job->create(['name' => 'Bank Exam', 'name_bn' => 'Bank Exam']);
+
+    livewire(CreateBoardQuestionPaper::class)
+        ->fillForm(['source_type' => PaperSourceType::Job->value])
+        ->assertFormFieldExists('board_id', fn (Select $field): bool => array_keys($field->getOptions()) === [$bank->id, $zila->id]);
+});
+
+it('sorts the sources in the database by the name shown in the active language', function () {
+    Board::query()->delete();
+    $first = Board::factory()->create(['name' => 'Zila', 'name_bn' => 'ক']);
+    $second = Board::factory()->create(['name' => 'Medical', 'name_bn' => null]);
+    $third = Board::factory()->create(['name' => 'Bank', 'name_bn' => 'খ']);
+
+    app()->setLocale('en');
+    expect(Board::orderedByDisplayName()->pluck('id')->all())->toBe([$third->id, $second->id, $first->id]);
+
+    app()->setLocale('bn');
+    expect(Board::orderedByDisplayName()->pluck('id')->all())->toBe([$second->id, $first->id, $third->id]);
+});
+
+it('shows a paper\'s MCQs and CQs whole as cards, and short in the table view', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    BoardMcqQuestion::factory()->create([
+        'board_question_paper_id' => $paper->id,
+        'options' => [['option' => 'Whole option', 'image' => null, 'is_correct' => true], ['option' => 'Other', 'image' => null, 'is_correct' => false]],
+    ]);
+    $cq = BoardCqQuestion::factory()->create(['board_question_paper_id' => $paper->id]);
+    BoardCqQuestionPart::factory()->create(['board_cq_question_id' => $cq->id, 'part_text' => 'Whole sub-question']);
+
+    $list = fn (string $manager, array $query = []) => Livewire::withQueryParams($query)->test($manager, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class]);
+
+    $list(PaperMcqQuestionsRelationManager::class)->assertSee('Whole option');
+    $list(PaperCqQuestionsRelationManager::class)->assertSee('Whole sub-question');
+
+    $list(PaperMcqQuestionsRelationManager::class, ['view' => 'table'])->assertDontSee('Whole option');
+    $list(PaperCqQuestionsRelationManager::class, ['view' => 'table'])->assertDontSee('Whole sub-question');
+});
+
+it('numbers the cards through the whole list, across its pages', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    BoardCqQuestion::factory()->count(6)->sequence(fn ($sequence) => ['order_index' => $sequence->index])->create(['board_question_paper_id' => $paper->id]);
+
+    livewire(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->set('tableRecordsPerPage', 5)
+        ->assertSeeHtmlInOrder(['<span>1.</span>', '<span>2.</span>', '<span>5.</span>'])
+        ->call('gotoPage', 2, 'paperCqQuestionsRelationManagerPage')
+        ->assertSeeHtml('<span>6.</span>');
+});
+
+it('keeps the cards numbered while they are being reordered', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    BoardCqQuestion::factory()->count(6)->sequence(fn ($sequence) => ['order_index' => $sequence->index])->create(['board_question_paper_id' => $paper->id]);
+
+    livewire(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->call('toggleTableReordering')
+        ->assertOk()
+        ->assertSeeHtmlInOrder(['<span>1.</span>', '<span>6.</span>']);
+});
+
+it('opens the edit form from a card\'s button only, not from a click anywhere on it', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    BoardCqQuestion::factory()->create(['board_question_paper_id' => $paper->id]);
+
+    $list = fn (array $query = []) => Livewire::withQueryParams($query)->test(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class]);
+
+    $list()->assertDontSeeHtml('mountTableAction(&#039;edit&#039;');
+    $list(['view' => 'table'])->assertSeeHtml('mountTableAction(&#039;edit&#039;');
+});
+
+it('switches the view on the same list of the paper', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+
+    livewire(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
+        ->assertTableActionHasUrl('switchDisplay', EditBoardQuestionPaper::getUrl(['record' => $paper, 'relation' => 1, 'view' => 'table']));
+});
+
+it('forgets the chosen source when the kind changes', function () {
+    livewire(CreateBoardQuestionPaper::class)
+        ->fillForm(['board_id' => $this->board->id])
+        ->set('data.source_type', PaperSourceType::University->value)
+        ->assertSchemaStateSet(['board_id' => null]);
+});
+
+it('saves a paper picked through a kind, and shows that kind when the paper is opened again', function () {
+    livewire(CreateBoardQuestionPaper::class)
+        ->fillForm([
+            'source_type' => PaperSourceType::University->value,
+            'board_id' => $this->university->id,
+            'year' => 2022,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    livewire(EditBoardQuestionPaper::class, ['record' => BoardQuestionPaper::sole()->id])
+        ->assertSchemaStateSet(['source_type' => PaperSourceType::University, 'board_id' => $this->university->id]);
 });
 
 it('creates an admission paper with a source, year and unit only — no class or subject', function () {

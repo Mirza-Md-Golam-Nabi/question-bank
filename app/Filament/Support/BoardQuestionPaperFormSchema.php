@@ -12,6 +12,8 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * A past paper's details: where it is from (a board, a medical college, a
@@ -34,13 +36,21 @@ class BoardQuestionPaperFormSchema
             Section::make(__('Paper'))
                 ->columnSpanFull()
                 ->schema([
-                    Grid::make(3)->schema([
-                        // Grouped by kind: boards, admission tests, job exams…
+                    Grid::make(2)->schema([
+                        // Only narrows the sources below; the paper keeps just its source.
+                        Select::make('source_type')
+                            ->label(__('Kind'))
+                            ->options(PaperSourceType::class)
+                            ->dehydrated(false)
+                            ->afterStateHydrated(fn (Select $component, ?BoardQuestionPaper $record) => $component->state($record?->board?->type))
+                            ->afterStateUpdated(fn (Set $set) => $set('board_id', null))
+                            ->live(),
                         Select::make('board_id')
                             ->label(__('Source'))
-                            ->options(fn () => Board::ordered()->get()
-                                ->groupBy(fn (Board $board): string => $board->type->getLabel())
-                                ->map(fn ($boards) => $boards->mapWithKeys(fn (Board $board) => [$board->id => "{$board->display_name} ({$board->display_short_name})"])->all())
+                            ->options(fn (Get $get): array => Board::orderedByDisplayName()
+                                ->when($get('source_type'), fn (Builder $query, PaperSourceType $type) => $query->where('type', $type))
+                                ->get()
+                                ->mapWithKeys(fn (Board $board): array => [$board->id => "{$board->display_name} ({$board->display_short_name})"])
                                 ->all())
                             ->searchable()
                             ->preload()

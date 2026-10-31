@@ -236,7 +236,7 @@ class SubscriptionPlanResource extends Resource
                     Select::make('board_ids')
                         ->label(__('Only these sources'))
                         ->helperText(__('Leave empty for every source.'))
-                        ->options(fn (): array => Board::ordered()->get()->mapWithKeys(fn (Board $board) => [$board->id => $board->display_name])->all())
+                        ->options(fn (): array => Board::orderedByDisplayName()->get()->mapWithKeys(fn (Board $board) => [$board->id => $board->display_name])->all())
                         ->multiple()
                         ->searchable()
                         ->columnSpanFull(),

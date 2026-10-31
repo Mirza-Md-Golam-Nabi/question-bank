@@ -27,13 +27,27 @@ it('lets the admin add a medical admission test as a source of past papers', fun
             'short_name' => 'MBBS',
             'short_name_bn' => 'মেডিকেল',
             'type' => PaperSourceType::Medical->value,
-            'order_index' => 1,
         ])
         ->assertHasNoActionErrors();
 
     expect(Board::sole())
         ->type->toBe(PaperSourceType::Medical)
         ->short_name_bn->toBe('মেডিকেল');
+});
+
+it('lists the paper sources by the name shown in the active language', function () {
+    $zila = Board::factory()->create(['name' => 'Zila', 'name_bn' => 'ক']);
+    $bank = Board::factory()->create(['name' => 'Bank', 'name_bn' => 'খ']);
+
+    app()->setLocale('en');
+    livewire(ManageBoards::class)
+        ->assertCanSeeTableRecords([$bank, $zila], inOrder: true)
+        ->sortTable('name', 'desc')
+        ->assertCanSeeTableRecords([$zila, $bank], inOrder: true);
+
+    app()->setLocale('bn');
+    livewire(ManageBoards::class)
+        ->assertCanSeeTableRecords([$zila, $bank], inOrder: true);
 });
 
 it('narrows the paper sources and the past papers to one kind', function () {

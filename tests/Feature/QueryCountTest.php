@@ -8,6 +8,8 @@ use App\Filament\Staff\Pages\MyEarnings;
 use App\Filament\Staff\Widgets\StaffEarningsTrendChartWidget;
 use App\Filament\Staff\Widgets\StaffQuestionRatesWidget;
 use App\Filament\Staff\Widgets\StaffStatsOverviewWidget;
+use App\Filament\Support\RelationManagers\PaperCqQuestionsRelationManager;
+use App\Filament\Support\RelationManagers\PaperMcqQuestionsRelationManager;
 use App\Filament\Support\Widgets\Performance\ChapterPerformanceWidget;
 use App\Filament\Support\Widgets\Performance\PerformanceStatsWidget;
 use App\Filament\Support\Widgets\Performance\SubjectPerformanceWidget;
@@ -18,6 +20,7 @@ use App\Models\BillingSetting;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
 use App\Models\BoardMcqQuestion;
+use App\Models\BoardMcqStimulus;
 use App\Models\BoardQuestionPaper;
 use App\Models\Chapter;
 use App\Models\Exam;
@@ -35,6 +38,7 @@ use App\Services\SubscriptionPurchaseService;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
+use Livewire\Livewire;
 
 use function Pest\Livewire\livewire;
 
@@ -194,6 +198,36 @@ it('opens a board paper for editing in the same number of queries however many q
 
     expect($queries[9])->toBe($queries[2]);
 });
+
+it('lists a board paper\'s questions, as cards or a table, in the same number of queries however many it has', function (string $display) {
+    $this->actingAs(User::factory()->admin()->create());
+    $queries = [];
+
+    $lists = fn (BoardQuestionPaper $paper) => function () use ($paper, $display): void {
+        foreach ([PaperMcqQuestionsRelationManager::class, PaperCqQuestionsRelationManager::class] as $manager) {
+            Livewire::withQueryParams(['view' => $display])->test($manager, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])->assertOk();
+        }
+    };
+
+    $lists(BoardQuestionPaper::factory()->create())();
+
+    foreach ([2, 9] as $questionCount) {
+        $paper = BoardQuestionPaper::factory()->create();
+        foreach (range(1, $questionCount) as $index) {
+            BoardMcqQuestion::factory()->create([
+                'board_question_paper_id' => $paper->id,
+                'stimulus_id' => BoardMcqStimulus::factory()->create(['board_question_paper_id' => $paper->id])->id,
+            ]);
+            BoardCqQuestionPart::factory()->create([
+                'board_cq_question_id' => BoardCqQuestion::factory()->create(['board_question_paper_id' => $paper->id])->id,
+            ]);
+        }
+
+        $queries[$questionCount] = ($this->queriesRunBy)($lists($paper));
+    }
+
+    expect($queries[9])->toBe($queries[2]);
+})->with(['cards', 'table']);
 
 it('shows a staff member\'s earnings pages in the same number of queries however much they have earned', function () {
     $staff = User::factory()->staff()->create();
