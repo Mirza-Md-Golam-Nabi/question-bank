@@ -1101,7 +1101,6 @@
     "Tables: a table of text in a question, a stimulus, an explanation, a sub-question or an answer is written as text, not as an image — as a Markdown table: each row on a line of its own, its cells between | signs, a |---|---| line under the header row, and every row with as many cells as the header (in JSON a new line is written :newline). Formulas may go in the cells; an option cannot have a table.": "টেবিল: প্রশ্ন, উদ্দীপক, ব্যাখ্যা, CQ-র অংশ বা উত্তরে লেখার টেবিল থাকলে সেটা ছবি না বানিয়ে লেখা হিসেবে দাও — Markdown টেবিলে: প্রতিটা সারি আলাদা লাইনে, ঘরগুলো | চিহ্নের মাঝে, হেডারের সারির নিচে একটা |---|---| লাইন, আর প্রতিটা সারিতে হেডারের সমান সংখ্যক ঘর (JSON-এ নতুন লাইন লেখা হয় :newline)। ঘরে সূত্রও দেওয়া যায়; অপশনে টেবিল দেওয়া যায় না।",
     "Apart from that, plain text only — no HTML, no other Markdown.": "এ ছাড়া শুধু সাধারণ লেখা — HTML বা অন্য কোনো Markdown না।",
     "an option cannot have a table": "অপশনে টেবিল দেওয়া যায় না",
-    "a table has no rows under its header": "টেবিলের হেডারের নিচে কোনো সারি নেই",
     "a table row has :count cells, but its header has :columns": "টেবিলের একটা সারিতে :countটা ঘর, কিন্তু হেডারে :columnsটা",
     ":name needs its \"text\", or an \"image\"": ":name-এ \"text\" অথবা \"image\" লাগবে",
     "\"image\" of :name must be the file name of an image given with the JSON, ending in .png, .jpg or .webp — e.g. q12.png": ":name-এর \"image\" হতে হবে JSON-এর সাথে দেওয়া একটা ছবির ফাইলের নাম, শেষে .png, .jpg বা .webp — যেমন q12.png",

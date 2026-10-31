@@ -261,10 +261,26 @@ it('finds what is wrong with a table', function (array $overrides, string $probl
     expect(implode(' ', ($this->problems)([($this->mcq)($overrides)])))->toContain($problem);
 })->with([
     'a row with too few cells' => [['question' => "| ক | খ |\n|---|---|\n| ১ |"], 'a table row has 1 cells, but its header has 2'],
-    'no rows under the header' => [['question' => "| ক | খ |\n|---|---|"], 'a table has no rows under its header'],
     'a table in an option' => [['options' => ["| ক | খ |\n|---|---|\n| ১ | ২ |", 'খ', 'গ', 'ঘ']], 'an option cannot have a table'],
     'a broken formula in a cell' => [['question' => "| ক |\n|---|\n| \$\\frac{1}{2\$ |"], 'brackets of a formula do not match'],
 ]);
+
+it('takes a table of a single row, in an MCQ and in a CQ', function () {
+    $singleRow = "| ক | খ |\n|---|---|";
+    $singleRowHtml = '<figure class="table"><table><thead><tr><th>ক</th><th>খ</th></tr></thead></table></figure>';
+
+    $cq = ($this->cq)(['question' => $singleRow]);
+    $cq['parts'][2]['text'] = $singleRow;
+
+    $result = ($this->import)([($this->mcq)(['question' => $singleRow]), $cq]);
+
+    $importedCq = Question::where('question_type', 'cq')->sole();
+
+    expect($result['added'])->toBe(2)
+        ->and(Question::where('question_type', 'mcq')->sole()->question_text)->toBe($singleRowHtml)
+        ->and($importedCq->question_text)->toBe($singleRowHtml)
+        ->and($importedCq->cqParts->pluck('part_text')->get(2))->toBe($singleRowHtml);
+});
 
 it('takes bars that do not make a table as plain text', function () {
     ($this->import)([($this->mcq)(['question' => "|x| = 3 হলে\n|y| কত?"])]);

@@ -208,16 +208,14 @@ class QuestionImportText
     }
 
     /**
+     * A table of the header row alone is a table too.
+     *
      * @param  array<int, array<int, string>>  $rows  The header row first.
      * @return array<int, string>
      */
     private static function tableProblems(array $rows): array
     {
         $columns = count($rows[0]);
-
-        if (count($rows) < 2) {
-            return [__('a table has no rows under its header')];
-        }
 
         foreach (array_slice($rows, 1) as $cells) {
             if (count($cells) !== $columns) {
@@ -237,10 +235,12 @@ class QuestionImportText
             ->map(fn (string $cell): string => "<{$tag}>".self::inlineHtml($cell)."</{$tag}>")
             ->implode('').'</tr>';
 
-        return '<figure class="table"><table>'
-            .'<thead>'.$row(array_shift($rows), 'th').'</thead>'
-            .'<tbody>'.collect($rows)->map(fn (array $cells): string => $row($cells, 'td'))->implode('').'</tbody>'
-            .'</table></figure>';
+        $header = $row(array_shift($rows), 'th');
+        $body = $rows === []
+            ? ''
+            : '<tbody>'.collect($rows)->map(fn (array $cells): string => $row($cells, 'td'))->implode('').'</tbody>';
+
+        return '<figure class="table"><table><thead>'.$header.'</thead>'.$body.'</table></figure>';
     }
 
     /**
