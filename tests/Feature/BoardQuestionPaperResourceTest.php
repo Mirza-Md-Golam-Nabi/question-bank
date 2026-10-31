@@ -7,6 +7,7 @@ use App\Filament\Resources\BoardQuestionPapers\Pages\CreateBoardQuestionPaper;
 use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
 use App\Filament\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPapers;
 use App\Filament\Staff\Resources\BoardQuestionPapers\BoardQuestionPaperResource as StaffBoardQuestionPaperResource;
+use App\Filament\Staff\Resources\BoardQuestionPapers\Pages\CreateBoardQuestionPaper as StaffCreateBoardQuestionPaper;
 use App\Filament\Staff\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPapers as StaffListBoardQuestionPapers;
 use App\Filament\Support\RelationManagers\PaperCqQuestionsRelationManager;
 use App\Filament\Support\RelationManagers\PaperMcqQuestionsRelationManager;
@@ -38,7 +39,7 @@ beforeEach(function () {
 it('creates a board paper and opens it, so its questions are added one by one', function () {
     $page = livewire(CreateBoardQuestionPaper::class)
         ->fillForm([
-            'board_id' => $this->board->id,
+            'board_ids' => [$this->board->id],
             'academic_class_id' => $this->classSubject->academic_class_id,
             'class_subject_id' => $this->classSubject->id,
             'year' => 2023,
@@ -56,13 +57,94 @@ it('creates a board paper and opens it, so its questions are added one by one', 
         ->and($paper->duration_minutes)->toBe(25);
 });
 
+it('makes one paper for each source picked, with the same details, and goes back to the list', function () {
+    $second = Board::factory()->create();
+
+    livewire(CreateBoardQuestionPaper::class)
+        ->fillForm([
+            'board_ids' => [$this->board->id, $second->id],
+            'academic_class_id' => $this->classSubject->academic_class_id,
+            'class_subject_id' => $this->classSubject->id,
+            'year' => 2023,
+            'unit' => 'Ka',
+            'duration_minutes' => 25,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors()
+        ->assertNotified(__(':count past papers created.', ['count' => 2]))
+        ->assertRedirect(ListBoardQuestionPapers::getUrl());
+
+    $papers = BoardQuestionPaper::orderBy('id')->get();
+
+    expect($papers->pluck('board_id')->all())->toBe([$this->board->id, $second->id])
+        ->and($papers->pluck('year')->unique()->all())->toBe([2023])
+        ->and($papers->pluck('unit')->unique()->all())->toBe(['Ka'])
+        ->and($papers->pluck('class_subject_id')->unique()->all())->toBe([$this->classSubject->id])
+        ->and($papers->pluck('duration_minutes')->unique()->all())->toBe([25])
+        ->and($papers->pluck('created_by')->unique()->all())->toBe([$this->admin->id]);
+});
+
+it('makes none of the papers when one of the sources already has that paper, and names it', function () {
+    $second = Board::factory()->create(['name' => 'Second Board', 'name_bn' => 'Second Board']);
+    BoardQuestionPaper::factory()->create(['board_id' => $second->id, 'class_subject_id' => $this->classSubject->id, 'year' => 2023]);
+
+    livewire(CreateBoardQuestionPaper::class)
+        ->fillForm([
+            'board_ids' => [$this->board->id, $second->id],
+            'academic_class_id' => $this->classSubject->academic_class_id,
+            'class_subject_id' => $this->classSubject->id,
+            'year' => 2023,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['year'])
+        ->assertSee('Second Board');
+
+    expect(BoardQuestionPaper::count())->toBe(1);
+});
+
+it('does not mix sources of different kinds in one go', function () {
+    livewire(CreateBoardQuestionPaper::class)
+        ->fillForm([
+            'board_ids' => [$this->board->id, $this->university->id],
+            'academic_class_id' => $this->classSubject->academic_class_id,
+            'class_subject_id' => $this->classSubject->id,
+            'year' => 2023,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['board_ids']);
+
+    expect(BoardQuestionPaper::count())->toBe(0);
+});
+
+it('lets a staff member make papers for several sources, each their own and pending', function () {
+    $staff = User::factory()->staff()->create();
+    $second = Board::factory()->ofType(PaperSourceType::University)->create();
+    $this->actingAs($staff);
+    Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+    livewire(StaffCreateBoardQuestionPaper::class)
+        ->fillForm(['board_ids' => [$this->university->id, $second->id], 'year' => 2022])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(BoardQuestionPaper::where('created_by', $staff->id)->where('status', QuestionStatus::Pending)->count())->toBe(2);
+});
+
+it('keeps the one source on an existing paper\'s form', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+
+    livewire(EditBoardQuestionPaper::class, ['record' => $paper->id])
+        ->assertFormFieldExists('board_id', fn (Select $field): bool => ! $field->isMultiple())
+        ->assertFormFieldIsHidden('board_ids');
+});
+
 it('lists only the sources of the chosen kind, and every source until one is chosen', function () {
     $sourceIds = fn (Select $field): array => array_keys($field->getOptions());
 
     livewire(CreateBoardQuestionPaper::class)
-        ->assertFormFieldExists('board_id', fn (Select $field): bool => collect($sourceIds($field))->sort()->values()->all() === [$this->board->id, $this->university->id])
+        ->assertFormFieldExists('board_ids', fn (Select $field): bool => collect($sourceIds($field))->sort()->values()->all() === [$this->board->id, $this->university->id])
         ->fillForm(['source_type' => PaperSourceType::University->value])
-        ->assertFormFieldExists('board_id', fn (Select $field): bool => $sourceIds($field) === [$this->university->id]);
+        ->assertFormFieldExists('board_ids', fn (Select $field): bool => $sourceIds($field) === [$this->university->id]);
 });
 
 it('lists the sources by name, A to Z', function () {
@@ -72,7 +154,7 @@ it('lists the sources by name, A to Z', function () {
 
     livewire(CreateBoardQuestionPaper::class)
         ->fillForm(['source_type' => PaperSourceType::Job->value])
-        ->assertFormFieldExists('board_id', fn (Select $field): bool => array_keys($field->getOptions()) === [$bank->id, $zila->id]);
+        ->assertFormFieldExists('board_ids', fn (Select $field): bool => array_keys($field->getOptions()) === [$bank->id, $zila->id]);
 });
 
 it('sorts the sources in the database by the name shown in the active language', function () {
@@ -187,16 +269,16 @@ it('switches the view on the same list of the paper', function () {
 
 it('forgets the chosen source when the kind changes', function () {
     livewire(CreateBoardQuestionPaper::class)
-        ->fillForm(['board_id' => $this->board->id])
+        ->fillForm(['board_ids' => [$this->board->id]])
         ->set('data.source_type', PaperSourceType::University->value)
-        ->assertSchemaStateSet(['board_id' => null]);
+        ->assertSchemaStateSet(['board_ids' => []]);
 });
 
 it('saves a paper picked through a kind, and shows that kind when the paper is opened again', function () {
     livewire(CreateBoardQuestionPaper::class)
         ->fillForm([
             'source_type' => PaperSourceType::University->value,
-            'board_id' => $this->university->id,
+            'board_ids' => [$this->university->id],
             'year' => 2022,
         ])
         ->call('create')
@@ -209,7 +291,7 @@ it('saves a paper picked through a kind, and shows that kind when the paper is o
 it('creates an admission paper with a source, year and unit only — no class or subject', function () {
     livewire(CreateBoardQuestionPaper::class)
         ->fillForm([
-            'board_id' => $this->university->id,
+            'board_ids' => [$this->university->id],
             'year' => 2022,
             'unit' => 'Ka',
             'negative_marks' => 0.25,
@@ -268,7 +350,7 @@ it('blocks a second paper for the same source, year and unit — admission paper
 
     livewire(CreateBoardQuestionPaper::class)
         ->fillForm([
-            'board_id' => $this->board->id,
+            'board_ids' => [$this->board->id],
             'academic_class_id' => $this->classSubject->academic_class_id,
             'class_subject_id' => $this->classSubject->id,
             'year' => 2023,
@@ -277,7 +359,7 @@ it('blocks a second paper for the same source, year and unit — admission paper
         ->assertHasFormErrors(['year']);
 
     livewire(CreateBoardQuestionPaper::class)
-        ->fillForm(['board_id' => $this->university->id, 'year' => 2023, 'unit' => 'Ka'])
+        ->fillForm(['board_ids' => [$this->university->id], 'year' => 2023, 'unit' => 'Ka'])
         ->call('create')
         ->assertHasFormErrors(['year']);
 

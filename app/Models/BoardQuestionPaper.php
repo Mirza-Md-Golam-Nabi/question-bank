@@ -138,13 +138,42 @@ class BoardQuestionPaper extends Model
      */
     public static function isTaken(int $boardId, ?int $classSubjectId, int $year, ?string $unit, ?int $exceptId = null): bool
     {
+        return self::takenSources([$boardId], $classSubjectId, $year, $unit, $exceptId) !== [];
+    }
+
+    /**
+     * Which of these sources already have that paper (see isTaken()).
+     *
+     * @param  array<int, int>  $boardIds
+     * @return array<int, int>
+     */
+    public static function takenSources(array $boardIds, ?int $classSubjectId, int $year, ?string $unit, ?int $exceptId = null): array
+    {
         return self::query()
-            ->where('board_id', $boardId)
+            ->whereIn('board_id', $boardIds)
             ->where('year', $year)
             ->where('unit', trim((string) $unit))
             ->when($classSubjectId, fn (Builder $query) => $query->where('class_subject_id', $classSubjectId), fn (Builder $query) => $query->whereNull('class_subject_id'))
             ->when($exceptId, fn (Builder $query) => $query->whereKeyNot($exceptId))
-            ->exists();
+            ->pluck('board_id')
+            ->all();
+    }
+
+    /**
+     * One paper for each source, with the same details — each its own paper
+     * from then on, with its own questions and its own approval. All of them
+     * or none.
+     *
+     * @param  array<int, int|string>  $boardIds
+     * @param  array<string, mixed>  $attributes
+     * @return Collection<int, self>
+     */
+    public static function createForSources(array $boardIds, array $attributes): Collection
+    {
+        return DB::transaction(fn (): Collection => new Collection(array_map(
+            fn (int|string $boardId): self => self::create([...$attributes, 'board_id' => $boardId]),
+            array_values($boardIds),
+        )));
     }
 
     /**

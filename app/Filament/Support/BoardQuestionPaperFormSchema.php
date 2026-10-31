@@ -43,19 +43,26 @@ class BoardQuestionPaperFormSchema
                             ->options(PaperSourceType::class)
                             ->dehydrated(false)
                             ->afterStateHydrated(fn (Select $component, ?BoardQuestionPaper $record) => $component->state($record?->board?->type))
-                            ->afterStateUpdated(fn (Set $set) => $set('board_id', null))
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('board_id', null);
+                                $set('board_ids', []);
+                            })
                             ->live(),
-                        Select::make('board_id')
-                            ->label(__('Source'))
-                            ->options(fn (Get $get): array => Board::orderedByDisplayName()
-                                ->when($get('source_type'), fn (Builder $query, PaperSourceType $type) => $query->where('type', $type))
-                                ->get()
-                                ->mapWithKeys(fn (Board $board): array => [$board->id => "{$board->display_name} ({$board->display_short_name})"])
-                                ->all())
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->required(),
+                        // A new paper can be made for several sources at once,
+                        // one paper each; a paper made has its one source.
+                        self::sourceSelect('board_ids')
+                            ->multiple()
+                            ->visibleOn('create')
+                            ->helperText(__('Pick several to make one paper for each, with the same details. Each paper gets its own questions.'))
+                            ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                $kinds = collect((array) $value)->map(fn (mixed $boardId): ?string => self::sourceTypeOf($boardId)?->value)->unique();
+
+                                if ($kinds->count() > 1) {
+                                    $fail(__('Pick sources of one kind only.'));
+                                }
+                            }),
+                        self::sourceSelect('board_id')
+                            ->hiddenOn('create'),
                         TextInput::make('year')
                             ->numeric()
                             ->integer()
@@ -63,16 +70,19 @@ class BoardQuestionPaperFormSchema
                             ->maxValue((int) date('Y'))
                             ->required()
                             ->rule(fn (Get $get, ?BoardQuestionPaper $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
-                                $boardId = (int) $get('board_id');
+                                $boardIds = self::sourceIds($get);
 
-                                if (! $boardId || ! is_numeric($value)) {
+                                if ($boardIds === [] || ! is_numeric($value)) {
                                     return;
                                 }
 
                                 $classSubjectId = self::hasClassSubject($get) ? ((int) $get('class_subject_id') ?: null) : null;
+                                $taken = BoardQuestionPaper::takenSources($boardIds, $classSubjectId, (int) $value, $get('unit'), $record?->id);
 
-                                if (BoardQuestionPaper::isTaken($boardId, $classSubjectId, (int) $value, $get('unit'), $record?->id)) {
-                                    $fail(__('This paper has already been entered.'));
+                                if ($taken !== []) {
+                                    $fail(__('This paper has already been entered for: :sources.', [
+                                        'sources' => Board::whereKey($taken)->orderedByDisplayName()->get()->map(fn (Board $board): string => $board->display_name)->join(', '),
+                                    ]));
                                 }
                             }),
                         TextInput::make('unit')
@@ -107,13 +117,38 @@ class BoardQuestionPaperFormSchema
         ];
     }
 
+    private static function sourceSelect(string $name): Select
+    {
+        return Select::make($name)
+            ->label(__('Source'))
+            ->options(fn (Get $get): array => Board::orderedByDisplayName()
+                ->when($get('source_type'), fn (Builder $query, PaperSourceType $type) => $query->where('type', $type))
+                ->get()
+                ->mapWithKeys(fn (Board $board): array => [$board->id => "{$board->display_name} ({$board->display_short_name})"])
+                ->all())
+            ->searchable()
+            ->preload()
+            ->live()
+            ->required();
+    }
+
+    /**
+     * The source or sources chosen on the form.
+     *
+     * @return array<int, int>
+     */
+    private static function sourceIds(Get $get): array
+    {
+        return array_map(intval(...), array_values(array_filter((array) ($get('board_ids') ?: $get('board_id')))));
+    }
+
     /**
      * Whether the chosen source's papers are for one class + subject (a
      * board's or a school's) — an admission test's are not.
      */
     public static function hasClassSubject(Get $get): bool
     {
-        return self::sourceTypeOf($get('board_id'))?->hasClassSubject() ?? false;
+        return self::sourceTypeOf(self::sourceIds($get)[0] ?? null)?->hasClassSubject() ?? false;
     }
 
     /**
@@ -125,7 +160,7 @@ class BoardQuestionPaperFormSchema
      */
     public static function normalize(array $data): array
     {
-        if (! (self::sourceTypeOf($data['board_id'] ?? null)?->hasClassSubject() ?? false)) {
+        if (! (self::sourceTypeOf($data['board_ids'][0] ?? $data['board_id'] ?? null)?->hasClassSubject() ?? false)) {
             $data['class_subject_id'] = null;
         }
 
