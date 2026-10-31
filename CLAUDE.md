@@ -697,7 +697,7 @@ CLAUDE.md
 | টেবিলের edit/delete/bulk-delete অ্যাকশন | `Support\TableActions` |
 | ফর্মে "কোন user" সিলেক্ট | `Support\UserSelect` |
 | নাম + ক্রমসহ আইটেম (class/chapter/topic) যোগ-এডিট-ডিলিট | `Support\Concerns\ManagesOrderedItems` |
-| প্রশ্নের তালিকা কার্ড আকারে (ডিফল্ট) ↔ টেবিল আকারে টগল (`?view=table`) | `Support\Concerns\SwitchesCardAndTableView` (অধ্যায়ের প্রশ্ন-তালিকা, "সম্ভাব্য ডুপ্লিকেট", প্রশ্নপত্রের MCQ/CQ তালিকা) |
+| প্রশ্নের তালিকা কার্ড আকারে (ডিফল্ট) ↔ টেবিল আকারে টগল (`?view=table`) | `Support\Concerns\SwitchesCardAndTableView` (অধ্যায়ের প্রশ্ন-তালিকা, "সম্ভাব্য ডুপ্লিকেট", প্রশ্নপত্রের MCQ/CQ তালিকা); প্রশ্নভাণ্ডার ও প্রশ্নপত্রের তালিকার একই কার্ড (নম্বর, উদ্দীপক একবারই) `questionCardColumn()` + `question-table-card`, ক্রম `SharesStimulus::scopeStimulusTogether()` |
 | প্রশ্নের তালিকার ক্রম ID অনুযায়ী — "Oldest" (ডিফল্ট) / "Latest" বোতাম (`?order=latest`) | `Support\Concerns\OrdersOldestOrLatest` (অধ্যায়ের প্রশ্ন-তালিকা, "প্রশ্ন বাছাই" picker) |
 | Browse পেজ (class/subject/chapter) ও কার্ড; ব্রাউজারে কার্ড খোঁজা | `Support\Pages\Questions\Browse*Page`, `<x-browse.grid>` (`searchable`), `<x-browse.card>` (`search`), `<x-browse.meta>`, `<x-browse.edit-delete-menu>` |
 | বিষয়ের নাম চলতি ভাষায় | `Subject::display_name` (সংক্ষিপ্ত `short_label`) |

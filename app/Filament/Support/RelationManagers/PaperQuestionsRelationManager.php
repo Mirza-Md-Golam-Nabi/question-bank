@@ -6,7 +6,6 @@ use App\Enums\QuestionType;
 use App\Filament\Support\Concerns\SwitchesCardAndTableView;
 use App\Filament\Support\DuplicateQuestionCheck;
 use App\Filament\Support\EditorModePreference;
-use App\Filament\Support\QuestionBlocks;
 use App\Filament\Support\QuestionJsonImportAction;
 use App\Models\BoardQuestionPaper;
 use App\Services\DuplicateMatch;
@@ -19,10 +18,8 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
-use Filament\Tables\Columns\Layout\View;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -44,16 +41,6 @@ use Illuminate\Support\Str;
 abstract class PaperQuestionsRelationManager extends RelationManager
 {
     use SwitchesCardAndTableView;
-
-    /**
-     * The records $cards was worked out for (see questionCard()).
-     */
-    private mixed $cardsAreFor = null;
-
-    /**
-     * @var array<int, array{number: int, stimulus: Model|null, heading: string|null}>
-     */
-    private array $cards = [];
 
     /**
      * @return array<Component>
@@ -138,7 +125,7 @@ abstract class PaperQuestionsRelationManager extends RelationManager
             ->reorderable('order_index')
             ->defaultSort(fn (Builder $query): Builder => $this->inListOrder($query))
             ->columns($this->showsCards()
-                ? [View::make('filament.support.questions.paper-question-card')]
+                ? [$this->questionCardColumn()]
                 : [
                     TextColumn::make('order_index')->label('#')->rowIndex(),
                     TextColumn::make('question_text')
@@ -176,40 +163,6 @@ abstract class PaperQuestionsRelationManager extends RelationManager
                     ->iconButton()
                     ->after(fn () => $this->paper()->markEditedBy(Auth::user())),
             ]);
-    }
-
-    /**
-     * What a question's card shows above the question: its number in the
-     * whole list, across pages, and — on the first card of a stimulus's
-     * questions on this page — that stimulus with the heading naming their
-     * numbers.
-     *
-     * @return array{number: int, stimulus: Model|null, heading: string|null}
-     */
-    public function questionCard(Model $question): array
-    {
-        $records = $this->getTableRecords();
-
-        // Asked once per card: worked out once per set of records.
-        if ($this->cardsAreFor !== $records) {
-            $this->cardsAreFor = $records;
-            $this->cards = [];
-
-            // While reordering, the table holds every question, without pages.
-            $isPaged = $records instanceof Paginator;
-
-            foreach (QuestionBlocks::blocks($isPaged ? $records->items() : $records, $isPaged ? $records->firstItem() : 1) as $block) {
-                foreach ($block['questions'] as $place => ['number' => $number, 'question' => $listed]) {
-                    $this->cards[$listed->getKey()] = [
-                        'number' => $number,
-                        'stimulus' => $place === 0 ? $block['stimulus'] : null,
-                        'heading' => $place === 0 ? $block['heading'] : null,
-                    ];
-                }
-            }
-        }
-
-        return $this->cards[$question->getKey()];
     }
 
     /**

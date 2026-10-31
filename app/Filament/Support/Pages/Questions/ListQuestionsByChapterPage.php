@@ -11,7 +11,6 @@ use App\Models\Chapter;
 use App\Models\Topic;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
-use Filament\Tables\Columns\Layout\View;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
@@ -80,7 +79,7 @@ abstract class ListQuestionsByChapterPage extends ListRecords
             // By ID, the oldest or the latest first (the dropdown in the
             // table's toolbar, beside the search). Never the whole chapter on
             // one page.
-            ->defaultSort(fn (Builder $query): Builder => $query->orderBy($query->qualifyColumn('id'), $this->orderDirection()))
+            ->defaultSort(fn (Builder $query): Builder => $query->stimulusTogether('id', $this->orderDirection()))
             ->pushToolbarActions([$this->orderDropdown()])
             ->paginationPageOptions([10, 25, 50])
             ->pushFilters([
@@ -101,7 +100,7 @@ abstract class ListQuestionsByChapterPage extends ListRecords
         $table->getColumn('chapter.name')?->hidden();
 
         $table->columns($this->showsCards()
-            ? [View::make('filament.support.questions.question-table-card')]
+            ? [$this->questionCardColumn()]
             : [TextColumn::make('id')->label(__('ID')), ...$table->getColumnsLayout()]);
 
         return $table;

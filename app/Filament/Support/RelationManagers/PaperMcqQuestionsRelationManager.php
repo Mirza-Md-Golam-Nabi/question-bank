@@ -37,7 +37,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
 
     protected function inListOrder(Builder $query): Builder
     {
-        return $query->inPaperOrder();
+        return $query->reorder()->stimulusTogether('order_index');
     }
 
     protected function formComponents(): array

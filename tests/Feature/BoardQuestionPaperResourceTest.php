@@ -112,9 +112,9 @@ it('numbers the cards through the whole list, across its pages', function () {
 
     livewire(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
         ->set('tableRecordsPerPage', 5)
-        ->assertSeeHtmlInOrder(['<span>1.</span>', '<span>2.</span>', '<span>5.</span>'])
+        ->assertSeeHtmlInOrder(['>1.</span>', '>2.</span>', '>5.</span>'])
         ->call('gotoPage', 2, 'paperCqQuestionsRelationManagerPage')
-        ->assertSeeHtml('<span>6.</span>');
+        ->assertSeeHtml('>6.</span>');
 });
 
 it('shows a shared stimulus once, above its questions, headed with their numbers', function () {
@@ -132,9 +132,9 @@ it('shows a shared stimulus once, above its questions, headed with their numbers
             'Lone first',
             'Read the stimulus below and answer questions 2 and 3.',
             'Shared passage',
-            '<span>2.</span>', 'Group first',
-            '<span>3.</span>', 'Group second',
-            '<span>4.</span>', 'Lone between',
+            '>2.</span>', 'Group first',
+            '>3.</span>', 'Group second',
+            '>4.</span>', 'Lone between',
         ])
         ->html();
 
@@ -153,9 +153,9 @@ it('shows the stimulus again on the next page when its questions run across two'
 
     livewire(PaperMcqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
         ->set('tableRecordsPerPage', 5)
-        ->assertSeeHtmlInOrder(['Read the stimulus below and answer question 5.', 'Shared passage', '<span>5.</span>'])
+        ->assertSeeHtmlInOrder(['Read the stimulus below and answer question 5.', 'Shared passage', '>5.</span>'])
         ->call('gotoPage', 2, 'paperMcqQuestionsRelationManagerPage')
-        ->assertSeeHtmlInOrder(['Read the stimulus below and answer question 6.', 'Shared passage', '<span>6.</span>']);
+        ->assertSeeHtmlInOrder(['Read the stimulus below and answer question 6.', 'Shared passage', '>6.</span>']);
 });
 
 it('keeps the cards numbered while they are being reordered', function () {
@@ -165,7 +165,7 @@ it('keeps the cards numbered while they are being reordered', function () {
     livewire(PaperCqQuestionsRelationManager::class, ['ownerRecord' => $paper, 'pageClass' => EditBoardQuestionPaper::class])
         ->call('toggleTableReordering')
         ->assertOk()
-        ->assertSeeHtmlInOrder(['<span>1.</span>', '<span>6.</span>']);
+        ->assertSeeHtmlInOrder(['>1.</span>', '>6.</span>']);
 });
 
 it('opens the edit form from a card\'s button only, not from a click anywhere on it', function () {

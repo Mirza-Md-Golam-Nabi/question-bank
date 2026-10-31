@@ -9,6 +9,7 @@ use App\Models\AcademicClass;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
 use App\Models\Question;
+use App\Models\QuestionStimulus;
 use App\Models\Subject;
 use App\Models\Topic;
 use App\Models\User;
@@ -101,6 +102,32 @@ it('links the chapter question list to the previous and next chapter of the same
     livewire(ListQuestions::class, ['chapter' => $last->id])
         ->assertActionHasUrl('previousChapter', $listUrl($middle))
         ->assertActionDisabled('nextChapter');
+});
+
+it('shows a shared stimulus once on a chapter\'s cards, its questions together, in either order', function () {
+    $chapter = Chapter::factory()->create();
+    $stimulus = QuestionStimulus::factory()->create(['chapter_id' => $chapter->id, 'text' => '<p>Shared passage</p>']);
+    $question = fn (array $attributes) => Question::factory()->for($chapter)->approved()->create($attributes);
+
+    $question(['question_text' => '<p>Lone first</p>']);
+    $question(['stimulus_id' => $stimulus->id, 'stimulus_order' => 2, 'question_text' => '<p>Group second</p>']);
+    $question(['question_text' => '<p>Lone between</p>']);
+    $question(['stimulus_id' => $stimulus->id, 'stimulus_order' => 1, 'question_text' => '<p>Group first</p>']);
+
+    $list = livewire(ListQuestions::class, ['chapter' => $chapter->id])
+        ->assertSeeHtmlInOrder([
+            '>1.</span>', 'Lone first',
+            'Read the stimulus below and answer questions 2 and 3.',
+            'Shared passage',
+            '>2.</span>', 'Group first',
+            '>3.</span>', 'Group second',
+            '>4.</span>', 'Lone between',
+        ]);
+
+    expect(substr_count($list->html(), 'Shared passage'))->toBe(1);
+
+    $list->set('order', 'latest')
+        ->assertSeeHtmlInOrder(['Lone between', 'Shared passage', 'Group first', 'Group second', 'Lone first']);
 });
 
 it('shows each question\'s topic instead of its class, subject, and chapter in a chapter\'s question list', function () {
