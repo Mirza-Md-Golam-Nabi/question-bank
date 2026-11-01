@@ -486,7 +486,11 @@ class Question extends Model
      */
     private function recordStaffEarningIfOwnerIsStaff(): void
     {
-        if ($this->creator->role !== UserRole::Staff) {
+        // Read here, not from a loaded relation: a list loads only the
+        // creator's name, and without the role no one would be paid.
+        $creator = $this->creator()->first();
+
+        if ($creator->role !== UserRole::Staff) {
             return;
         }
 
@@ -498,7 +502,7 @@ class Question extends Model
             'amount' => $amount,
         ]);
 
-        StaffProfile::firstOrCreateFor($this->creator)->incrementEarnings($amount);
+        StaffProfile::firstOrCreateFor($creator)->incrementEarnings($amount);
     }
 
     /**

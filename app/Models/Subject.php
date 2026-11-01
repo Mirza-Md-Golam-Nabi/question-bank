@@ -16,6 +16,26 @@ class Subject extends Model
     use HasFactory;
 
     /**
+     * The subjects as select options, keyed by subject id — every one, or
+     * those taught in one class. For a picker that needs one class's subject
+     * row rather than the subject itself: ClassSubject::subjectOptionsFor().
+     *
+     * @return array<int, string>
+     */
+    public static function options(int|string|null $academicClassId = null): array
+    {
+        return self::query()
+            ->when(filled($academicClassId), fn (Builder $query) => $query->whereIn(
+                'id',
+                ClassSubject::query()->where('academic_class_id', $academicClassId)->select('subject_id'),
+            ))
+            ->orderBy('name')
+            ->get(['id', 'name', 'name_bn'])
+            ->mapWithKeys(fn (self $subject): array => [$subject->id => $subject->display_name])
+            ->all();
+    }
+
+    /**
      * The subject's name in the active language: the Bangla name when the
      * app is in Bangla and one has been entered, otherwise the English name.
      *

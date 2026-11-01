@@ -32,9 +32,26 @@ final class QuestionFormData
     }
 
     /**
+     * A past paper's stored options as its form shows them, with the box
+     * that says none of them is right ticked when none is marked.
+     *
+     * @param  array<int, array<string, mixed>>|null  $options
+     * @return array{options: array<int, array<string, mixed>>, no_correct_answer: bool}
+     */
+    public static function fillAnswers(?array $options): array
+    {
+        $filled = self::fillOptions($options);
+
+        return [
+            'options' => $filled,
+            'no_correct_answer' => ! collect($filled)->contains('is_correct', true),
+        ];
+    }
+
+    /**
      * The form's options as stored: only `option`/`image`/`is_correct` (the
-     * form's own rule guarantees exactly one is correct), without the
-     * UI-only `has_image` flag.
+     * form's own rule decides which are correct), without the UI-only
+     * `has_image` flag. A tick the form had hidden comes as no tick.
      *
      * @param  array<int, array<string, mixed>>|null  $options
      * @return array<int, array<string, mixed>>
@@ -42,7 +59,10 @@ final class QuestionFormData
     public static function storedOptions(?array $options): array
     {
         return collect($options ?? [])
-            ->map(fn (array $option) => Arr::only($option, ['option', 'image', 'is_correct']))
+            ->map(fn (array $option) => [
+                ...Arr::only($option, ['option', 'image']),
+                'is_correct' => (bool) ($option['is_correct'] ?? false),
+            ])
             ->values()
             ->all();
     }

@@ -6,6 +6,7 @@ use App\Enums\ExamDeliveryMode;
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
+use App\Enums\NoAnswerMarking;
 use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\Concerns\FiltersByMonth;
@@ -20,13 +21,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 #[Fillable([
     'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id', 'board_question_paper_id',
-    'duration_minutes', 'start_time', 'end_time', 'total_marks', 'negative_marks', 'max_participants', 'status',
+    'duration_minutes', 'start_time', 'end_time', 'total_marks', 'negative_marks', 'no_answer_marking', 'max_participants', 'status',
     'share_token', 'link_expires_at', 'is_link_active', 'answers_released_at', 'answers_release_at',
 ])]
 class Exam extends Model
@@ -43,6 +45,7 @@ class Exam extends Model
     protected $attributes = [
         'delivery_mode' => ExamDeliveryMode::Online->value,
         'is_link_active' => true,
+        'no_answer_marking' => NoAnswerMarking::Excluded->value,
     ];
 
     protected function casts(): array
@@ -59,6 +62,7 @@ class Exam extends Model
             'answers_released_at' => 'datetime',
             'answers_release_at' => 'datetime',
             'negative_marks' => 'float',
+            'no_answer_marking' => NoAnswerMarking::class,
             'max_participants' => 'integer',
         ];
     }
@@ -192,6 +196,30 @@ class Exam extends Model
         return $this->onlineItems()->concat(
             $paper->cqQuestions->each->setRelation('boardQuestionPaper', $paper),
         );
+    }
+
+    /**
+     * Whether this is a past paper's MCQ the paper itself says has no
+     * correct answer — such a question is never judged right or wrong
+     * (CLAUDE.md rule 5.7). A question-bank MCQ always has its answer.
+     */
+    public function isWithoutCorrectAnswer(Model $question): bool
+    {
+        return $question instanceof BoardMcqQuestion && ! $question->hasCorrectAnswer();
+    }
+
+    /**
+     * What these questions are worth on this exam — the one sum behind the
+     * exam's total and the printed paper's. A question without a correct
+     * answer counts only when its marks go to everyone.
+     *
+     * @param  Collection<int, Model>  $questions
+     */
+    public function marksOf(Collection $questions): float
+    {
+        return (float) $questions
+            ->reject(fn (Model $question): bool => $this->no_answer_marking === NoAnswerMarking::Excluded && $this->isWithoutCorrectAnswer($question))
+            ->sum(fn (Model $question) => $question->pivot?->marks_override ?? $question->marks);
     }
 
     public function attempts(): HasMany
@@ -429,8 +457,6 @@ class Exam extends Model
     {
         $questions = $this->delivery_mode === ExamDeliveryMode::Offline ? $this->printedItems() : $this->onlineItems();
 
-        $total = $questions->sum(fn (Model $question) => $question->pivot?->marks_override ?? $question->marks);
-
-        $this->newQuery()->whereKey($this->id)->update(['total_marks' => $total]);
+        $this->newQuery()->whereKey($this->id)->update(['total_marks' => $this->marksOf($questions)]);
     }
 }

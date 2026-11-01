@@ -25,10 +25,22 @@ class BoardMcqQuestion extends Model
 {
     use HasFactory, HasMcqOptions, SharesStimulus;
 
+    /**
+     * `has_correct_answer` only mirrors the options, for what reads the
+     * questions in SQL.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $question): void {
+            $question->has_correct_answer = $question->hasCorrectAnswer();
+        });
+    }
+
     protected function casts(): array
     {
         return [
             'options' => 'array',
+            'has_correct_answer' => 'boolean',
             'editor_mode' => EditorMode::class,
             'explanation_editor_mode' => EditorMode::class,
         ];

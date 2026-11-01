@@ -53,12 +53,30 @@ trait HasMcqOptions
     }
 
     /**
-     * The pick that is right — null when no option is marked correct.
+     * The picks that are right: one for a question-bank MCQ; on a past paper
+     * as many as the paper itself gives — several, or none at all.
+     *
+     * @return array<int, string>
      */
-    public function correctAnswerValue(): ?string
+    public function correctAnswerValues(): array
     {
-        $correct = collect($this->options ?? [])->first(fn (array $option): bool => (bool) ($option['is_correct'] ?? false));
+        return collect($this->options ?? [])
+            ->filter(fn (array $option): bool => (bool) ($option['is_correct'] ?? false))
+            ->map(fn (array $option): string => static::answerValueOf($option))
+            ->values()
+            ->all();
+    }
 
-        return $correct === null ? null : static::answerValueOf($correct);
+    public function hasCorrectAnswer(): bool
+    {
+        return $this->correctAnswerValues() !== [];
+    }
+
+    /**
+     * Whether a student's pick is right — any of the correct options is.
+     */
+    public function isCorrectAnswer(?string $pick): bool
+    {
+        return $pick !== null && in_array($pick, $this->correctAnswerValues(), true);
     }
 }

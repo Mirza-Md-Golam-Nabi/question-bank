@@ -40,7 +40,7 @@ class PaperQuestionForms
 
             Group::make()
                 ->columnSpanFull()
-                ->schema(QuestionFormSchema::mcqComponents('board-mcq-options')),
+                ->schema(QuestionFormSchema::mcqComponents('board-mcq-options', asPrinted: true)),
         ];
     }
 

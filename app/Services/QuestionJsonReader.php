@@ -23,7 +23,11 @@ use JsonException;
  * takes only MCQs and its CQ list only CQs (`$onlyType`, so "type" may be
  * left out), and a past paper's CQs carry optional answers
  * (`$withCqAnswers`) but no difficulty (`$withDifficulty`). Every MCQ may
- * carry an explanation, wherever it goes.
+ * carry an explanation, wherever it goes. A past paper is written as printed
+ * (`$asPrinted`): an MCQ's "answer" may also be a list of several numbers,
+ * or null when the source itself says there is no correct answer — and the
+ * guide tells the AI tool to copy only what the source shows, never to
+ * decide an answer or write an explanation of its own.
  *
  * It is all or nothing — one unacceptable question and the whole JSON is
  * refused with every problem listed, so the user fixes it and pastes again.
@@ -39,6 +43,7 @@ final class QuestionJsonReader
         private readonly ?QuestionType $onlyType = null,
         private readonly bool $withCqAnswers = false,
         private readonly bool $withDifficulty = true,
+        private readonly bool $asPrinted = false,
     ) {}
 
     /**
@@ -98,6 +103,9 @@ final class QuestionJsonReader
     {
         $rules = array_values(array_filter([
             __('Write the questions as a JSON list in exactly the format below, and reply with the JSON only.'),
+            $this->asPrinted
+                ? __('This is a past paper: write only what the book, image or PDF itself shows. Do not work out an answer, correct anything or add anything of your own.')
+                : null,
             match (true) {
                 $this->onlyType === QuestionType::Mcq => __('Every question is an MCQ.'),
                 $this->onlyType === QuestionType::Cq => __('Every question is a CQ (creative question).'),
@@ -106,6 +114,9 @@ final class QuestionJsonReader
             $this->onlyType !== QuestionType::Cq
                 ? __('MCQ: "options" has :min to :max options, and "answer" is the number of the correct one (1 = the first option). "marks" may be left out.', ['min' => Question::MIN_MCQ_OPTIONS, 'max' => Question::MAX_MCQ_OPTIONS])
                 : null,
+            $this->asPrinted && $this->onlyType !== QuestionType::Cq
+                ? __('"answer" is what the answer key of the source gives. When it gives several correct options, "answer" is the list of their numbers: [2, 3]. Only when the source itself says the question has no correct answer, "answer" is null. When the source gives no answer for a question at all, leave "answer" out — the import will then point that question out.')
+                : null,
             $this->onlyType !== QuestionType::Mcq
                 ? __('CQ: "question" is the stimulus, and "parts" has exactly :count sub-questions in this order — :order — each with its "text" and "marks".', [
                     'count' => count(CqPartType::ordered()),
@@ -113,7 +124,9 @@ final class QuestionJsonReader
                 ])
                 : null,
             $this->onlyType !== QuestionType::Cq
-                ? __('"explanation" (optional — leave it out or empty when there is none): why the answer is the right one.')
+                ? ($this->asPrinted
+                    ? __('"explanation" (optional): only an explanation or note the source itself gives about the answer, word for word. Leave it out when the source has none — never write one yourself.')
+                    : __('"explanation" (optional — leave it out or empty when there is none): why the answer is the right one.'))
                 : null,
             $this->onlyType !== QuestionType::Cq
                 ? __('MCQs that share a stimulus go in one object: "stimulus" is its text ("" when its "image" is all of it), and "questions" lists :min to :max MCQs. Do not write "answer questions 42 and 43" — the paper numbers them itself.', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])
@@ -192,8 +205,24 @@ final class QuestionJsonReader
             ],
         ];
 
+        // What only a past paper's MCQ may say: its answer key gives several
+        // correct options, or says there is none (with its own note).
+        $asPrinted = $this->asPrinted ? [
+            [
+                'question' => 'কোন যন্ত্রটি তড়িৎচুম্বকীয় আবেশের নীতিতে কাজ করে?',
+                'options' => ['মোটর', 'জেনারেটর', 'ট্রান্সফরমার', 'হেয়ার ড্রায়ার'],
+                'answer' => [2, 3],
+            ],
+            [
+                'question' => 'একটি যন্ত্র $200$ কেজি ভরের বস্তুকে $50$ m উচ্চতায় $50$ s সময়ে তুলতে পারে। যন্ত্রটির ক্ষমতা কত?',
+                'options' => ['$0.12$ kW', '$1.2$ kW', '$6.0$ kW', '$300$ kW'],
+                'answer' => null,
+                'explanation' => 'সঠিক উত্তর $2$ kW।',
+            ],
+        ] : [];
+
         $sample = match ($this->onlyType) {
-            QuestionType::Mcq => [$mcq, $group],
+            QuestionType::Mcq => [$mcq, ...$asPrinted, $group],
             QuestionType::Cq => [$cq],
             default => [$mcq, $cq, $group],
         };
@@ -375,10 +404,10 @@ final class QuestionJsonReader
             array_push($problems, ...$this->textProblems($option, $name, allowsTables: false));
         }
 
-        $answer = $item['answer'] ?? null;
-
-        if (filter_var($answer, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => count($options)]]) === false) {
-            $problems[] = __('"answer" must be the number of the correct option, from 1 to :max', ['max' => count($options)]);
+        if ($this->answerNumbers($item, count($options)) === null) {
+            $problems[] = $this->asPrinted
+                ? __('"answer" must be what the source gives: the number of the correct option from 1 to :max, a list of numbers when it gives several, or null when it says there is none', ['max' => count($options)])
+                : __('"answer" must be the number of the correct option, from 1 to :max', ['max' => count($options)]);
         }
 
         if (isset($item['marks']) && ! $this->isValidMarks($item['marks'])) {
@@ -391,6 +420,38 @@ final class QuestionJsonReader
         }
 
         return $problems;
+    }
+
+    /**
+     * The numbers of an MCQ's correct options: one, or — as a past paper
+     * gives them — several, or none for an "answer" of null. Null when
+     * "answer" is left out or isn't acceptable; left out is never read as
+     * "no correct answer", which only the source can say.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<int, int>|null
+     */
+    private function answerNumbers(array $item, int $optionCount): ?array
+    {
+        if (! array_key_exists('answer', $item)) {
+            return null;
+        }
+
+        $answer = $item['answer'];
+
+        if ($this->asPrinted && $answer === null) {
+            return [];
+        }
+
+        $numbers = $this->asPrinted && is_array($answer) && $answer !== [] && array_is_list($answer) ? $answer : [$answer];
+
+        foreach ($numbers as $number) {
+            if (filter_var($number, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => $optionCount]]) === false) {
+                return null;
+            }
+        }
+
+        return array_map(intval(...), $numbers);
     }
 
     /**
@@ -579,6 +640,8 @@ final class QuestionJsonReader
             ];
         }
 
+        $correctNumbers = $this->answerNumbers($item, count($item['options']));
+
         return [
             ...$question,
             'options' => collect($item['options'])
@@ -586,7 +649,7 @@ final class QuestionJsonReader
                     // An option that is only its figure has no text.
                     'option' => $html(is_array($option) ? (string) ($option['text'] ?? '') : $option, false) ?? '',
                     'image' => is_array($option) ? $this->imageOf($option) : null,
-                    'is_correct' => $index + 1 === (int) $item['answer'],
+                    'is_correct' => in_array($index + 1, $correctNumbers, true),
                 ])
                 ->all(),
             'marks' => $item['marks'] ?? null,

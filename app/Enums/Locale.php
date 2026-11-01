@@ -27,6 +27,15 @@ enum Locale: string implements HasLabel
     }
 
     /**
+     * What someone typed, with Bangla digits as the English ones the
+     * database holds.
+     */
+    public static function toEnglishDigits(string $text): string
+    {
+        return strtr($text, ['০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9']);
+    }
+
+    /**
      * Each language is always shown in its own script, whatever the active
      * locale is, so a visitor can find their language without reading the
      * other one.

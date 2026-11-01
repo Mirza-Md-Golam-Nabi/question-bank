@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\ExamAttemptStatus;
+use App\Enums\Locale;
+use App\Enums\NoAnswerMarking;
 use App\Enums\QuestionType;
 use App\Filament\Support\QuestionBlocks;
 use App\Services\QuestionDifficultyTracker;
@@ -238,7 +240,7 @@ class ExamAttempt extends Model
      */
     public static function normalizeRoll(string $roll): string
     {
-        $roll = strtr(trim($roll), ['০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9']);
+        $roll = Locale::toEnglishDigits(trim($roll));
         $roll = preg_replace('/\s+/u', '', $roll);
 
         return ctype_digit($roll) ? (ltrim($roll, '0') ?: '0') : mb_strtoupper($roll);
@@ -501,7 +503,10 @@ class ExamAttempt extends Model
      * scores minus that much; a blank one scores 0; the total never goes
      * below 0. CQ answers are left for a teacher to grade manually
      * (obtained_marks stays whatever it already was — 0 by default) — only
-     * the MCQ portion of total_score is ever computed here.
+     * the MCQ portion of total_score is ever computed here. A past paper's
+     * MCQ without a correct answer is judged neither right nor wrong
+     * (is_correct stays null); it only carries the marks the exam gives
+     * everyone for it (awardNoAnswerMarks()).
      */
     public function submitAndAutoGrade(): void
     {
@@ -519,12 +524,11 @@ class ExamAttempt extends Model
         foreach ($this->answers()->get(['id', $column, 'student_answer']) as $answer) {
             $question = $examQuestionsById->get($answer->{$column});
 
-            if ($question?->question_type !== QuestionType::Mcq) {
+            if ($question?->question_type !== QuestionType::Mcq || $exam->isWithoutCorrectAnswer($question)) {
                 continue;
             }
 
-            $correctAnswer = $question->correctAnswerValue();
-            $isCorrect = $correctAnswer !== null && $answer->student_answer === $correctAnswer;
+            $isCorrect = $question->isCorrectAnswer($answer->student_answer);
             $marks = match (true) {
                 (bool) $isCorrect => (float) ($question->pivot?->marks_override ?? $question->marks),
                 blank($answer->student_answer) => 0.0,
@@ -549,6 +553,8 @@ class ExamAttempt extends Model
             ]);
         }
 
+        $this->awardNoAnswerMarks($examQuestionsById);
+
         $this->unsetRelation('answers');
 
         $this->forceFill([
@@ -564,6 +570,35 @@ class ExamAttempt extends Model
         }
 
         $this->recordStatistics($correctQuestionIds);
+    }
+
+    /**
+     * When the exam gives everyone the marks of a question without a correct
+     * answer: everyone, so a row of its own even where the question was left
+     * blank. What the student picked, if anything, stays as it is.
+     *
+     * @param  Collection<int, Model>  $examQuestions
+     */
+    private function awardNoAnswerMarks(Collection $examQuestions): void
+    {
+        $exam = $this->exam;
+
+        if ($exam->no_answer_marking !== NoAnswerMarking::FullMarks) {
+            return;
+        }
+
+        $rows = $examQuestions
+            ->filter(fn (Model $question): bool => $exam->isWithoutCorrectAnswer($question))
+            ->map(fn (Model $question): array => [
+                'attempt_id' => $this->id,
+                $exam->answerColumn() => $question->id,
+                'obtained_marks' => $question->marks,
+            ])
+            ->values();
+
+        if ($rows->isNotEmpty()) {
+            AttemptAnswer::upsert($rows->all(), ['attempt_id', $exam->answerColumn()], ['obtained_marks']);
+        }
     }
 
     /**

@@ -103,10 +103,10 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | টেবিল | কলাম |
 |---|---|
 | `boards` | `name`, `name_bn`, `short_name`, `short_name_bn` (ইংরেজি ও বাংলা, পূর্ণ ও সংক্ষিপ্ত), `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন) |
-| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `rejection_reason`; unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
+| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `rejection_reason`; index(year), index(status, year); unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
 | `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by` — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
 | `board_mcq_stimuli` | `board_question_paper_id`, `text`, `editor_mode`, `image` — প্রশ্নপত্রের উদ্দীপক; মুছলে তার প্রশ্নও মোছে |
-| `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `explanation` (nullable), `explanation_editor_mode`, `marks`, `order_index` |
+| `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `has_correct_answer` (অপশন থেকে নিজে ঠিক হয় — SQL-এ পড়ার জন্য; ফর্ম/JSON-এ লেখা হয় না), `explanation` (nullable), `explanation_editor_mode`, `marks`, `order_index` |
 | `board_cq_questions` | `board_question_paper_id`, `question_text`, `editor_mode`, `question_image`, `marks`, `order_index` |
 | `board_cq_question_parts` | `board_cq_question_id`, `part_type`, `part_order`, `part_text`, `part_image`, `answer` (nullable), `marks` |
 
@@ -121,6 +121,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | `title`, `created_by` | Teacher-এর পরীক্ষায় Teacher, self-practice-এ student |
 | `subscription_id` → `subscriptions` (nullable) | কোন subscription-এর সীমায় গোনা হয়েছে; ফাঁকা = ফ্রি plan |
 | `negative_marks` (nullable) | প্রতি ভুল MCQ উত্তরে কাটা নম্বর; ফাঁকা = নেগেটিভ মার্কিং নেই (শুধু অনলাইনে নেওয়া পরীক্ষায়) |
+| `no_answer_marking` | প্রশ্নপত্রের সঠিক উত্তরহীন MCQ-র নম্বর (`NoAnswerMarking`): `excluded` (পূর্ণমান থেকে বাদ, ডিফল্ট) / `full_marks` (সবাইকে পূর্ণ নম্বর) |
 | `max_participants` (nullable) | সর্বোচ্চ কতজন পরীক্ষাটা শুরু করতে পারে — সেভের সময় Teacher-এর plan থেকে; ফাঁকা = সীমা নেই |
 | `exam_type` | `teacher_exam` / `self_practice` |
 | `generation_mode` | `manual` / `auto` / `mistakes` / `past_paper` |

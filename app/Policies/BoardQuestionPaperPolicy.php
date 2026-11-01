@@ -45,7 +45,7 @@ class BoardQuestionPaperPolicy
      */
     public function delete(User $user, BoardQuestionPaper $paper): bool
     {
-        return $paper->isEditableBy($user) && ! $paper->exams()->exists();
+        return $paper->isEditableBy($user) && ! $paper->isOnAnExam();
     }
 
     public function deleteAny(User $user): bool

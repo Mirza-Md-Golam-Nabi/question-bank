@@ -8,8 +8,9 @@
     /**
      * One question on an exam result — the guest result page and the
      * Student panel's result page both render it. Shows every MCQ option,
-     * with the correct one on a success background and the student's own
-     * wrong pick on a danger background.
+     * with the correct one (or ones) on a success background and the
+     * student's own wrong pick on a danger background; a past paper's
+     * question without a correct answer says so, and how it was marked.
      *
      * @var \App\Models\Question|\App\Models\BoardMcqQuestion $question  Shown with its explanation; a past paper's MCQ also with where it came from.
      * @var \App\Models\AttemptAnswer|null $answer  Null when the question was left unanswered.
@@ -19,6 +20,7 @@
 
     $isMcq = $question->question_type === QuestionType::Mcq;
     $isAnswered = filled($answer?->student_answer);
+    $hasCorrectAnswer = $isMcq && $question->hasCorrectAnswer();
 @endphp
 
 <div {{ $attributes->class(['qb-result-question']) }}>
@@ -46,7 +48,7 @@
                     'qb-question-option',
                     'qb-result-option',
                     'qb-result-option--correct' => $isCorrect,
-                    'qb-result-option--wrong' => $isChosen && ! $isCorrect,
+                    'qb-result-option--wrong' => $isChosen && ! $isCorrect && $hasCorrectAnswer,
                 ])>
                     <span class="qb-question-option-letter">{{ QuestionDisplay::letter($index) }}</span>
                     <div class="qb-question-option-content">
@@ -59,7 +61,7 @@
                     @if ($isCorrect)
                         <span class="qb-result-option-tag">{{ $isChosen ? __('Your answer') . ' ✓' : __('Correct answer') }}</span>
                     @elseif ($isChosen)
-                        <span class="qb-result-option-tag">{{ __('Your answer') }} ✗</span>
+                        <span class="qb-result-option-tag">{{ __('Your answer') }} {{ $hasCorrectAnswer ? '✗' : '' }}</span>
                     @endif
                 </li>
             @endforeach
@@ -70,7 +72,12 @@
             'qb-result-verdict--correct' => $answer?->is_correct === true,
             'qb-result-verdict--wrong' => $isAnswered && $answer?->is_correct === false,
         ])>
-            @if (! $isAnswered)
+            @if (! $hasCorrectAnswer)
+                {{ __('This question has no correct answer.') }}
+                {{ $answer?->obtained_marks > 0
+                    ? __('Everyone gets its :marks marks.', ['marks' => QuestionDisplay::marks($answer->obtained_marks)])
+                    : __('It is not counted in the marks.') }}
+            @elseif (! $isAnswered)
                 {{ __('Not answered') }} — {{ __(':marks marks', ['marks' => 0]) }}
             @else
                 {{ $answer->is_correct ? __('Correct') : __('Incorrect') }} — {{ __(':marks marks', ['marks' => QuestionDisplay::marks($answer->obtained_marks)]) }}

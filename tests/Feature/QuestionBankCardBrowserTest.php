@@ -14,6 +14,7 @@ use App\Models\Subject;
 use App\Models\Topic;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Livewire\Livewire;
 
 use function Pest\Livewire\livewire;
 
@@ -134,6 +135,9 @@ it('shows each question\'s topic instead of its class, subject, and chapter in a
     $chapter = Chapter::factory()->create();
     $topic = Topic::create(['chapter_id' => $chapter->id, 'name' => 'Quadratic Equations', 'order_index' => 1]);
     $question = Question::factory()->for($chapter)->approved()->create(['topic_id' => $topic->id]);
+
+    // The list opens as cards; the columns are its table view's.
+    Livewire::withQueryParams(['view' => 'table']);
 
     livewire(ListQuestions::class, ['chapter' => $chapter->id])
         ->assertTableColumnHidden('chapter.classSubject.academicClass.name')

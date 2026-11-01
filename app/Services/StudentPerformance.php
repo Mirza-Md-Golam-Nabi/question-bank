@@ -278,7 +278,9 @@ class StudentPerformance
                     ->on('answer.attempt_id', '=', 'attempt.id')
                     ->on('answer.board_mcq_question_id', '=', 'paper_mcq.id'))
                 ->where('attempt.student_id', $scope->studentId)
-                ->whereIn('attempt.status', ExamAttempt::submittedStatusValues()))
+                ->whereIn('attempt.status', ExamAttempt::submittedStatusValues())
+                // A question with no correct answer says nothing about the student.
+                ->where('paper_mcq.has_correct_answer', true))
                 ->selectRaw('paper.class_subject_id, null as chapter_id, null as difficulty')
                 ->selectRaw('case when answer.is_correct = 1 then 1 else 0 end as correct, case when answer.id is null then 1 else 0 end as blank')
                 ->selectRaw(sprintf($ranked, 'paper_mcq.id'));

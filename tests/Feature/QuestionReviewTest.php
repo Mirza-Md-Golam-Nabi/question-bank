@@ -48,6 +48,28 @@ beforeEach(function () {
     $this->list = fn () => livewire(ListQuestions::class, ['chapter' => $this->chapter->id]);
 });
 
+it('pays a staff member when their question is approved from the card list', function () {
+    $staff = User::factory()->staff()->create();
+    $this->actingAs($staff);
+    $question = Question::factory()->for($this->chapter)->create(['created_by' => $staff->id]);
+    $this->actingAs($this->admin);
+
+    $second = Question::factory()->for($this->chapter)->create(['created_by' => $staff->id, 'status' => QuestionStatus::Pending]);
+
+    ($this->list)()
+        ->callAction(TestAction::make('approve')->table($question))
+        ->assertHasNoActionErrors();
+
+    ($this->list)()
+        ->selectTableRecords([$second->id])
+        ->callAction(TestAction::make('approveSelected')->table()->bulk())
+        ->assertHasNoActionErrors();
+
+    expect($question->refresh()->status)->toBe(QuestionStatus::Approved)
+        ->and($question->staffEarnings()->count())->toBe(1)
+        ->and($second->staffEarnings()->count())->toBe(1);
+});
+
 describe('approving many at once', function () {
     it('approves every selected question', function () {
         $questions = collect(['Alpha?', 'Beta?', 'Gamma?'])->map(fn (string $text) => ($this->question)($text));

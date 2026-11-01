@@ -89,6 +89,7 @@ class ExamResultSheet
      *
      * @return Collection<int, array{
      *     question: Question|BoardMcqQuestion,
+     *     is_judged: bool,
      *     correct: int,
      *     wrong: int,
      *     unanswered: int,
@@ -120,15 +121,17 @@ class ExamResultSheet
 
         return $questions
             ->values()
-            ->map(function (Model $question, int $index) use ($tallies, $participants): array {
+            ->map(function (Model $question, int $index) use ($exam, $tallies, $participants): array {
                 $correct = (int) ($tallies->get($question->id)?->correct_count ?? 0);
                 $answered = (int) ($tallies->get($question->id)?->answered_count ?? 0);
+                $isJudged = ! $exam->isWithoutCorrectAnswer($question);
 
                 return [
                     'question' => $question,
+                    'is_judged' => $isJudged,
                     'correct' => $correct,
                     'wrong' => $answered - $correct,
-                    'unanswered' => $participants - $answered,
+                    'unanswered' => $isJudged ? $participants - $answered : 0,
                     'participants' => $participants,
                     'paper_order' => $index,
                 ];
@@ -183,7 +186,9 @@ class ExamResultSheet
      */
     public function unansweredBy(Exam $exam, int $questionId): Collection
     {
-        if (! $exam->onlineItems()->contains('id', $questionId)) {
+        $question = $exam->onlineItems()->firstWhere('id', $questionId);
+
+        if (! $question || $exam->isWithoutCorrectAnswer($question)) {
             return collect();
         }
 

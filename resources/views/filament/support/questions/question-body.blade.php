@@ -53,6 +53,10 @@
         </ol>
 
         @if ($showAnswers)
+            @unless ($question->hasCorrectAnswer())
+                <p class="qb-result-verdict">{{ __('This question has no correct answer.') }}</p>
+            @endunless
+
             <x-question-explanation :text="$question->explanation" />
         @endif
     @else

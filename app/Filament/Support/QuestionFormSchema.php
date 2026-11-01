@@ -260,16 +260,20 @@ class QuestionFormSchema
 
     /**
      * An MCQ's options and its optional explanation — the same in the
-     * question bank, on a past paper and under a shared stimulus.
+     * question bank, on a past paper and under a shared stimulus. A past
+     * paper's is written as printed, with its answers as it gives them
+     * (McqOptionsSchema).
      *
      * @return array<Component>
      */
-    public static function mcqComponents(string $optionImageDirectory = 'question-options'): array
+    public static function mcqComponents(string $optionImageDirectory = 'question-options', bool $asPrinted = false): array
     {
         return [
+            ...($asPrinted ? [McqOptionsSchema::noCorrectAnswerField()->columnSpanFull()] : []),
+
             Repeater::make('options')
                 ->label(__('Options'))
-                ->schema(static::mcqOptionComponents($optionImageDirectory))
+                ->schema(static::mcqOptionComponents($optionImageDirectory, $asPrinted))
                 ->columns(2)
                 ->grid(4)
                 ->addActionLabel(__('Add option'))
@@ -279,7 +283,7 @@ class QuestionFormSchema
                 ->reorderable()
                 ->live()
                 ->required()
-                ->rule(McqOptionsSchema::exactlyOneCorrectOptionRule()),
+                ->rule(McqOptionsSchema::correctOptionRule($asPrinted)),
 
             ...static::explanationComponents(),
         ];
@@ -317,7 +321,7 @@ class QuestionFormSchema
     /**
      * @return array<Component>
      */
-    protected static function mcqOptionComponents(string $imageDirectory): array
+    protected static function mcqOptionComponents(string $imageDirectory, bool $asPrinted = false): array
     {
         return McqOptionsSchema::components(
             CkEditorField::make('option')
@@ -329,6 +333,7 @@ class QuestionFormSchema
                 ->validationMessages(['required' => __('Write the option, or add an image.')])
                 ->columnSpanFull(),
             imageDirectory: $imageDirectory,
+            asPrinted: $asPrinted,
         );
     }
 

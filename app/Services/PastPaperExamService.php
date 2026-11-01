@@ -6,6 +6,7 @@ use App\Enums\ExamDeliveryMode;
 use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
+use App\Enums\NoAnswerMarking;
 use App\Enums\QuestionStatus;
 use App\Models\BoardQuestionPaper;
 use App\Models\Exam;
@@ -73,6 +74,7 @@ class PastPaperExamService
         ExamDeliveryMode $deliveryMode,
         int $durationMinutes,
         ?float $negativeMarks = null,
+        NoAnswerMarking $noAnswerMarking = NoAnswerMarking::Excluded,
     ): Exam {
         $deliveryMode->includesOnline() ? $this->ensureCanBeSatOnline($paper) : $this->ensureApproved($paper);
 
@@ -84,6 +86,7 @@ class PastPaperExamService
             'duration_minutes' => max(1, $durationMinutes),
             // Only an online sitting is marked automatically.
             'negative_marks' => $deliveryMode->includesOnline() ? $this->negativeMarks($negativeMarks) : null,
+            'no_answer_marking' => $noAnswerMarking,
             'max_participants' => $grant->maxParticipants,
             'status' => ExamStatus::Draft,
         ]));

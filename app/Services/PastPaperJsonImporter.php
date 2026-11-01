@@ -103,11 +103,11 @@ class PastPaperJsonImporter
 
     /**
      * A past paper's format for one of its lists: only that kind of
-     * question, with CQ answers, without a difficulty.
+     * question, with CQ answers, without a difficulty, written as printed.
      */
     public static function reader(QuestionType $type): QuestionJsonReader
     {
-        return new QuestionJsonReader(onlyType: $type, withCqAnswers: true, withDifficulty: false);
+        return new QuestionJsonReader(onlyType: $type, withCqAnswers: true, withDifficulty: false, asPrinted: true);
     }
 
     /**

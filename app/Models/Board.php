@@ -41,6 +41,37 @@ class Board extends Model
     }
 
     /**
+     * The sources as select options — every one, or those of one kind — with
+     * the short name beside the full one. The one place a source picker gets
+     * its list from.
+     *
+     * @return array<int, string>
+     */
+    public static function options(PaperSourceType|string|null $type = null): array
+    {
+        return self::orderedByDisplayName()
+            ->when($type, fn (Builder $query) => $query->where('type', $type))
+            ->get()
+            ->mapWithKeys(fn (self $board): array => [$board->id => "{$board->display_name} ({$board->display_short_name})"])
+            ->all();
+    }
+
+    /**
+     * Sources with the search in any of their four names, whichever the
+     * person typed.
+     */
+    public function scopeMatching(Builder $query, string $search): Builder
+    {
+        $like = '%'.trim($search).'%';
+
+        return $query->where(fn (Builder $names) => $names
+            ->where('name', 'like', $like)
+            ->orWhere('name_bn', 'like', $like)
+            ->orWhere('short_name', 'like', $like)
+            ->orWhere('short_name_bn', 'like', $like));
+    }
+
+    /**
      * A to Z by what display_name shows, in the database.
      */
     public function scopeOrderedByDisplayName(Builder $query, string $direction = 'asc'): Builder

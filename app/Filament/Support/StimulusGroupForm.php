@@ -41,9 +41,10 @@ class StimulusGroupForm
      * @param  array<Component>  $groupFields  Fields for the whole group (the question bank's topic).
      * @param  array<Component>  $questionFields  Fields each MCQ adds (the question bank's difficulty).
      * @param  Closure(Get, ?Model): ?DuplicateMatch  $duplicates  What the group's questions are checked against (DuplicateQuestionCheck).
+     * @param  bool  $asPrinted  A past paper's MCQs, with their answers as the paper gives them.
      * @return array<Component>
      */
-    public static function components(string $imageDirectory, Closure $duplicates, array $groupFields = [], array $questionFields = []): array
+    public static function components(string $imageDirectory, Closure $duplicates, array $groupFields = [], array $questionFields = [], bool $asPrinted = false): array
     {
         return [
             Grid::make(4)->columnSpanFull()->schema([
@@ -75,7 +76,7 @@ class StimulusGroupForm
                         ->live()
                         ->columnSpanFull(),
 
-                    ...QuestionFormSchema::mcqComponents("{$imageDirectory}-options"),
+                    ...QuestionFormSchema::mcqComponents("{$imageDirectory}-options", $asPrinted),
 
                     Grid::make(2)->schema([
                         TextInput::make('marks')
@@ -108,7 +109,7 @@ class StimulusGroupForm
      * @param  array<Component>  $groupFields
      * @param  array<Component>  $questionFields
      */
-    public static function configureAction(Action $action, bool $creating, string $imageDirectory, Closure $duplicates, array $groupFields = [], array $questionFields = []): Action
+    public static function configureAction(Action $action, bool $creating, string $imageDirectory, Closure $duplicates, array $groupFields = [], array $questionFields = [], bool $asPrinted = false): Action
     {
         return $action
             ->label($creating ? __('New stimulus with MCQs') : __('Edit stimulus'))
@@ -117,7 +118,7 @@ class StimulusGroupForm
             ->modalDescription(__('Write the stimulus once, then the questions that use it. The paper heads them with their numbers itself ("Read the stimulus below and answer questions 5 and 6").'))
             ->modalWidth(Width::SevenExtraLarge)
             ->modalSubmitActionLabel(__('Save'))
-            ->schema(static::components($imageDirectory, $duplicates, $groupFields, $questionFields));
+            ->schema(static::components($imageDirectory, $duplicates, $groupFields, $questionFields, $asPrinted));
     }
 
     /**
@@ -137,7 +138,7 @@ class StimulusGroupForm
                 'id' => $question->id,
                 'question_text' => $question->question_text,
                 'question_image' => $question->question_image,
-                'options' => QuestionFormData::fillOptions($question->options),
+                ...QuestionFormData::fillAnswers($question->options),
                 'explanation' => $question->explanation,
                 'explanation_editor_mode' => $question->explanation_editor_mode,
                 'marks' => $question->marks,

@@ -73,7 +73,7 @@ class ExamRepeater
 
         $repeated = DB::transaction(function () use ($exam, $teacher, $title, $durationMinutes, $endsAt): Exam {
             if ($exam->isPastPaper()) {
-                $repeated = $this->pastPapers->createTeacherExam($teacher, $exam->boardQuestionPaper, $exam->delivery_mode, $durationMinutes, $exam->negative_marks);
+                $repeated = $this->pastPapers->createTeacherExam($teacher, $exam->boardQuestionPaper, $exam->delivery_mode, $durationMinutes, $exam->negative_marks, $exam->no_answer_marking);
                 $repeated->forceFill([
                     'title' => $title,
                     'link_expires_at' => $exam->delivery_mode->includesOnline() ? $endsAt : null,

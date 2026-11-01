@@ -80,6 +80,14 @@ class BoardQuestionPaper extends Model
         return $this->hasMany(BoardMcqQuestion::class)->with('stimulus')->orderBy('order_index')->orderBy('id');
     }
 
+    /**
+     * How many of this paper's MCQs it says have no correct answer.
+     */
+    public function mcqsWithoutCorrectAnswerCount(): int
+    {
+        return $this->mcqQuestions()->reorder()->where('has_correct_answer', false)->count();
+    }
+
     public function mcqStimuli(): HasMany
     {
         return $this->hasMany(BoardMcqStimulus::class);
@@ -216,9 +224,28 @@ class BoardQuestionPaper extends Model
      */
     public function hasBeenSat(): bool
     {
-        return ExamAttempt::query()
-            ->whereHas('exam', fn (Builder $exam) => $exam->where('board_question_paper_id', $this->id))
-            ->exists();
+        return (bool) ($this->getAttribute('has_been_sat') ?? $this->exams()->whereHas('attempts')->exists());
+    }
+
+    /**
+     * Whether an exam has been made of this paper.
+     */
+    public function isOnAnExam(): bool
+    {
+        return (bool) ($this->getAttribute('is_on_an_exam') ?? $this->exams()->exists());
+    }
+
+    /**
+     * Adds, in the same query, whether an exam has been made of each paper
+     * and whether anyone has sat one — what isOnAnExam() and hasBeenSat()
+     * then answer from, instead of queries per paper.
+     */
+    public function scopeWithExamUsage(Builder $query): Builder
+    {
+        return $query->withExists([
+            'exams as is_on_an_exam',
+            'exams as has_been_sat' => fn (Builder $exams) => $exams->whereHas('attempts'),
+        ]);
     }
 
     /**
@@ -246,6 +273,38 @@ class BoardQuestionPaper extends Model
     }
 
     /**
+     * Only a paper with questions in it can be approved — a Staff member
+     * starts one empty and fills it in. Answers from the list's counts when
+     * they have been read.
+     */
+    public function canBeApproved(): bool
+    {
+        return $this->status !== QuestionStatus::Approved
+            && (($this->mcq_questions_count ?? $this->mcqQuestions()->count()) + ($this->cq_questions_count ?? $this->cqQuestions()->count())) > 0;
+    }
+
+    /**
+     * Approves each of these papers that can be, each as approve() does
+     * (a Staff member paid once per paper). One already approved is left as
+     * it is; one with no questions is counted, so the Admin can be told.
+     *
+     * @param  Collection<int, self>  $papers
+     * @return array{approved: int, without_questions: int}
+     */
+    public static function approveMany(Collection $papers, User $approver): array
+    {
+        $papers->loadCount(['mcqQuestions', 'cqQuestions'])->load(['board']);
+
+        $approvable = $papers->filter(fn (self $paper): bool => $paper->canBeApproved());
+        $approvable->each(fn (self $paper) => $paper->approve($approver));
+
+        return [
+            'approved' => $approvable->count(),
+            'without_questions' => $papers->filter(fn (self $paper): bool => $paper->mcq_questions_count + $paper->cq_questions_count === 0)->count(),
+        ];
+    }
+
+    /**
      * Approving a Staff member's paper earns them the Admin's rate for its
      * kind, as it is right now (CLAUDE.md rule 6) — once per paper, however
      * often it is approved again.
@@ -255,7 +314,11 @@ class BoardQuestionPaper extends Model
         DB::transaction(function () use ($approver): void {
             $this->markApproved($approver);
 
-            if ($this->creator?->role !== UserRole::Staff || $this->staffEarning()->exists()) {
+            // Read here, not from a loaded relation: a list loads only the
+            // creator's name, and without the role no one would be paid.
+            $creator = $this->creator()->first();
+
+            if ($creator?->role !== UserRole::Staff || $this->staffEarning()->exists()) {
                 return;
             }
 
@@ -263,7 +326,7 @@ class BoardQuestionPaper extends Model
 
             $this->staffEarning()->create(['staff_id' => $this->created_by, 'amount' => $amount]);
 
-            StaffProfile::firstOrCreateFor($this->creator)->incrementEarnings($amount, questions: 0);
+            StaffProfile::firstOrCreateFor($creator)->incrementEarnings($amount, questions: 0);
         });
     }
 

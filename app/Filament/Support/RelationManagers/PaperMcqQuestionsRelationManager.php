@@ -59,7 +59,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
 
     protected function fillForm(Model $record, array $data): array
     {
-        return [...$data, 'options' => QuestionFormData::fillOptions($record->options)];
+        return [...$data, ...QuestionFormData::fillAnswers($record->options)];
     }
 
     /**
@@ -74,6 +74,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 creating: true,
                 imageDirectory: 'board-mcq',
                 duplicates: fn (Get $get, ?Model $record): ?DuplicateMatch => DuplicateQuestionCheck::onPaperGroup($this->paper(), $get, $record),
+                asPrinted: true,
             )
                 ->color('gray')
                 ->visible(fn (): bool => ! $this->isReadOnly())
@@ -89,6 +90,7 @@ class PaperMcqQuestionsRelationManager extends PaperQuestionsRelationManager
                 creating: false,
                 imageDirectory: 'board-mcq',
                 duplicates: fn (Get $get, ?Model $record): ?DuplicateMatch => DuplicateQuestionCheck::onPaperGroup($this->paper(), $get, $record),
+                asPrinted: true,
             )
                 ->iconButton()
                 ->tooltip(__('Edit stimulus'))

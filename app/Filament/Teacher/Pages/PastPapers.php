@@ -3,6 +3,7 @@
 namespace App\Filament\Teacher\Pages;
 
 use App\Enums\ExamDeliveryMode;
+use App\Enums\NoAnswerMarking;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\Pages\PastPapersPage;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
@@ -46,6 +47,7 @@ class PastPapers extends PastPapersPage
                     'delivery_mode' => $record->mcq_questions_count > 0 ? ExamDeliveryMode::Online : ExamDeliveryMode::Offline,
                     'duration_minutes' => $record->duration_minutes ?: max(1, $record->mcq_questions_count),
                     'negative_marks' => $record->negative_marks ?: BillingSetting::current()->default_negative_marks,
+                    'no_answer_marking' => NoAnswerMarking::Excluded,
                 ])
                 ->schema(fn (BoardQuestionPaper $record): array => [
                     Radio::make('delivery_mode')
@@ -68,6 +70,11 @@ class PastPapers extends PastPapersPage
                         ->step(0.05)
                         ->minValue(0)
                         ->visible(fn (Get $get): bool => self::deliveryModeOf($get('delivery_mode'))?->includesOnline() ?? false),
+                    Radio::make('no_answer_marking')
+                        ->label(__(':count questions on this paper have no correct answer', ['count' => $record->mcqsWithoutCorrectAnswerCount()]))
+                        ->options(NoAnswerMarking::class)
+                        ->visible($record->mcqsWithoutCorrectAnswerCount() > 0)
+                        ->required(),
                 ])
                 ->action(function (BoardQuestionPaper $record, array $data, Action $action): void {
                     $this->rescueWithNotification(fn () => app(PastPaperExamService::class)->createTeacherExam(
@@ -76,6 +83,7 @@ class PastPapers extends PastPapersPage
                         self::deliveryModeOf($data['delivery_mode']),
                         (int) $data['duration_minutes'],
                         isset($data['negative_marks']) ? (float) $data['negative_marks'] : null,
+                        self::enumOf(NoAnswerMarking::class, $data['no_answer_marking'] ?? null) ?? NoAnswerMarking::Excluded,
                     ), $action);
 
                     Notification::make()
@@ -89,11 +97,21 @@ class PastPapers extends PastPapersPage
         ];
     }
 
-    /**
-     * A select whose options are an enum hands back the enum case itself.
-     */
     private static function deliveryModeOf(mixed $state): ?ExamDeliveryMode
     {
-        return $state instanceof ExamDeliveryMode ? $state : ExamDeliveryMode::tryFrom((string) $state);
+        return self::enumOf(ExamDeliveryMode::class, $state);
+    }
+
+    /**
+     * A field whose options are an enum hands back the enum case itself.
+     *
+     * @template TEnum of \BackedEnum
+     *
+     * @param  class-string<TEnum>  $enum
+     * @return TEnum|null
+     */
+    private static function enumOf(string $enum, mixed $state): ?\BackedEnum
+    {
+        return $state instanceof $enum ? $state : $enum::tryFrom((string) $state);
     }
 }

@@ -1,7 +1,9 @@
 <?php
 
 use App\Enums\ExamType;
+use App\Enums\PaperSourceType;
 use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
+use App\Filament\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPapers;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
 use App\Filament\Staff\Pages\MonthlyEarnings;
 use App\Filament\Staff\Pages\MyEarnings;
@@ -17,12 +19,14 @@ use App\Filament\Teacher\Widgets\TeacherClassWeakChaptersWidget;
 use App\Filament\Teacher\Widgets\TeacherStudentsNeedingAttentionWidget;
 use App\Filament\Teacher\Widgets\TeacherStudentsPerformanceWidget;
 use App\Models\BillingSetting;
+use App\Models\Board;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
 use App\Models\BoardMcqQuestion;
 use App\Models\BoardMcqStimulus;
 use App\Models\BoardQuestionPaper;
 use App\Models\Chapter;
+use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Payment;
@@ -172,6 +176,36 @@ it('shows every subject\'s rate in the same number of queries however many subje
             ->each(fn (Subject $subject) => QuestionRate::factory()->create(['subject_id' => $subject->id]));
 
         $queries[$subjectCount] = ($this->queriesRunBy)(fn () => livewire(StaffQuestionRatesWidget::class)->assertOk());
+    }
+
+    expect($queries[9])->toBe($queries[2]);
+});
+
+it('lists, filters and searches past papers in the same number of queries however many there are', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $queries = [];
+    $classSubject = ClassSubject::factory()->create();
+    $board = Board::factory()->create(['name' => 'Dhaka Board']);
+
+    $lists = fn () => livewire(ListBoardQuestionPapers::class)
+        ->filterTable('source_type', PaperSourceType::Board->value)
+        ->filterTable('board_id', $board->id)
+        ->filterTable('class', $classSubject->academic_class_id)
+        ->filterTable('subject', $classSubject->subject_id)
+        ->searchTable('Dhaka')
+        ->assertOk();
+
+    $lists();
+
+    $year = 2000;
+
+    foreach ([2, 9] as $paperCount) {
+        BoardQuestionPaper::query()->delete();
+        foreach (range(1, $paperCount) as $index) {
+            BoardQuestionPaper::factory()->create(['board_id' => $board->id, 'class_subject_id' => $classSubject->id, 'year' => $year++]);
+        }
+
+        $queries[$paperCount] = ($this->queriesRunBy)($lists);
     }
 
     expect($queries[9])->toBe($queries[2]);

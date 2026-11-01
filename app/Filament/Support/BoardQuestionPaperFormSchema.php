@@ -13,7 +13,6 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Illuminate\Database\Eloquent\Builder;
 
 /**
  * A past paper's details: where it is from (a board, a medical college, a
@@ -121,11 +120,7 @@ class BoardQuestionPaperFormSchema
     {
         return Select::make($name)
             ->label(__('Source'))
-            ->options(fn (Get $get): array => Board::orderedByDisplayName()
-                ->when($get('source_type'), fn (Builder $query, PaperSourceType $type) => $query->where('type', $type))
-                ->get()
-                ->mapWithKeys(fn (Board $board): array => [$board->id => "{$board->display_name} ({$board->display_short_name})"])
-                ->all())
+            ->options(fn (Get $get): array => Board::options($get('source_type')))
             ->searchable()
             ->preload()
             ->live()

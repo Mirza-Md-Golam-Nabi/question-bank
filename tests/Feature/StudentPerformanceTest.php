@@ -156,7 +156,7 @@ it('counts a past paper in its subject and the scores, never in a chapter or dif
     $exam->recalculateTotalMarks();
     [$first, $second] = $paper->mcqQuestions->all();
 
-    ($this->sit)($exam->refresh(), [$first->id => $first->correctAnswerValue(), $second->id => 'not it']);
+    ($this->sit)($exam->refresh(), [$first->id => $first->correctAnswerValues()[0], $second->id => 'not it']);
 
     $subject = $this->performance->subjectRates(($this->own)())->first();
 

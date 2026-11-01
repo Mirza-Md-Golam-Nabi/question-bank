@@ -11,6 +11,7 @@ use App\Filament\Staff\Resources\BoardQuestionPapers\Pages\CreateBoardQuestionPa
 use App\Filament\Staff\Resources\BoardQuestionPapers\Pages\ListBoardQuestionPapers as StaffListBoardQuestionPapers;
 use App\Filament\Support\RelationManagers\PaperCqQuestionsRelationManager;
 use App\Filament\Support\RelationManagers\PaperMcqQuestionsRelationManager;
+use App\Models\AcademicClass;
 use App\Models\Board;
 use App\Models\BoardCqQuestion;
 use App\Models\BoardCqQuestionPart;
@@ -18,6 +19,7 @@ use App\Models\BoardMcqQuestion;
 use App\Models\BoardMcqStimulus;
 use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
+use App\Models\Subject;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Action;
@@ -380,6 +382,62 @@ it('approves a whole paper from the table once it has questions', function () {
     expect($paper->refresh()->status)->toBe(QuestionStatus::Approved);
 });
 
+it('pays a staff member when their paper is approved from the list', function () {
+    $staff = User::factory()->staff()->create();
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'created_by' => $staff->id]);
+    BoardMcqQuestion::factory()->create(['board_question_paper_id' => $paper->id]);
+
+    livewire(ListBoardQuestionPapers::class)
+        ->callAction(TestAction::make('approve')->table($paper))
+        ->assertHasNoActionErrors();
+
+    expect($paper->staffEarning()->count())->toBe(1);
+});
+
+it('approves the selected papers at once, leaving out those with no questions', function () {
+    $staff = User::factory()->staff()->create();
+    $papers = BoardQuestionPaper::factory()->count(2)->sequence(['year' => 2020], ['year' => 2021])->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'created_by' => $staff->id]);
+    $papers->each(fn (BoardQuestionPaper $paper) => BoardMcqQuestion::factory()->create(['board_question_paper_id' => $paper->id]));
+    $cqOnly = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'year' => 2022]);
+    BoardCqQuestion::factory()->create(['board_question_paper_id' => $cqOnly->id]);
+    $empty = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'year' => 2023]);
+    $notSelected = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'year' => 2024]);
+    BoardMcqQuestion::factory()->create(['board_question_paper_id' => $notSelected->id]);
+
+    livewire(ListBoardQuestionPapers::class)
+        ->selectTableRecords([...$papers->pluck('id'), $cqOnly->id, $empty->id])
+        ->callAction(TestAction::make('approveSelected')->table()->bulk())
+        ->assertHasNoActionErrors()
+        ->assertNotified();
+
+    expect($papers->map(fn (BoardQuestionPaper $paper) => $paper->refresh()->status)->unique()->all())->toBe([QuestionStatus::Approved])
+        ->and($cqOnly->refresh()->status)->toBe(QuestionStatus::Approved)
+        ->and($empty->refresh()->status)->toBe(QuestionStatus::Pending)
+        ->and($notSelected->refresh()->status)->toBe(QuestionStatus::Pending)
+        ->and($papers->sum(fn (BoardQuestionPaper $paper) => $paper->staffEarning()->count()))->toBe(2);
+});
+
+it('does not pay again for a paper already approved among those selected', function () {
+    $staff = User::factory()->staff()->create();
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'created_by' => $staff->id]);
+    BoardMcqQuestion::factory()->create(['board_question_paper_id' => $paper->id]);
+    $paper->approve($this->admin);
+    $approvedBefore = $paper->refresh()->updated_at;
+
+    expect(BoardQuestionPaper::approveMany(BoardQuestionPaper::query()->get(), $this->admin))
+        ->toBe(['approved' => 0, 'without_questions' => 0])
+        ->and($paper->staffEarning()->count())->toBe(1)
+        ->and($paper->refresh()->updated_at)->toEqual($approvedBefore);
+});
+
+it('offers no bulk approve to a staff member', function () {
+    $this->actingAs(User::factory()->staff()->create());
+    Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+    livewire(StaffListBoardQuestionPapers::class)
+        ->assertActionDoesNotExist(TestAction::make('approveSelected')->table()->bulk());
+});
+
 it('focuses the confirm button of the approve dialog, so that Enter confirms', function () {
     $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
     BoardMcqQuestion::factory()->create(['board_question_paper_id' => $paper->id]);
@@ -410,4 +468,103 @@ it('shows a staff member only their own papers, and lets them change them only u
 
     expect($staff->can('update', $own->refresh()))->toBeFalse()
         ->and(StaffBoardQuestionPaperResource::getEloquentQuery()->pluck('id')->all())->toBe([$own->id]);
+});
+
+it('filters the papers by kind, source, class, subject and year', function () {
+    $otherClassSameSubject = ClassSubject::factory()->create(['subject_id' => $this->classSubject->subject_id]);
+    $otherSubject = ClassSubject::factory()->create();
+    $otherBoard = Board::factory()->create();
+
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id, 'year' => 2023]);
+    $sameSubjectElsewhere = BoardQuestionPaper::factory()->create(['board_id' => $otherBoard->id, 'class_subject_id' => $otherClassSameSubject->id, 'year' => 2021]);
+    $differentSubject = BoardQuestionPaper::factory()->create(['board_id' => $otherBoard->id, 'class_subject_id' => $otherSubject->id, 'year' => 2022]);
+    $admission = BoardQuestionPaper::factory()->create(['board_id' => $this->university->id, 'class_subject_id' => null, 'year' => 2023]);
+
+    $filtered = fn (string $filter, mixed $value) => livewire(ListBoardQuestionPapers::class)->filterTable($filter, $value);
+
+    $filtered('source_type', PaperSourceType::University->value)
+        ->assertCanSeeTableRecords([$admission])
+        ->assertCanNotSeeTableRecords([$paper, $sameSubjectElsewhere, $differentSubject]);
+
+    $filtered('board_id', $this->board->id)
+        ->assertCanSeeTableRecords([$paper])
+        ->assertCanNotSeeTableRecords([$sameSubjectElsewhere, $differentSubject, $admission]);
+
+    $filtered('class', $this->classSubject->academic_class_id)
+        ->assertCanSeeTableRecords([$paper])
+        ->assertCanNotSeeTableRecords([$sameSubjectElsewhere, $differentSubject, $admission]);
+
+    // A subject alone finds its papers of every class.
+    $filtered('subject', $this->classSubject->subject_id)
+        ->assertCanSeeTableRecords([$paper, $sameSubjectElsewhere])
+        ->assertCanNotSeeTableRecords([$differentSubject, $admission]);
+
+    $filtered('year', 2023)
+        ->assertCanSeeTableRecords([$paper, $admission])
+        ->assertCanNotSeeTableRecords([$sameSubjectElsewhere, $differentSubject]);
+
+    livewire(ListBoardQuestionPapers::class)
+        ->filterTable('year', 2023)
+        ->filterTable('source_type', PaperSourceType::Board->value)
+        ->assertCanSeeTableRecords([$paper])
+        ->assertCanNotSeeTableRecords([$admission, $sameSubjectElsewhere]);
+});
+
+it('shortens the source and subject lists to the kind and class picked, and clears a pick that no longer fits', function () {
+    $otherClass = ClassSubject::factory()->create();
+
+    $page = livewire(ListBoardQuestionPapers::class);
+    $options = fn (string $field): array => $page->instance()->getTableFiltersForm()->getFlatFields(withHidden: true)[$field]->getOptions();
+
+    expect(array_keys($options('board_id.value')))->toContain($this->board->id, $this->university->id)
+        ->and(array_keys($options('subject.value')))->toContain($this->classSubject->subject_id, $otherClass->subject_id);
+
+    $page->set('tableDeferredFilters.board_id.value', $this->board->id)
+        ->set('tableDeferredFilters.source_type.value', PaperSourceType::University->value)
+        ->assertSet('tableDeferredFilters.board_id.value', null);
+
+    $page->set('tableDeferredFilters.subject.value', $otherClass->subject_id)
+        ->set('tableDeferredFilters.class.value', $this->classSubject->academic_class_id)
+        ->assertSet('tableDeferredFilters.subject.value', null);
+
+    expect(array_keys($options('board_id.value')))->toBe([$this->university->id])
+        ->and(array_keys($options('subject.value')))->toBe([$this->classSubject->subject_id]);
+});
+
+it('offers only the years of the papers the viewer can list', function () {
+    $staff = User::factory()->staff()->create();
+    $this->actingAs($staff);
+    Filament::setCurrentPanel(Filament::getPanel('staff'));
+
+    BoardQuestionPaper::factory()->create(['created_by' => $staff->id, 'year' => 2020]);
+    BoardQuestionPaper::factory()->create(['year' => 2015]);
+
+    $page = livewire(StaffListBoardQuestionPapers::class);
+
+    expect($page->instance()->getTable()->getFilter('year')->getOptions())->toBe([2020 => '2020']);
+});
+
+it('searches the papers by source, year, unit, class, subject and creator, one word at a time', function () {
+    $dhaka = Board::factory()->create(['name' => 'Dhaka Board', 'name_bn' => 'ঢাকা বোর্ড', 'short_name' => 'DHK', 'short_name_bn' => 'ঢাকা']);
+    $physics = ClassSubject::factory()
+        ->for(AcademicClass::factory()->state(['name' => 'Class Nine']), 'academicClass')
+        ->for(Subject::factory()->state(['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান']), 'subject')
+        ->create();
+    $author = User::factory()->staff()->create(['name' => 'Rahima Staff']);
+
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $dhaka->id, 'class_subject_id' => $physics->id, 'year' => 2023, 'unit' => 'Zeta', 'created_by' => $author->id]);
+    $sameSource = BoardQuestionPaper::factory()->create(['board_id' => $dhaka->id, 'class_subject_id' => $this->classSubject->id, 'year' => 2019]);
+    $other = BoardQuestionPaper::factory()->create(['board_id' => $this->university->id, 'class_subject_id' => null, 'year' => 2019]);
+
+    foreach (['Dhaka', 'ঢাকা', 'DHK'] as $search) {
+        livewire(ListBoardQuestionPapers::class)->searchTable($search)
+            ->assertCanSeeTableRecords([$paper, $sameSource])
+            ->assertCanNotSeeTableRecords([$other]);
+    }
+
+    foreach (['2023', '২০২৩', 'Zeta', 'Class Nine', 'Physics', 'পদার্থ', 'Rahima', 'Dhaka 2023'] as $search) {
+        livewire(ListBoardQuestionPapers::class)->searchTable($search)
+            ->assertCanSeeTableRecords([$paper])
+            ->assertCanNotSeeTableRecords([$sameSource, $other]);
+    }
 });

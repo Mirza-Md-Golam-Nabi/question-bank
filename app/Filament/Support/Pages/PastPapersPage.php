@@ -2,11 +2,9 @@
 
 namespace App\Filament\Support\Pages;
 
-use App\Enums\PaperSourceType;
 use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
-use App\Models\AcademicClass;
-use App\Models\Board;
+use App\Filament\Support\PastPaperFilters;
 use App\Models\BoardQuestionPaper;
 use App\Services\PlanGrant;
 use App\Services\SubscriptionLimitService;
@@ -18,7 +16,6 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -105,20 +102,7 @@ abstract class PastPapersPage extends Page implements HasTable
                     ->falseIcon(Heroicon::OutlinedLockClosed)
                     ->alignCenter(),
             ])
-            ->filters([
-                SelectFilter::make('source_type')
-                    ->label(__('Kind'))
-                    ->options(PaperSourceType::class)
-                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null, fn (Builder $query, string $type) => $query->whereHas('board', fn (Builder $board) => $board->where('type', $type)))),
-                SelectFilter::make('board_id')
-                    ->label(__('Source'))
-                    ->options(fn (): array => Board::orderedByDisplayName()->get()->mapWithKeys(fn (Board $board) => [$board->id => $board->display_name])->all())
-                    ->searchable(),
-                SelectFilter::make('class')
-                    ->label(__('Class'))
-                    ->options(fn (): array => AcademicClass::options())
-                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null, fn (Builder $query, string $classId) => $query->whereHas('classSubject', fn (Builder $classSubject) => $classSubject->where('academic_class_id', $classId)))),
-            ])
+            ->filters(PastPaperFilters::all())
             ->recordActions([
                 $this->previewAction(),
                 ...$this->paperActions(),

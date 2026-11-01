@@ -33,7 +33,7 @@ class TeacherExamPrintController extends Controller
             'exam' => $exam,
             'mcqQuestions' => $questionsByType->get(QuestionType::Mcq->value, collect()),
             'cqQuestions' => $questionsByType->get(QuestionType::Cq->value, collect()),
-            'totalMarks' => $questions->sum(fn (Model $question) => $question->pivot?->marks_override ?? $question->marks),
+            'totalMarks' => $exam->marksOf($questions),
             'showAnswers' => $request->boolean('answers'),
         ]);
     }

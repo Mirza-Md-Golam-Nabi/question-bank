@@ -192,8 +192,8 @@ it('offers a guide and a sample for each list that the list itself accepts', fun
 
     expect($type === QuestionType::Mcq ? $this->paper->mcqQuestions()->count() : $this->paper->cqQuestions()->count())->toBe($questions);
 })->with([
-    // An MCQ, two MCQs sharing a stimulus, and an MCQ with figures.
-    'MCQ' => [QuestionType::Mcq, '"stimulus"', 4],
+    // An MCQ, one with several answers, one with none, two MCQs sharing a stimulus, and an MCQ with figures.
+    'MCQ' => [QuestionType::Mcq, '"stimulus"', 6],
     'CQ' => [QuestionType::Cq, '"answer"', 1],
 ]);
 

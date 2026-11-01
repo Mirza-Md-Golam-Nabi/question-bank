@@ -24,6 +24,8 @@
                         <div class="min-w-0 flex-1">
                             @include('filament.support.questions.question-body', ['question' => $stat['question'], 'showAnswers' => true])
 
+                            {{-- A question without a correct answer has no outcomes to split. --}}
+                            @if ($stat['is_judged'])
                             {{-- One bar split by outcome, so the share of wrong answers reads at a glance. --}}
                             <div class="qb-answer-bar" role="img" aria-label="{{ __('Correct') }}: {{ $stat['correct'] }}, {{ __('Incorrect') }}: {{ $stat['wrong'] }}, {{ __('Not answered') }}: {{ $stat['unanswered'] }}">
                                 <span class="qb-answer-bar-part qb-answer-bar-part--wrong" style="flex-grow: {{ $stat['wrong'] }}"></span>
@@ -72,6 +74,7 @@
                                         </x-filament::link>
                                     @endif
                                 </div>
+                            @endif
                             @endif
                         </div>
                     </div>
