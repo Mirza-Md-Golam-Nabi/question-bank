@@ -54,6 +54,7 @@ Request দেখা ও পরিশোধ: `WithdrawalResource` (Admin → Pay
 | Group plan থেকে কাউকে সরানো যায় প্রতি (দিনে একবার) | `group_member_change_days` | ৩০ | ক্রেতা এত দিনে একবার সদস্য সরাতে পারেন |
 | Teacher-প্রতি ডিভাইস | `teacher_device_limit` | ৩ | একসাথে কয়টা ডিভাইসে লগইন; ০ = সীমা নেই |
 | Student-প্রতি ডিভাইস | `student_device_limit` | ২ | একই |
+| লগইন থাকবে (দিন) | `login_stay_days` | ০ | সব প্যানেলে; ডিভাইসটা শেষ ব্যবহারের দিন থেকে গোনা; ০ = লাইফটাইম → [04-authentication.md](04-authentication.md) |
 
 ## প্রতি প্রশ্নপত্রে স্টাফের পারিশ্রমিক
 

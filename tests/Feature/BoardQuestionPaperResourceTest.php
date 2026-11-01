@@ -20,6 +20,7 @@ use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Filament\Actions\Action;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
@@ -377,6 +378,17 @@ it('approves a whole paper from the table once it has questions', function () {
         ->assertHasNoActionErrors();
 
     expect($paper->refresh()->status)->toBe(QuestionStatus::Approved);
+});
+
+it('focuses the confirm button of the approve dialog, so that Enter confirms', function () {
+    $paper = BoardQuestionPaper::factory()->create(['board_id' => $this->board->id, 'class_subject_id' => $this->classSubject->id]);
+    BoardMcqQuestion::factory()->create(['board_question_paper_id' => $paper->id]);
+
+    livewire(ListBoardQuestionPapers::class)
+        ->assertActionExists(
+            TestAction::make('approve')->table($paper),
+            fn (Action $action): bool => ($action->getModalSubmitAction()->getExtraAttributes()['autofocus'] ?? false) === true,
+        );
 });
 
 it('shows a staff member only their own papers, and lets them change them only until approved', function () {

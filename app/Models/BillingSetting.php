@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Model;
     'referral_enabled', 'student_reward_percent', 'teacher_reward_percent', 'staff_reward_percent', 'referee_discount_percent',
     'commission_first_purchase_only', 'referral_lock_days', 'referral_change_days',
     'teacher_reserve_amount', 'teacher_min_withdrawal', 'student_reserve_amount', 'student_min_withdrawal',
-    'group_member_change_days', 'teacher_device_limit', 'student_device_limit',
+    'group_member_change_days', 'teacher_device_limit', 'student_device_limit', 'login_stay_days',
     'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
     'admin_notification_recipients', 'question_import_max', 'question_import_image_max_kb', 'question_import_images_max_mb', 'teacher_question_import_enabled', 'staff_paper_import_enabled', 'duplicate_similarity_percent',
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
@@ -37,6 +37,12 @@ use Illuminate\Database\Eloquent\Model;
 ])]
 class BillingSetting extends Model
 {
+    /**
+     * What "signed in for life" comes to: a session needs some length, and
+     * this outlasts any device. Technical, not a business number.
+     */
+    private const LIFETIME_LOGIN_MINUTES = 10 * 365 * 24 * 60;
+
     /**
      * What applies until the Admin has saved the settings once: everything
      * about money switched off.
@@ -58,6 +64,7 @@ class BillingSetting extends Model
         'group_member_change_days' => 30,
         'teacher_device_limit' => 3,
         'student_device_limit' => 2,
+        'login_stay_days' => 0,
         'refund_window_days' => 0,
         'referee_discount_percent' => 0,
         'phone_bonus_exams' => 0,
@@ -100,6 +107,7 @@ class BillingSetting extends Model
             'group_member_change_days' => 'integer',
             'teacher_device_limit' => 'integer',
             'student_device_limit' => 'integer',
+            'login_stay_days' => 'integer',
             'refund_window_days' => 'integer',
             'referee_discount_percent' => 'float',
             'phone_bonus_exams' => 'integer',
@@ -144,6 +152,15 @@ class BillingSetting extends Model
             ->where('status', UserStatus::Active)
             ->when($chosen !== [], fn ($query) => $query->whereKey($chosen))
             ->get();
+    }
+
+    /**
+     * How long a device can go unused before it is signed out, on every
+     * panel: the Admin's days, or for life at 0.
+     */
+    public function loginDurationInMinutes(): int
+    {
+        return $this->login_stay_days > 0 ? $this->login_stay_days * 24 * 60 : self::LIFETIME_LOGIN_MINUTES;
     }
 
     /**

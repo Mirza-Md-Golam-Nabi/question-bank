@@ -395,6 +395,7 @@ livewire(ListUsers::class)
 4. **Admin Panel-এ পাবলিক Registration বন্ধ** (`->registration(false)`) — যে কেউ সাইনআপ করে Admin হতে পারবে না। প্রথম Super Admin `SuperAdminSeeder` দিয়ে তৈরি, এরপরের Admin Super Admin নিজে `AdminResource` থেকে বানাবে।
 5. `users.password_hash` শুধু `admin`/`super_admin`-এর জন্য filled থাকবে; বাকি রোলে সবসময় `null`। `users.google_id` উল্টোটা — শুধু Teacher/Staff/Student-এ filled।
 6. **`users.status` চারটা মান নিতে পারে:** `pending` (Staff-এর জন্য, Admin approve-এর অপেক্ষায়), `active`, `suspended`, `permanent_suspend`। Teacher/Staff দুই ক্ষেত্রেই Admin `suspended` করলে প্যানেলে ঢুকতে পারবে (Dashboard/Earning-এর মতো নিজের পেজ দেখতে পারবে), কিন্তু নতুন প্রশ্ন **add করতে পারবে না** (`QuestionPolicy::create()`-এ হার্ডকোড থাকবে)। `permanent_suspend` করলে পুরো প্যানেলে ঢোকাই ব্লক (`User::canAccessPanel()`-এ হার্ডকোড)।
+7. **লগইন কতক্ষণ থাকে:** সব প্যানেলে, user নিজে লগআউট না করা পর্যন্ত — Admin-এর ঠিক করা দিন (`BillingSetting.login_stay_days`, ডিভাইসটা শেষ ব্যবহারের দিন থেকে গোনা), ০ = লাইফটাইম (ডিফল্ট)। Session-এর মেয়াদ হিসেবেই (`ApplyLoginDuration`), remember-cookie না — যাতে ডিভাইস সীমা ও ডিভাইস-লগআউট সত্যিই লগআউট করে।
 
 ### ২. Question Approval Visibility
 > **Teacher/Staff-এর তৈরি প্রশ্ন Admin approve করার আগ পর্যন্ত অন্য কোনো Teacher/Staff দেখতে বা exam-এ ব্যবহার করতে পারবে না — শুধু owner ও Admin দেখবে।**

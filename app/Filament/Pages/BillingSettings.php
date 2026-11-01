@@ -141,6 +141,16 @@ class BillingSettings extends Page
                             ->integer()->minValue(0)->required(),
                     ]),
 
+                Section::make(__('Staying signed in'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('login_stay_days')
+                            ->label(__('Stay signed in for (days)'))
+                            ->helperText(__('On every panel, until the user signs out. Counted from the last time the device was used; a device unused for longer is signed out. 0 = lifetime, no time limit.'))
+                            ->integer()->minValue(0)->maxValue(3650)->required()
+                            ->columnSpanFull(),
+                    ]),
+
                 Section::make(__('Refunds'))
                     ->columns(3)
                     ->schema([

@@ -232,6 +232,8 @@ School প্রতিবার স্কুলের software-এর রেজ�
 
 একটাই সারি; `BillingSetting::current()` দিয়ে পড়া হয়। প্রতিটা কলামের অর্থ ও ডিফল্ট: [09-admin-settings.md](09-admin-settings.md)।
 
+`login_stay_days` (লগইন কত দিন থাকে; ০ = লাইফটাইম) → [04-authentication.md](04-authentication.md)।
+
 ## নোটিফিকেশন
 
 ### `notifications`

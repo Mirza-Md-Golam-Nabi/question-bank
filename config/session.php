@@ -34,6 +34,11 @@ return [
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
+    // Signed-in sessions last as long as the Admin's setting says
+    // (ApplyLoginDuration replaces 'lifetime' above); this is how long the
+    // session row of a visitor who never signed in is kept.
+    'guest_lifetime' => (int) env('SESSION_LIFETIME', 120),
+
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
     /*

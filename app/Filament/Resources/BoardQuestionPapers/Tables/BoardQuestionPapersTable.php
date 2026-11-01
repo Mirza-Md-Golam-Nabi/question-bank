@@ -71,6 +71,8 @@ class BoardQuestionPapersTable
                 && ($record->mcq_questions_count + $record->cq_questions_count) > 0
                 && auth()->user()->can('approve', $record))
             ->requiresConfirmation()
+            // The confirm button takes the focus, so Enter confirms.
+            ->modalSubmitAction(fn (Action $action): Action => $action->extraAttributes(['autofocus' => true]))
             ->action(fn (BoardQuestionPaper $record) => $record->approve(auth()->user()));
     }
 

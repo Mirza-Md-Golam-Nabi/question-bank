@@ -7,6 +7,7 @@ use App\Http\Responses\LogoutResponse;
 use App\Services\ImportedImages;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\SmsSender;
+use App\Support\GuestPruningSessionHandler;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse as LogoutResponseContract;
@@ -17,6 +18,7 @@ use Filament\Tables\Columns\Column;
 use Filament\Tables\Columns\TextColumn;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -41,6 +43,21 @@ class AppServiceProvider extends ServiceProvider
         $this->registerLanguageSwitcher();
         $this->allowImportImageUploads();
         $this->registerLocalDateColumns();
+        $this->registerSessionHandler();
+    }
+
+    /**
+     * The database session driver, keeping guests' rows no longer than they
+     * are needed (GuestPruningSessionHandler).
+     */
+    protected function registerSessionHandler(): void
+    {
+        Session::extend('database', fn ($app): GuestPruningSessionHandler => new GuestPruningSessionHandler(
+            $app['db']->connection($app['config']['session.connection']),
+            $app['config']['session.table'],
+            $app['config']['session.lifetime'],
+            $app,
+        ));
     }
 
     /**
