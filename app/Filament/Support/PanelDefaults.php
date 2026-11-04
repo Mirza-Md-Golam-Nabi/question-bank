@@ -5,6 +5,7 @@ namespace App\Filament\Support;
 use App\Enums\GuidePage;
 use App\Enums\Locale;
 use App\Filament\Support\Pages\HelpCenter;
+use App\Filament\Support\Widgets\QuestionBankGrowthWidget;
 use App\Http\Middleware\SetLocale;
 use App\Models\Guide;
 use App\Models\Offer;
@@ -65,6 +66,11 @@ class PanelDefaults
                 $dashboard,
                 // "Help" — the guides of every panel but the Admin's, who writes them.
                 ...($id === 'admin' ? [] : [HelpCenter::class]),
+            ])
+            // "LIVE — Database update!" on every dashboard; a panel adds its
+            // own widgets after it.
+            ->widgets([
+                QuestionBankGrowthWidget::class,
             ])
             // The installable app (config/pwa.php) opens from every panel.
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => view('components.pwa-head')->render())

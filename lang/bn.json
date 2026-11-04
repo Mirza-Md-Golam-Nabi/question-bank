@@ -1508,5 +1508,11 @@
     "Cash / other": "নগদ / অন্য",
     "Reason / note": "কারণ / নোট",
     "Off sale": "বিক্রি বন্ধ",
-    "Gift": "উপহার"
+    "Gift": "উপহার",
+    "Database update!": "ডেটাবেজ আপডেট!",
+    "New questions join our question bank every day. See below, live, which classes are getting questions now.": "প্রতিদিন নতুন প্রশ্ন যুক্ত হচ্ছে আমাদের প্রশ্নব্যাংকে। নিচে দেখুন এখন কোন কোন শ্রেণির প্রশ্ন যুক্ত হচ্ছে — লাইভ স্ট্যাটাস।",
+    "New question added :time": "নতুন প্রশ্ন যুক্ত হয়েছে :time",
+    ":count questions in the last :days days": "গত :days দিনে :countটি প্রশ্ন যুক্ত হয়েছে",
+    "No question has been added yet.": "এখনো কোনো প্রশ্ন যুক্ত হয়নি।",
+    "Classes getting questions now": "বর্তমানে যে শ্রেণির প্রশ্ন যুক্ত হচ্ছে"
 }

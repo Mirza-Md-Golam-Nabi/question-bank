@@ -49,6 +49,7 @@ class BoardQuestionPaper extends Model
     {
         return [
             'status' => QuestionStatus::class,
+            'approved_at' => 'datetime',
             'year' => 'integer',
             'duration_minutes' => 'integer',
             'negative_marks' => 'float',

@@ -706,6 +706,7 @@ CLAUDE.md
 | বিষয়ের নাম চলতি ভাষায় | `Subject::display_name` (সংক্ষিপ্ত `short_label`) |
 | কার্ডের রঙের palette | `Support\CardPalette` |
 | Dashboard-এর stat কার্ড, "Recent questions" | `Support\Widgets\DashboardStat`, `RecentQuestionsWidget` |
+| প্রশ্নভাণ্ডারে কবে কত প্রশ্ন যুক্ত হলো (সব প্যানেলের ড্যাশবোর্ডের "LIVE ডেটাবেজ আপডেট") | `App\Services\QuestionBankGrowth`, `Question::scopeAddedToBank()`, `Support\Widgets\QuestionBankGrowthWidget` |
 | Self-practice পেজ (নিজের শ্রেণির বিষয় + শুরু) | `Support\Pages\SelfPracticeExamPage` |
 | প্রশ্ন বাছাইয়ের picker (Teacher-এর "প্রশ্ন বাছাই" ও Student-এর "নিজের প্র্যাকটিস পরীক্ষা বানান"): ফিল্টার, তালিকা, ব্রাউজারে টিক, এলোমেলো, ফাইনাল ভিউ | `Support\Pages\QuestionPickerPage` + `filament.support.pages.question-picker` (partial `question-picker/selection-summary`, `question-picker/question-card`); প্যানেলের পেজে শুধু কোন প্রশ্ন, কোন শ্রেণি, প্রিন্ট আছে কি না আর শেষ ধাপ |
 | Plan-এর শর্ত পড়া, কে কী পারে, কোন plan-এ গোনা হবে | `App\Services\PlanConditions`, `PlanGrant`, `SubscriptionLimitService` (`authorize()`, `allows()`, `allowedDifficultiesFor()`, `constrainToAccessible()`) |

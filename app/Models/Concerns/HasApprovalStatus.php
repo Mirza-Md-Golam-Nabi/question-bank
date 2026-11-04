@@ -7,8 +7,9 @@ use App\Models\User;
 
 /**
  * The approve / reject status change shared by everything an admin reviews
- * (a question, a board question paper): the same three columns move
- * together either way. Anything a model does on top of that — an approval
+ * (a question, a board question paper): the same columns move together
+ * either way — `approved_at` too, the day it joined the question bank
+ * (QuestionBankGrowth). Anything a model does on top of that — an approval
  * log, a staff earning — stays in that model.
  */
 trait HasApprovalStatus
@@ -18,6 +19,7 @@ trait HasApprovalStatus
         $this->forceFill([
             'status' => QuestionStatus::Approved,
             'approved_by' => $approver->id,
+            'approved_at' => now(),
             'rejection_reason' => null,
         ])->save();
     }
@@ -27,6 +29,7 @@ trait HasApprovalStatus
         $this->forceFill([
             'status' => QuestionStatus::Rejected,
             'approved_by' => null,
+            'approved_at' => null,
             'rejection_reason' => $reason,
         ])->save();
     }

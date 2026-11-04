@@ -33,6 +33,10 @@ class QuestionObserver
             $question->approved_by = auth()->id();
         }
 
+        if ($question->status === QuestionStatus::Approved) {
+            $question->approved_at ??= now();
+        }
+
         // Eloquent doesn't reflect a column's DB-level ->default() back onto
         // the in-memory instance after create() without an extra refresh, so
         // relying on the migration's defaults alone leaves $question->version

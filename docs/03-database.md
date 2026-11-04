@@ -78,6 +78,7 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | `editor_mode` | `richtext` / `ckeditor` |
 | `status` | `pending` / `approved` / `rejected` |
 | `created_by`, `approved_by`, `rejection_reason` | |
+| `approved_at` | কবে approve হলো (reject-এ মুছে যায়; index) — ড্যাশবোর্ডের "LIVE ডেটাবেজ আপডেট" এ দিয়ে গোনে |
 | `parent_id`, `version`, `is_latest` | versioning; `parent_id` সবসময় প্রথম সংস্করণকে নির্দেশ করে |
 | `is_private` | School-এর নিজের প্রশ্ন (School লিখলে নিজে থেকে; নতুন সংস্করণেও): শুধু সেই School দেখে, pool/Admin-এর রিভিউতে কখনো না, status সবসময় `pending` — [12-school-link.md](12-school-link.md) |
 | `deleted_at` | soft delete |
@@ -103,7 +104,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | টেবিল | কলাম |
 |---|---|
 | `boards` | `name`, `name_bn`, `short_name`, `short_name_bn` (ইংরেজি ও বাংলা, পূর্ণ ও সংক্ষিপ্ত), `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন) |
-| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `rejection_reason`; index(year), index(status, year); unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
+| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `approved_at` (কবে approve — ড্যাশবোর্ডের গণনা), `rejection_reason`; index(year), index(status, year); unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
 | `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by` — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
 | `board_mcq_stimuli` | `board_question_paper_id`, `text`, `editor_mode`, `image` — প্রশ্নপত্রের উদ্দীপক; মুছলে তার প্রশ্নও মোছে |
 | `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `has_correct_answer` (অপশন থেকে নিজে ঠিক হয় — SQL-এ পড়ার জন্য; ফর্ম/JSON-এ লেখা হয় না), `explanation` (nullable), `explanation_editor_mode`, `marks`, `order_index` |

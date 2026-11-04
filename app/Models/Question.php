@@ -61,6 +61,7 @@ class Question extends Model
             'explanation_editor_mode' => EditorMode::class,
             'difficulty' => Difficulty::class,
             'status' => QuestionStatus::class,
+            'approved_at' => 'datetime',
             'duplicate_status' => DuplicateCheckStatus::class,
             'options' => 'array',
             'is_latest' => 'boolean',
@@ -225,6 +226,19 @@ class Question extends Model
     {
         return $query->where('status', QuestionStatus::Approved)->where('is_latest', true)->where('is_private', false)
             ->where('duplicate_status', DuplicateCheckStatus::Clear);
+    }
+
+    /**
+     * The questions that joined the shared question bank, each once, on the
+     * day it was approved (`approved_at`): first versions only — a
+     * corrected version is the same question again — and never a School's
+     * own. What the dashboards' "Live database update" counts
+     * (QuestionBankGrowth).
+     */
+    public function scopeAddedToBank(Builder $query): Builder
+    {
+        return $query->where('status', QuestionStatus::Approved)->whereNull('parent_id')->where('is_private', false)
+            ->whereNotNull('approved_at');
     }
 
     /**

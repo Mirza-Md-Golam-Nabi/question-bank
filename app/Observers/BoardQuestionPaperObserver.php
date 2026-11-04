@@ -14,5 +14,9 @@ class BoardQuestionPaperObserver
         }
 
         $paper->status ??= QuestionStatus::Pending;
+
+        if ($paper->status === QuestionStatus::Approved) {
+            $paper->approved_at ??= now();
+        }
     }
 }
