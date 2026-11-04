@@ -196,7 +196,7 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | টেবিল | কলাম |
 |---|---|
 | `subscription_plans` | `name`, `target_role` (`teacher`/`student`), `price`, `duration_unit` (`days`/`months`/`years`/`until_date`/`unlimited`), `duration_length`, `ends_on`, `conditions` (JSON, শর্তের তালিকা — [08-billing.md](08-billing.md)), `is_default_free`, `is_trial`, `is_active` |
-| `subscriptions` | `user_id`, `plan_id`, `conditions` (কেনার সময়ের শর্তের কপি), `selections` (ক্রেতার বাছাই করা `class_ids`/`subject_ids`), `status`, `starts_at`, `ends_at`, `auto_renew` |
+| `subscriptions` | `user_id`, `plan_id`, `conditions` (কেনার সময়ের শর্তের কপি), `selections` (ক্রেতার বাছাই করা `class_ids`/`subject_ids`), `is_gift` (Super Admin বিনামূল্যে দিয়েছেন — পেইড গণ্য না), `status`, `starts_at`, `ends_at`, `auto_renew` |
 | `payments` | নিচে |
 | `wallet_transactions` | `user_id`, `type`, `amount`, `payment_id`, `withdrawal_id`, `expires_at` — শুধু যোগ হয়, কখনো বদলায় না |
 | `referral_rewards` | `referrer_id`, `payment_id` (unique), `amount`, `percent` (দেওয়ার মুহূর্তের শতাংশ), `matures_at`, `expires_at` (আর বসানো হয় না), `cancelled_at`, `payout_id` |
@@ -212,7 +212,7 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | `referrer_id`, `student_referral_id` | কেনার মুহূর্তে ক্রেতার referrer (ও student হলে কোন referral-এর অধীনে) — reward ও রিপোর্ট এখান থেকে |
 | `selections` | কেনার সময় ক্রেতা যে শ্রেণি/বিষয় বেছেছে; approve হলে subscription-এ যায় |
 | `list_price`, `discount_amount`, `wallet_amount`, `amount` | তালিকার দাম থেকে discount ও wallet বাদ দিয়ে `amount` = নগদে দেওয়া টাকা |
-| `gateway`, `gateway_transaction_id` (unique) | এখন `manual`; transaction id দুইবার ব্যবহার করা যায় না |
+| `gateway`, `gateway_transaction_id` (unique) | কেনায় `manual`, Super Admin দিলে `admin` (`amount` ০ = উপহার); transaction id দুইবার ব্যবহার করা যায় না |
 | `payer_provider`, `payer_number` | কোন মাধ্যম ও নম্বর থেকে পাঠানো |
 | `status`, `paid_at` | |
 | `reviewed_by`, `reviewed_at`, `review_note` | কোন Admin যাচাই করেছে |

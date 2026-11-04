@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support;
 
+use App\Enums\Locale;
 use App\Enums\PaperSourceType;
 use App\Models\AcademicClass;
 use App\Models\Board;
@@ -94,6 +95,37 @@ class PastPaperFilters
                 $data['value'] ?? null,
                 fn (Builder $query, string $subjectId) => $query->whereIn('class_subject_id', ClassSubject::query()->where('subject_id', $subjectId)->select('id')),
             ));
+    }
+
+    /**
+     * The table search on the Source column: a source's name or short name,
+     * in either language.
+     */
+    public static function searchSource(Builder $query, string $search): Builder
+    {
+        return $query->whereIn('board_id', Board::query()->matching($search)->select('id'));
+    }
+
+    /**
+     * The table search on the Year column, Bangla digits too.
+     */
+    public static function searchYear(Builder $query, string $search): Builder
+    {
+        return $query->where('year', 'like', '%'.Locale::toEnglishDigits(trim($search)).'%');
+    }
+
+    public static function searchClass(Builder $query, string $search): Builder
+    {
+        return $query->whereIn('class_subject_id', ClassSubject::query()
+            ->whereIn('academic_class_id', AcademicClass::query()->where('name', 'like', '%'.trim($search).'%')->select('id'))
+            ->select('id'));
+    }
+
+    public static function searchSubject(Builder $query, string $search): Builder
+    {
+        return $query->whereIn('class_subject_id', ClassSubject::query()
+            ->whereIn('subject_id', Subject::query()->matching($search)->select('id'))
+            ->select('id'));
     }
 
     /**

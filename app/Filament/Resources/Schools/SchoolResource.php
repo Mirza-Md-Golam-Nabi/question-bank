@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Schools;
 use App\Enums\UserRole;
 use App\Filament\Resources\Schools\Pages\ManageSchools;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
+use App\Filament\Support\GrantSubscriptionAction;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\SchoolDetailsForm;
 use App\Filament\Support\StaffLikeUserResourceSchema;
@@ -77,6 +78,7 @@ class SchoolResource extends Resource
             ->filters(StaffLikeUserResourceSchema::tableFilters())
             ->recordActions([
                 ...StaffLikeUserResourceSchema::statusActions(),
+                GrantSubscriptionAction::forRecord(),
                 EditAction::make()->iconButton(),
                 DeleteAction::make()->iconButton(),
             ])

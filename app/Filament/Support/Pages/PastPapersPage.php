@@ -77,16 +77,23 @@ abstract class PastPapersPage extends Page implements HasTable
                     ->label(__('Source'))
                     ->badge()
                     ->state(fn (BoardQuestionPaper $record): string => $record->board->display_short_name)
-                    ->description(fn (BoardQuestionPaper $record): string => $record->board->display_name),
+                    ->description(fn (BoardQuestionPaper $record): string => $record->board->display_name)
+                    ->searchable(query: PastPaperFilters::searchSource(...)),
                 TextColumn::make('year')
                     ->sortable()
-                    ->description(fn (BoardQuestionPaper $record): ?string => filled($record->unit) ? __(':unit unit', ['unit' => $record->unit]) : null),
+                    ->description(fn (BoardQuestionPaper $record): ?string => filled($record->unit) ? __(':unit unit', ['unit' => $record->unit]) : null)
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query): Builder => PastPaperFilters::searchYear($query, $search))
+                        ->orWhere('unit', 'like', '%'.trim($search).'%')),
                 TextColumn::make('classSubject.subject.name')
                     ->label(__('Class · Subject'))
                     ->state(fn (BoardQuestionPaper $record): ?string => $record->classSubject
                         ? $record->classSubject->label()
                         : null)
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query): Builder => PastPaperFilters::searchClass($query, $search))
+                        ->orWhere(fn (Builder $query): Builder => PastPaperFilters::searchSubject($query, $search))),
                 TextColumn::make('mcq_questions_count')
                     ->label(__('Questions'))
                     ->state(fn (BoardQuestionPaper $record): string => collect([

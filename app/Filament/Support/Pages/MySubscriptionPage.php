@@ -8,10 +8,9 @@ use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\ShowsPlanSummary;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Filament\Support\NavigationGroup;
-use App\Models\AcademicClass;
+use App\Filament\Support\PlanPickFields;
 use App\Models\BillingSetting;
 use App\Models\Payment;
-use App\Models\Subject;
 use App\Models\Subscription;
 use App\Models\SubscriptionMember;
 use App\Models\SubscriptionPlan;
@@ -22,14 +21,12 @@ use App\Services\SubscriptionPurchaseService;
 use App\Services\WalletService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Radio;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -62,13 +59,6 @@ abstract class MySubscriptionPage extends Page
      * @var Collection<int, SubscriptionPlan>|null
      */
     private ?Collection $plansOnSale = null;
-
-    /**
-     * The buy form's subject options, keyed by the classes they are for.
-     *
-     * @var array<string, array<int, string>>
-     */
-    private array $pickableSubjects = [];
 
     /**
      * @return Collection<int, SubscriptionPlan>
@@ -179,31 +169,6 @@ abstract class MySubscriptionPage extends Page
     }
 
     /**
-     * The subjects the buy form offers, as select options — what the plan
-     * lets the buyer pick for the class(es) chosen so far (nothing before a
-     * class is chosen, when the plan asks for one). Kept for the request,
-     * as the field's help text asks again.
-     *
-     * @param  array<int, mixed>  $pickedClassIds
-     * @return array<int, string>
-     */
-    private function pickableSubjectOptions(PlanConditions $conditions, array $pickedClassIds): array
-    {
-        $classIds = $conditions->classScope($pickedClassIds);
-
-        if ($conditions->needsClassPick() && $classIds === []) {
-            return [];
-        }
-
-        return $this->pickableSubjects[implode(',', $classIds)] ??= Subject::query()
-            ->whereKey($conditions->pickableSubjectIds($classIds))
-            ->orderBy('name')
-            ->get()
-            ->mapWithKeys(fn (Subject $subject): array => [$subject->id => $subject->display_name])
-            ->all();
-    }
-
-    /**
      * Every plan on sale with its conditions in words, keyed by plan id.
      *
      * @return array<int, array<int, string>>
@@ -237,37 +202,14 @@ abstract class MySubscriptionPage extends Page
             && app(OtpService::class)->isRequiredForCredit();
 
         $conditions = $plan->planConditions();
-        $pickOne = fn (?int $count): bool => $count === 1;
 
         return [
             // What the plan asks the buyer to pick: their class(es) and/or
-            // subject(s). Only from what the plan lists, and only subjects
-            // taught in every chosen (or the plan's) class.
-            Select::make('class_ids')
-                ->label(trans_choice('Class|Classes', $conditions->classPickCount ?? 1))
-                ->options(fn (): array => AcademicClass::options($conditions->classIds ?: null))
-                ->multiple(! $pickOne($conditions->classPickCount))
-                ->maxItems($pickOne($conditions->classPickCount) ? null : $conditions->classPickCount)
-                ->helperText(Auth::user()->role === UserRole::Student ? __('Your profile class changes to the one you choose.') : null)
-                ->visible($conditions->needsClassPick())
-                ->required($conditions->needsClassPick())
-                ->live()
-                ->afterStateUpdated(fn (Set $set) => $set('subject_ids', null)),
-
-            Select::make('subject_ids')
-                ->label(trans_choice('Subject|Subjects', $conditions->subjectPickCount ?? 1))
-                ->options(fn (Get $get): array => $this->pickableSubjectOptions($conditions, (array) $get('class_ids')))
-                ->helperText(fn (Get $get): ?string => match (true) {
-                    $conditions->needsClassPick() && $conditions->classScope((array) $get('class_ids')) === [] => __('Choose the class first.'),
-                    $this->pickableSubjectOptions($conditions, (array) $get('class_ids')) === [] => __('No subject is taught in every class of this plan.'),
-                    count($conditions->classScope((array) $get('class_ids'))) > 1 => __('Only the subjects taught in every class of the plan.'),
-                    default => null,
-                })
-                ->multiple(! $pickOne($conditions->subjectPickCount))
-                ->maxItems($pickOne($conditions->subjectPickCount) ? null : $conditions->subjectPickCount)
-                ->searchable()
-                ->visible($conditions->needsSubjectPick())
-                ->required($conditions->needsSubjectPick()),
+            // subject(s).
+            ...(new PlanPickFields)->components(
+                fn (): PlanConditions => $conditions,
+                Auth::user()->role === UserRole::Student ? __('Your profile class changes to the one you choose.') : null,
+            ),
 
             Toggle::make('use_wallet')
                 ->label(__('Use my wallet credit (৳:amount)', ['amount' => number_format($balance, 2)]))

@@ -2,14 +2,9 @@
 
 namespace App\Filament\Resources\BoardQuestionPapers\Tables;
 
-use App\Enums\Locale;
 use App\Enums\QuestionStatus;
 use App\Filament\Support\PastPaperFilters;
-use App\Models\AcademicClass;
-use App\Models\Board;
 use App\Models\BoardQuestionPaper;
-use App\Models\ClassSubject;
-use App\Models\Subject;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -39,20 +34,16 @@ class BoardQuestionPapersTable
                 TextColumn::make('board.short_name')->label(__('Source'))->badge()
                     ->state(fn (BoardQuestionPaper $record): string => $record->board->display_short_name)
                     ->description(fn (BoardQuestionPaper $record): ?string => $record->board->type->getLabel())
-                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->whereIn('board_id', Board::query()->matching($search)->select('id'))),
+                    ->searchable(query: PastPaperFilters::searchSource(...)),
                 TextColumn::make('year')->sortable()
-                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where('year', 'like', '%'.Locale::toEnglishDigits(trim($search)).'%')),
+                    ->searchable(query: PastPaperFilters::searchYear(...)),
                 TextColumn::make('unit')->label(__('Unit'))->placeholder('—')->searchable(),
                 TextColumn::make('classSubject.academicClass.name')->label(__('Class'))->placeholder('—')
-                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->whereIn('class_subject_id', ClassSubject::query()
-                        ->whereIn('academic_class_id', AcademicClass::query()->where('name', 'like', '%'.trim($search).'%')->select('id'))
-                        ->select('id'))),
+                    ->searchable(query: PastPaperFilters::searchClass(...)),
                 TextColumn::make('classSubject.subject.name')->label(__('Subject'))
                     ->state(fn (BoardQuestionPaper $record): ?string => $record->classSubject?->subject?->display_name)
                     ->placeholder('—')
-                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->whereIn('class_subject_id', ClassSubject::query()
-                        ->whereIn('subject_id', Subject::query()->matching($search)->select('id'))
-                        ->select('id'))),
+                    ->searchable(query: PastPaperFilters::searchSubject(...)),
                 TextColumn::make('mcq_questions_count')->label(__('MCQ'))->counts('mcqQuestions')->alignCenter(),
                 TextColumn::make('cq_questions_count')->label(__('CQ'))->counts('cqQuestions')->alignCenter(),
                 TextColumn::make('status')->badge()->color(fn (QuestionStatus $state) => $state->getColor()),

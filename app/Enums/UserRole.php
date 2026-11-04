@@ -64,6 +64,16 @@ enum UserRole: string implements HasLabel
     }
 
     /**
+     * The roles that hold subscriptions — Teacher, Student, School.
+     *
+     * @return array<int, self>
+     */
+    public static function subscribers(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $role): bool => $role->subscriptionTargetRole() !== null));
+    }
+
+    /**
      * Whether this role's referral rewards become wallet credit — a Teacher
      * or a Student, who spend it on their own subscription. Staff are paid
      * theirs in cash with their earnings instead; a School takes no part in
@@ -100,7 +110,7 @@ enum UserRole: string implements HasLabel
      */
     public function defaultLocale(): Locale
     {
-        return $this->isAdmin() ? Locale::En : (Locale::tryFrom((string) config('app.locale')) ?? Locale::Bn);
+        return $this->isAdmin() ? Locale::En : (Locale::tryFrom((string) config('app.site_locale')) ?? Locale::Bn);
     }
 
     /**

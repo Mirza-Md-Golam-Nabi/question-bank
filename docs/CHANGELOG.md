@@ -4,6 +4,17 @@
 
 এই ফাইল ২০২৬-১০-১০ থেকে রাখা হচ্ছে; তার আগের ইতিহাস Git-এ (`git log`)।
 
+## ২০২৬-১১-০৪
+
+- **Subscription তালিকায় ট্যাব ও খোঁজা:** সব / Teacher / Student / School ট্যাব, ভাঁজ করা ফিল্টার, user-এর নাম, email বা ফোন দিয়ে খোঁজা; উপহার-কলাম শুধু উপহারে দেখায়। → [08-billing.md](08-billing.md)
+- **Super Admin subscription দিতে পারেন:** Subscription তালিকার "সাবস্ক্রিপশন দিন" বা Teacher/School-এর সারি থেকে — যেকোনো plan, কেনার মতোই শর্ত/বাছাই/মেয়াদ, চাইলে মেয়াদ দিনে; টাকা নেওয়া (referrer কমিশন পান, refund চলে) অথবা উপহার (reward/refund নেই, user পেইড গণ্য না)। User বেলে জানেন। নতুন কলাম `subscriptions.is_gift`, `payments.gateway`-এ `admin`। → [08-billing.md](08-billing.md#super-admin-এর-দেওয়া-subscription-grant)
+- **বাগ ঠিক — কাঁচা subscription ফর্ম:** Admin-এর "নতুন subscription" ফর্ম plan-এর শর্ত কপি না করায় সেই subscription সব শর্তহীন খুলে দিত; ফর্মটা সরানো হলো, edit-এ শুধু status ও শেষের সময়। আগে এভাবে বানানো subscription নিজে থেকে ঠিক হয়নি।
+- **বাগ ঠিক — Admin-এর কাজে Teacher/Student-এর বেল ইংরেজিতে:** Admin approve/reject/refund (বা এখন subscription দেওয়া) করলে ক্রেতার নোটিফিকেশন ইংরেজিতে লেখা হচ্ছিল, কারণ Admin-এর অনুরোধে `setLocale('en')` `config('app.locale')`-ও বদলে দেয়। এখন role-এর ভাষা নেওয়া হয় অপরিবর্তিত `config('app.site_locale')` থেকে। আগে ইংরেজিতে সেভ হওয়া নোটিফিকেশন বদলায়নি।
+
+## ২০২৬-১১-০২
+
+- **বিগত সালের প্রশ্নে খোঁজা:** Teacher/Student-এর "বিগত সালের প্রশ্ন" পেজেও খোঁজার ঘর — উৎস, সাল (বাংলা অঙ্কেও), ইউনিট, শ্রেণি, বিষয়। → [05-question-bank.md](05-question-bank.md)
+
 ## ২০২৬-১১-০১
 
 - **প্রশ্নপত্রে একাধিক সঠিক উত্তর বা "সঠিক উত্তর নেই":** বিগত সালের প্রশ্নপত্রের MCQ-তে উৎস যা বলে সেটাই রাখা যায় (ফর্ম ও JSON — `"answer": [2, 3]`, `null`)। সঠিক উত্তর না থাকলে Teacher পরীক্ষা বানানোর সময় বাছেন: পূর্ণমান থেকে বাদ, নাকি সবাইকে পূর্ণ নম্বর। JSON-এর format AI-কে বলে দেয় উৎসে না থাকা কিছু নিজে না লিখতে। নতুন কলাম `board_mcq_questions.has_correct_answer`, `exams.no_answer_marking`। → [05-question-bank.md](05-question-bank.md)

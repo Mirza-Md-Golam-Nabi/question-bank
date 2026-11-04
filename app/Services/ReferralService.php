@@ -11,6 +11,7 @@ use App\Models\Exam;
 use App\Models\Payment;
 use App\Models\ReferralReward;
 use App\Models\StudentReferral;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
@@ -308,7 +309,7 @@ class ReferralService
     /**
      * Whether a referrer would earn a reward on a purchase now. A Teacher or
      * Student only with a paid subscription in force — not during the free
-     * trial, not on the free plan; a Staff member always (they have no
+     * trial, not on the free plan, not on one the Admin gave free; a Staff member always (they have no
      * subscription; their reward is paid with their earnings).
      */
     public function earnsCommission(User $referrer): bool
@@ -318,7 +319,7 @@ class ReferralService
         }
 
         return $referrer->activeSubscriptions()
-            ->contains(fn ($subscription): bool => $subscription->plan && ! $subscription->plan->is_trial && ! $subscription->plan->is_default_free);
+            ->contains(fn (Subscription $subscription): bool => $subscription->isPaid());
     }
 
     /**
@@ -328,8 +329,10 @@ class ReferralService
      */
     private function isRewardedPurchase(Payment $payment): bool
     {
+        // A gift is not a purchase, so it doesn't use up "the first one".
         $earlierSuccessful = Payment::query()
             ->where('status', PaymentStatus::Success)
+            ->notGift()
             ->whereKeyNot($payment->id);
 
         if ($payment->student_referral_id === null) {

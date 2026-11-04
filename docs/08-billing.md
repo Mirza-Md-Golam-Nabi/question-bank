@@ -96,6 +96,29 @@
 | `approve` | Admin | পেমেন্ট `success`; subscription শুরু; refund-এর সময়সীমা বসে; referrer-এর reward রেকর্ড হয়। |
 | `reject` | Admin | টাকা আসেনি: পেমেন্ট `rejected`; কাটা wallet credit ফেরত। |
 | `refund` | Admin | টাকা ফেরত দেওয়া হয়েছে (সিস্টেমের বাইরে): subscription এখনই শেষ; wallet credit ফেরত; referrer-এর reward বাতিল। **শুধু refund-এর সময়সীমার ভেতরে, আর subscription একেবারে ব্যবহার না হলে** (নিচে)। |
+| `grant` | Super Admin | Admin প্যানেল থেকে plan দেওয়া — নিচে। |
+
+### Super Admin-এর দেওয়া subscription (`grant()`)
+
+Subscription তালিকার **"সাবস্ক্রিপশন দিন"** (যেকোনো Teacher/Student/School, নাম বা email দিয়ে খুঁজে) বা Teacher/School তালিকার সারির উপহার-বোতাম। পপআপ শুধু ফর্ম (`Support\GrantSubscriptionAction`); সব নিয়ম `SubscriptionPurchaseService::grant()`-এ।
+
+- **কে:** আপাতত শুধু Super Admin (`canGrant()`; অন্য Admin বোতামই দেখেন না, service-ও আটকায়)। Role management এলে এখানেই বদলাবে।
+- **কোন plan:** ওই user-এর role-এর যেকোনো plan (`grantablePlansFor()`) — বিক্রি বন্ধ থাকলেও, ট্রায়াল আবারও; role-এর ফ্রি plan না।
+- **কেনার মতোই:** plan-এর শর্তের কপি, plan চাইলে শ্রেণি/বিষয় বাছাই (একই ফিল্ড `Support\PlanPickFields`, একই যাচাই; Student-এর প্রোফাইলের শ্রেণি বদলায়), একই plan চালু থাকলে মেয়াদ তার শেষ থেকে। **মেয়াদ (দিন)** লিখলে plan-এর মেয়াদের বদলে সেটা।
+- **দুই রূপ** (পেমেন্ট সবসময় `success`, `gateway='admin'`, `reviewed_by` = Super Admin, কারণ `review_note`-এ — বাধ্যতামূলক):
+
+| | টাকা নেওয়া | উপহার |
+|---|---|---|
+| `amount` | Admin-এর লেখা (> ০); referral ছাড় ও wallet নেই | ০ |
+| মাধ্যম / transaction ID | ঐচ্ছিক (ID দিলে unique) | — |
+| referrer-এর কমিশন | সেই টাকার ওপর, কেনার মতো নিয়মে | নেই |
+| refund | আগের মতো, সময়সীমার ভেতরে | নেই (`refundable_until` ফাঁকা) — শুধু Subscription তালিকা থেকে বাতিল |
+| user কি "পেইড" (নিজে কমিশন পান) | হ্যাঁ | না (`subscriptions.is_gift`, `Subscription::isPaid()`) |
+| "প্রথম কেনা" গোনা হয় | হ্যাঁ | না (`Payment::scopeNotGift()`) |
+
+- User বেলে জানেন "আপনাকে … plan দেওয়া হয়েছে" (ট্রায়ালেও); Admin-দের কাছে কিছু যায় না। Log হয়।
+- **Subscription তালিকা:** উপরে "সব / Teacher / Student / School" ট্যাব (কার subscription), ফিল্টার টেবিলের উপরে ভাঁজ করা, আর user-এর নাম, email বা ফোন দিয়ে খোঁজা (`User::scopeMatching()` — ফোন যেকোনো রূপে লিখলেও; "সাবস্ক্রিপশন দিন"-এর user খোঁজাও একই)। এখানে নতুন subscription বানানোর কাঁচা ফর্ম নেই — আগে সেটা শর্তের কপি ছাড়া subscription বানাত, যা সব খুলে দিত। Edit-এ শুধু status ও শেষের সময় (বাতিল/মেয়াদ বদল; প্রতিটা বদল log হয়)।
+- টেস্ট: `SubscriptionGrantTest`।
 
 - **Idempotency:** প্রতিটা ধাপ একটা database transaction, যেটা আগে পেমেন্ট lock করে তার status আবার দেখে। দুইবার ক্লিক বা (ভবিষ্যতে) gateway-র callback দুইবার এলে দ্বিতীয়বার কিছু হয় না। একই transaction id দুইবার জমা দেওয়াও যায় না (unique)।
 - **মেয়াদ জোড়া লাগে:** একই plan-এর সক্রিয় subscription থাকলে নতুনটার মেয়াদ আগেরটার শেষ থেকে গোনা হয়।
@@ -130,7 +153,7 @@
 - বেল চার প্যানেলেই (`PanelDefaults`), প্রতি ৬০ সেকেন্ডে নতুনটা খোঁজে।
 - কোড: পাঠানোর একমাত্র পথ `App\Services\BellNotifier` (`toUser()`, `toAdmins()`); কেনার লেখাগুলো `App\Services\PurchaseNotifications`; Admin-এর ধরনের তালিকা `App\Enums\AdminNotificationTopic` (নতুন ধরন = একটা case)। টেস্ট: `PurchaseNotificationsTest`।
 
-Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `SubscriptionResource`, `SubscriptionPlanResource`।
+Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `SubscriptionResource` ("সাবস্ক্রিপশন দিন", বাতিল/মেয়াদ বদল), `SubscriptionPlanResource`।
 
 ## Referral
 
@@ -166,7 +189,7 @@ Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `Subscripti
   - Student-এর কেনায়: referral চলাকালীন প্রতিটা কেনায় — অথবা Admin "শুধু প্রথম কেনায়" চালু রাখলে ওই referral-এর প্রথম কেনায় (`commission_first_purchase_only`)। Teacher-এর কেনায়: শুধু প্রথমটায়।
   - শুধু **নগদে দেওয়া** অংশের ওপর; wallet credit দিয়ে দেওয়া অংশে না (credit থেকে যেন আরও credit না জন্মায়)।
   - শতাংশ referrer-এর ধরন অনুযায়ী আলাদা: Teacher-এর কমিশন, Student-এর, Staff-এর। সেই মুহূর্তের শতাংশ reward-এ লেখা থাকে (`referral_rewards.percent`); পরে সেটিং বদলালে পুরনো reward বদলায় না।
-  - **Teacher ও Student কমিশন পায় শুধু নিজের পেইড subscription চালু থাকলে** — ফ্রি ট্রায়ালে বা ফ্রি plan-এ না (`earnsCommission()`; Staff-এর এই শর্ত নেই)। না থাকলে কোনো reward তৈরি হয় না (log হয়), আর তার পেজে "কমিশন বন্ধ আছে" দেখায়।
+  - **Teacher ও Student কমিশন পায় শুধু নিজের পেইড subscription চালু থাকলে** — ফ্রি ট্রায়ালে, ফ্রি plan-এ বা Super Admin-এর দেওয়া উপহারে না (`earnsCommission()`, `Subscription::isPaid()`; Staff-এর এই শর্ত নেই)। না থাকলে কোনো reward তৈরি হয় না (log হয়), আর তার পেজে "কমিশন বন্ধ আছে" দেখায়।
 
 **Reward-এর অবস্থা** (`referral_rewards`; তারিখ থেকে পড়া, সংরক্ষিত না):
 

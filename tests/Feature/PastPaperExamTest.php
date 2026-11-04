@@ -12,6 +12,7 @@ use App\Filament\Student\Pages\PastPapers as StudentPastPapers;
 use App\Filament\Student\Pages\TakeExamPage;
 use App\Filament\Teacher\Pages\PastPapers as TeacherPastPapers;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Models\AcademicClass;
 use App\Models\BillingSetting;
 use App\Models\Board;
 use App\Models\BoardCqQuestion;
@@ -19,6 +20,7 @@ use App\Models\BoardQuestionPaper;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
+use App\Models\Subject;
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
@@ -288,6 +290,23 @@ describe('the past papers page', function () {
             ->mountAction(TestAction::make('preview')->table($this->paper))
             ->assertMountedActionModalSeeHtml('The K answer')
             ->assertMountedActionModalDontSeeHtml($mcqText);
+    });
+
+    it('lets a student search the papers by source, year, unit, class and subject', function () {
+        $dhaka = Board::factory()->create(['name' => 'Dhaka Board', 'name_bn' => 'ঢাকা বোর্ড', 'short_name' => 'DHK', 'short_name_bn' => 'ঢাকা']);
+        $physics = ClassSubject::factory()
+            ->for(AcademicClass::factory()->state(['name' => 'Class Nine']), 'academicClass')
+            ->for(Subject::factory()->state(['name' => 'Physics', 'name_bn' => 'পদার্থবিজ্ঞান']), 'subject')
+            ->create();
+        $paper = BoardQuestionPaper::factory()->approved()->create(['board_id' => $dhaka->id, 'class_subject_id' => $physics->id, 'year' => 2023, 'unit' => 'Zeta']);
+        $this->actingAs(User::factory()->student()->create());
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+
+        foreach (['Dhaka', 'ঢাকা', '২০২৩', 'Zeta', 'Class Nine', 'পদার্থ', 'Dhaka 2023'] as $search) {
+            livewire(StudentPastPapers::class)->searchTable($search)
+                ->assertCanSeeTableRecords([$paper])
+                ->assertCanNotSeeTableRecords([$this->paper]);
+        }
     });
 
     it('lets a teacher set a paper as a print exam, which lands in their exams list', function () {

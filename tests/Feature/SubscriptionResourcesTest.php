@@ -60,22 +60,39 @@ it('lets the admin remove a condition from a plan', function () {
     expect($plan->fresh()->planConditions()->monthlyExamLimit)->toBeNull();
 });
 
-it('creates a subscription for a user from the admin panel', function () {
-    $teacher = User::factory()->teacher()->create();
-    $plan = SubscriptionPlan::factory()->create();
-
+it('offers no bare subscription form — only "Give a subscription", which copies the plan conditions', function () {
     $this->actingAs($this->admin);
 
-    livewire(ManageSubscriptions::class)
-        ->callAction('create', data: [
-            'user_id' => $teacher->id,
-            'plan_id' => $plan->id,
-            'status' => 'active',
-            'starts_at' => now(),
-        ])
-        ->assertHasNoActionErrors();
+    livewire(ManageSubscriptions::class)->assertActionDoesNotExist('create');
+});
 
-    $this->assertDatabaseHas('subscriptions', ['user_id' => $teacher->id, 'plan_id' => $plan->id]);
+it('shows the subscriptions of each role on its own tab', function () {
+    $this->actingAs($this->admin);
+    $teachers = Subscription::factory()->create(['user_id' => User::factory()->teacher()->create()->id]);
+    $students = Subscription::factory()->create(['user_id' => User::factory()->student()->create()->id]);
+    $schools = Subscription::factory()->create(['user_id' => User::factory()->school()->create()->id]);
+
+    livewire(ManageSubscriptions::class)
+        ->assertCanSeeTableRecords([$teachers, $students, $schools])
+        ->set('activeTab', 'student')
+        ->assertCanSeeTableRecords([$students])
+        ->assertCanNotSeeTableRecords([$teachers, $schools])
+        ->set('activeTab', 'school')
+        ->assertCanSeeTableRecords([$schools])
+        ->assertCanNotSeeTableRecords([$teachers, $students]);
+});
+
+it('finds subscriptions by the user\'s name, email or phone number', function () {
+    $this->actingAs($this->admin);
+    $rahim = Subscription::factory()->create(['user_id' => User::factory()->teacher()->create(['name' => 'Rahim', 'email' => 'rahim@example.test', 'phone' => '01711111111'])->id]);
+    $karim = Subscription::factory()->create(['user_id' => User::factory()->teacher()->create(['name' => 'Karim', 'email' => 'karim@example.test', 'phone' => '01822222222'])->id]);
+
+    foreach (['Rahim', 'rahim@example', '01711', '+880 1711-111111'] as $search) {
+        livewire(ManageSubscriptions::class)
+            ->searchTable($search)
+            ->assertCanSeeTableRecords([$rahim])
+            ->assertCanNotSeeTableRecords([$karim]);
+    }
 });
 
 it('offers the admin no way to type in a payment by hand', function () {

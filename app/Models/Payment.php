@@ -133,6 +133,25 @@ class Payment extends Model
                         ->whereColumn('referrer_payment.payer_number', $payerNumber))));
     }
 
+    /**
+     * The Super Admin gave the plan away: nothing was paid, so it is no
+     * purchase — no reward, no refund, not "the first purchase".
+     */
+    public function isGift(): bool
+    {
+        return $this->gateway === PaymentGateway::Admin && $this->amount <= 0;
+    }
+
+    /**
+     * The SQL form of `! isGift()`.
+     */
+    public function scopeNotGift(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->where('gateway', '!=', PaymentGateway::Admin)
+            ->orWhere('amount', '>', 0));
+    }
+
     public function isPending(): bool
     {
         return $this->status === PaymentStatus::Pending;

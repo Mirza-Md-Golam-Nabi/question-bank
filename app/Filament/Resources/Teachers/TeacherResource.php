@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Teachers;
 use App\Enums\UserRole;
 use App\Filament\Resources\Teachers\Pages\ManageTeachers;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
+use App\Filament\Support\GrantSubscriptionAction;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\StaffLikeUserResourceSchema;
 use App\Filament\Support\TableActions;
@@ -45,7 +46,7 @@ class TeacherResource extends Resource
         return $table
             ->columns(StaffLikeUserResourceSchema::tableColumns())
             ->filters(StaffLikeUserResourceSchema::tableFilters())
-            ->recordActions(TableActions::editAndDelete())
+            ->recordActions([GrantSubscriptionAction::forRecord(), ...TableActions::editAndDelete()])
             ->toolbarActions(TableActions::bulkDelete());
     }
 

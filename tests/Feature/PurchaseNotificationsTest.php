@@ -16,7 +16,7 @@ use Illuminate\Notifications\DatabaseNotification;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     // As on the real site: the Teacher and Student panels in Bangla, the Admin panel in English.
-    config(['app.locale' => 'bn']);
+    config(['app.locale' => 'bn', 'app.site_locale' => 'bn']);
     BillingSetting::create(['bkash_number' => '01700000000', 'refund_window_days' => 7]);
 
     $this->purchases = app(SubscriptionPurchaseService::class);

@@ -21,7 +21,8 @@ use Filament\Notifications\Notification;
  *    check, or one already paid with wallet credit), and a buyer whose
  *    payment waits is told it arrived;
  *  - approved / rejected / refunded: the buyer is told, with why when it
- *    was turned down or given back.
+ *    was turned down or given back;
+ *  - granted: the user the Super Admin gave a plan to is told.
  *
  * The free trial says nothing. Every text is written inside the closure
  * BellNotifier calls, so it comes out in its recipient's language; links
@@ -75,6 +76,19 @@ final class PurchaseNotifications
             ->title(__('Your :plan plan is active', $this->details($payment)))
             ->body(($endsAt = $payment->subscription?->ends_at) ? __('It runs until :date.', ['date' => $endsAt->translatedFormat('j F Y')]) : null)
             ->icon('heroicon-o-check-badge')
+            ->iconColor('success'));
+    }
+
+    /**
+     * The Super Admin gave the plan — said even for the trial, since the
+     * user didn't ask for it and wouldn't otherwise know.
+     */
+    public function granted(Payment $payment): void
+    {
+        $this->toBuyer($payment, fn (): Notification => Notification::make()
+            ->title(__('You have been given the :plan plan', $this->details($payment)))
+            ->body(($endsAt = $payment->subscription?->ends_at) ? __('It runs until :date.', ['date' => $endsAt->translatedFormat('j F Y')]) : null)
+            ->icon('heroicon-o-gift')
             ->iconColor('success'));
     }
 

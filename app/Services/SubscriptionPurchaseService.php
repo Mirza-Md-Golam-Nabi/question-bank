@@ -14,6 +14,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -33,6 +34,9 @@ use Illuminate\Validation\ValidationException;
  *   refund   → the money was given back: subscription ends, wallet credit
  *              goes back, the referrer's reward is cancelled (refunded) —
  *              only inside the refund period the Admin has set
+ *   grant    → the Super Admin gives a plan from the Admin panel: money
+ *              taken outside the system (treated like an approved
+ *              purchase), or nothing at all (a gift: no reward, no refund)
  *
  * A payment gateway, once chosen, replaces only how `approve` gets called
  * — its callback calls it instead of an Admin. Every step is one database
@@ -160,11 +164,7 @@ class SubscriptionPurchaseService
                 $this->wallet->debit($user, $quote['wallet'], WalletTransactionType::Purchase, $payment);
             }
 
-            // A student's class follows the one they buy for, so their
-            // practice and their next purchase start from it.
-            if ($user->role === UserRole::Student && count($selections['class_ids']) === 1) {
-                $user->update(['academic_class_id' => $selections['class_ids'][0]]);
-            }
+            $this->followPickedClass($user, $selections);
 
             Log::info('Subscription purchase requested.', [
                 'payment_id' => $payment->id,
@@ -203,27 +203,170 @@ class SubscriptionPurchaseService
                 return false;
             }
 
-            $subscription = $this->startSubscription($payment->user, $payment->plan, $payment->selections ?? []);
-
-            $payment->update([
-                'status' => PaymentStatus::Success,
-                'subscription_id' => $subscription->id,
-                'paid_at' => now(),
-                'reviewed_by' => $reviewer?->id,
-                'reviewed_at' => now(),
-                'refundable_until' => BillingSetting::current()->refundDeadlineFrom(now()),
-            ]);
-
-            $this->referrals->rewardFor($payment);
-
-            Log::info('Payment approved.', [
-                'payment_id' => $payment->id,
-                'subscription_id' => $subscription->id,
-                'reviewed_by' => $reviewer?->id,
-            ]);
+            $this->complete($payment, $reviewer);
 
             return true;
         }));
+    }
+
+    /**
+     * Whether this person may give subscriptions from the Admin panel —
+     * for now only the Super Admin (until roles can be handed out).
+     */
+    public function canGrant(User $admin): bool
+    {
+        return $admin->role === UserRole::SuperAdmin;
+    }
+
+    /**
+     * The plans that can be given to this user: every plan of their role —
+     * also one off sale, and the trial again — but not the role's free
+     * plan, which they have anyway.
+     *
+     * @return Builder<SubscriptionPlan>
+     */
+    public function grantablePlansFor(User $user): Builder
+    {
+        return SubscriptionPlan::query()
+            ->where('target_role', $user->role->subscriptionTargetRole())
+            ->where('is_default_free', false)
+            ->orderByDesc('is_active')
+            ->orderBy('price');
+    }
+
+    /**
+     * The Super Admin gives a plan, as a payment that is successful at
+     * once: with money taken outside the system (`amount` — like an
+     * approved purchase: the referrer of this moment earns on it, and it
+     * can be refunded in the refund period), or as a gift (`gift` — nothing
+     * paid, no reward, no refund, and its holder doesn't become a paying
+     * customer). No referral discount and no wallet credit: the Admin
+     * writes the price. `days`, when given, replaces the plan's length.
+     *
+     * @param  array{gift?: bool, amount?: mixed, payer_provider?: MobileBankingProvider|string|null, transaction_id?: ?string, days?: mixed, note?: ?string, class_ids?: mixed, subject_ids?: mixed}  $details
+     *
+     * @throws ValidationException
+     */
+    public function grant(User $admin, User $user, SubscriptionPlan $plan, array $details): Payment
+    {
+        if (! $this->canGrant($admin)) {
+            throw ValidationException::withMessages(['plan' => __('Only the Super Admin can give a subscription.')]);
+        }
+
+        if (! $user->role->subscriptionTargetRole() || ! $this->grantablePlansFor($user)->whereKey($plan->id)->exists()) {
+            throw ValidationException::withMessages(['plan' => __('This plan is not for this user.')]);
+        }
+
+        $isGift = (bool) ($details['gift'] ?? false);
+        $amount = $isGift ? 0.0 : round((float) ($details['amount'] ?? 0), 2);
+        $days = filled($details['days'] ?? null) ? (int) $details['days'] : null;
+        $transactionId = trim((string) ($details['transaction_id'] ?? '')) ?: null;
+        $note = trim((string) ($details['note'] ?? ''));
+
+        if (! $isGift && $amount <= 0) {
+            throw ValidationException::withMessages(['amount' => __('Enter the amount taken, or give it as a gift.')]);
+        }
+
+        if ($days !== null && $days < 1) {
+            throw ValidationException::withMessages(['days' => __('The length must be at least one day.')]);
+        }
+
+        if ($note === '') {
+            throw ValidationException::withMessages(['note' => __('Write why the subscription is given.')]);
+        }
+
+        if ($transactionId !== null && Payment::where('gateway_transaction_id', $transactionId)->exists()) {
+            throw ValidationException::withMessages(['transaction_id' => __('This transaction ID has already been used.')]);
+        }
+
+        $selections = $plan->planConditions()->resolveSelections($details);
+
+        $payment = DB::transaction(function () use ($admin, $user, $plan, $details, $selections, $isGift, $amount, $days, $transactionId, $note): Payment {
+            // Who referred them now earns on money taken, as on a purchase.
+            $referral = $isGift ? null : $this->referrals->referralFor($user);
+
+            $payment = Payment::create([
+                'user_id' => $user->id,
+                'plan_id' => $plan->id,
+                'referrer_id' => $referral['referrer']->id ?? null,
+                'student_referral_id' => $referral['student_referral']->id ?? null,
+                'selections' => $selections,
+                'list_price' => (float) $plan->price,
+                'discount_amount' => 0,
+                'wallet_amount' => 0,
+                'amount' => $amount,
+                'gateway' => PaymentGateway::Admin,
+                'gateway_transaction_id' => $transactionId,
+                'payer_provider' => $isGift ? null : (($details['payer_provider'] ?? null) ?: null),
+                'status' => PaymentStatus::Pending,
+                'review_note' => $note,
+            ]);
+
+            $this->followPickedClass($user, $selections);
+            $this->complete($payment, $admin, $days);
+
+            Log::info('Subscription given by the Super Admin.', [
+                'payment_id' => $payment->id,
+                'user_id' => $user->id,
+                'plan_id' => $plan->id,
+                'given_by' => $admin->id,
+                'gift' => $isGift,
+                'amount' => $amount,
+                'days' => $days,
+            ]);
+
+            return $payment;
+        });
+
+        $payment->refresh();
+        $this->notifications->granted($payment);
+
+        return $payment;
+    }
+
+    /**
+     * Starts the subscription a pending payment bought and makes the
+     * payment successful: its refund period starts — none for a gift — and
+     * the referrer's reward is recorded. Called inside the caller's
+     * transaction, with the payment locked or just created.
+     *
+     * @param  ?int  $days  How long it lasts instead of the plan's length.
+     */
+    private function complete(Payment $payment, ?User $reviewer, ?int $days = null): void
+    {
+        $isGift = $payment->isGift();
+
+        $subscription = $this->startSubscription($payment->user, $payment->plan, $payment->selections ?? [], $days, $isGift);
+
+        $payment->update([
+            'status' => PaymentStatus::Success,
+            'subscription_id' => $subscription->id,
+            'paid_at' => now(),
+            'reviewed_by' => $reviewer?->id,
+            'reviewed_at' => now(),
+            'refundable_until' => $isGift ? null : BillingSetting::current()->refundDeadlineFrom(now()),
+        ]);
+
+        $this->referrals->rewardFor($payment);
+
+        Log::info('Payment approved.', [
+            'payment_id' => $payment->id,
+            'subscription_id' => $subscription->id,
+            'reviewed_by' => $reviewer?->id,
+        ]);
+    }
+
+    /**
+     * A student's class follows the one they buy for, so their practice
+     * and their next purchase start from it.
+     *
+     * @param  array{class_ids: array<int, int>, subject_ids: array<int, int>}  $selections
+     */
+    private function followPickedClass(User $user, array $selections): void
+    {
+        if ($user->role === UserRole::Student && count($selections['class_ids']) === 1) {
+            $user->update(['academic_class_id' => $selections['class_ids'][0]]);
+        }
     }
 
     /**
@@ -338,8 +481,9 @@ class SubscriptionPurchaseService
      * onto the subscription as they are now.
      *
      * @param  array{class_ids?: array<int, int>, subject_ids?: array<int, int>}  $selections
+     * @param  ?int  $days  How long it lasts instead of the plan's length.
      */
-    private function startSubscription(User $user, SubscriptionPlan $plan, array $selections): Subscription
+    private function startSubscription(User $user, SubscriptionPlan $plan, array $selections, ?int $days = null, bool $isGift = false): Subscription
     {
         $currentPeriodEnd = $user->subscriptions()
             ->active()
@@ -356,9 +500,10 @@ class SubscriptionPurchaseService
             'plan_id' => $plan->id,
             'conditions' => $plan->conditions ?? [],
             'selections' => $selections,
+            'is_gift' => $isGift,
             'status' => SubscriptionStatus::Active,
             'starts_at' => now(),
-            'ends_at' => $plan->periodEndFrom($periodStart),
+            'ends_at' => $days !== null ? $periodStart->copy()->addDays($days) : $plan->periodEndFrom($periodStart),
         ]);
     }
 

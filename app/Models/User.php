@@ -57,6 +57,21 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     /**
      * The Admins and the Super Admin.
      */
+    /**
+     * Whose name, email or phone number has this in it — a phone number
+     * also as it is stored (normalised), so "+880 1711…" finds "01711…".
+     */
+    public function scopeMatching(Builder $query, string $search): Builder
+    {
+        $phone = self::normalizePhone($search);
+
+        return $query->where(fn (Builder $q) => $q
+            ->where('name', 'like', "%{$search}%")
+            ->orWhere('email', 'like', "%{$search}%")
+            ->orWhere('phone', 'like', "%{$search}%")
+            ->when($phone !== null, fn (Builder $q) => $q->orWhere('phone', 'like', "%{$phone}%")));
+    }
+
     public function scopeAdmins(Builder $query): Builder
     {
         return $query->whereIn('role', array_filter(UserRole::cases(), fn (UserRole $role): bool => $role->isAdmin()));

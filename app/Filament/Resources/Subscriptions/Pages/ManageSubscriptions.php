@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\Subscriptions\Pages;
 
+use App\Enums\UserRole;
 use App\Filament\Resources\Subscriptions\SubscriptionResource;
-use Filament\Actions\CreateAction;
+use App\Filament\Support\GrantSubscriptionAction;
 use Filament\Resources\Pages\ManageRecords;
+use Filament\Schemas\Components\Tabs\Tab;
+use Illuminate\Database\Eloquent\Builder;
 
 class ManageSubscriptions extends ManageRecords
 {
@@ -13,7 +16,25 @@ class ManageSubscriptions extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            GrantSubscriptionAction::make(),
         ];
+    }
+
+    /**
+     * All, then one tab per role that holds subscriptions — by whose
+     * subscription it is.
+     *
+     * @return array<string, Tab>
+     */
+    public function getTabs(): array
+    {
+        $tabs = ['all' => Tab::make(__('All'))];
+
+        foreach (UserRole::subscribers() as $role) {
+            $tabs[$role->value] = Tab::make($role->getLabel())
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereHas('user', fn (Builder $user) => $user->where('role', $role)));
+        }
+
+        return $tabs;
     }
 }

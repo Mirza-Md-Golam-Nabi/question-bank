@@ -80,6 +80,14 @@ return [
 
     'locale' => env('APP_LOCALE', 'bn'),
 
+    /*
+     * The same, but never changed during a request: app()->setLocale()
+     * rewrites `locale` above (an Admin's request runs in English), and
+     * a notification written for a Teacher or Student must still be in
+     * the site's own language.
+     */
+    'site_locale' => env('APP_LOCALE', 'bn'),
+
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),

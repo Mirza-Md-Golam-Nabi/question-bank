@@ -11,6 +11,12 @@ enum PaymentGateway: string implements HasLabel
     case Nagad = 'nagad';
     case Manual = 'manual';
 
+    /**
+     * Given by the Super Admin from the Admin panel — money taken outside
+     * the system, or nothing at all (a gift).
+     */
+    case Admin = 'admin';
+
     public function getLabel(): ?string
     {
         return match ($this) {
@@ -18,6 +24,7 @@ enum PaymentGateway: string implements HasLabel
             self::Bkash => __('bKash'),
             self::Nagad => __('Nagad'),
             self::Manual => __('Manual'),
+            self::Admin => __('Given by Admin'),
         };
     }
 }

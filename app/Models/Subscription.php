@@ -17,9 +17,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * One period of access bought from a plan. `conditions` is the plan's list
  * of conditions as it stood at purchase and `selections` the classes and
  * subjects the buyer picked, so editing the plan later never changes what
- * was already paid for.
+ * was already paid for. `is_gift`: given away by the Super Admin for
+ * nothing — the same access, but not a paid subscription.
  */
-#[Fillable(['user_id', 'plan_id', 'conditions', 'selections', 'status', 'starts_at', 'ends_at', 'auto_renew'])]
+#[Fillable(['user_id', 'plan_id', 'conditions', 'selections', 'is_gift', 'status', 'starts_at', 'ends_at', 'auto_renew'])]
 class Subscription extends Model
 {
     use HasFactory;
@@ -30,6 +31,7 @@ class Subscription extends Model
             'status' => SubscriptionStatus::class,
             'conditions' => 'array',
             'selections' => 'array',
+            'is_gift' => 'boolean',
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'auto_renew' => 'boolean',
@@ -124,6 +126,15 @@ class Subscription extends Model
     public function hasBeenUsed(): bool
     {
         return $this->exams()->exists();
+    }
+
+    /**
+     * Paid for, so its holder counts as a paying customer (who earns
+     * commission): not the free trial, not the role's free plan, not a gift.
+     */
+    public function isPaid(): bool
+    {
+        return $this->plan && ! $this->plan->is_trial && ! $this->plan->is_default_free && ! $this->is_gift;
     }
 
     public function scopeActive(Builder $query): Builder
