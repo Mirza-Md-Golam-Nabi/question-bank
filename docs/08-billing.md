@@ -210,6 +210,8 @@ Refund শুধু সময়সীমার ভেতরে হয় বল
 
 Admin-এর রিপোর্ট: `ReferralReport` পেজ — প্রতি referrer কতজনকে এনেছে (refer করা Teacher + তার অধীনে আসা student, প্রত্যেকে একবার), কতজন কিনেছে, কত নগদ এসেছে (যে পেমেন্টের referrer সে), reward-এ কত খরচ।
 
+Admin-এর "Users" পেজ (People → Users, `Pages\UserReport`; হিসাব শুধু `App\Services\UserSubscriptionReport`-এ): Google-এ লগইন করা user — বাঁয়ে ট্যাব (সব / Student / Teacher / School / Staff, পাশে সংখ্যা), ডানে কার্ড: মোট, কখনো subscribe করেছেন (যেকোনো `subscriptions` row — কেনা, ট্রায়াল, উপহার, Super Admin-এর দেওয়া; মেয়াদ শেষ হলেও), কখনো করেননি, কিনেছেন (`Subscription::isPaid()`, SQL রূপ `Subscription::PAID_SQL`), ট্রায়াল এখন চলছে, উপহার পেয়েছেন। নিচে টেবিল: প্রতিটা user কতবার subscribe করেছেন (কেনা/ট্রায়াল/উপহার আলাদা) ও শেষ কবে — সবচেয়ে বেশি আগে। টেবিলের ফিল্টার: status; subscription অবস্থা (কার্ডের মতোই — করেছেন/করেননি/কিনেছেন/উপহার/ট্রায়াল নিয়েছেন/ট্রায়াল চলছে, নিয়ম `UserSubscriptionReport::whereSubscriptionState()`); যোগদানের ও শেষ subscription-এর তারিখ (থেকে–পর্যন্ত)। ফিল্টার শুধু টেবিল বদলায়, ট্যাবের সংখ্যা ও কার্ড না। ফোনে ট্যাব ও কার্ড ছোট (`qb-compact-tabs`, `qb-compact-stats`)। `subscriptions`-কে একবার user অনুযায়ী group করে join করা হয় (প্রতি সারিতে query নেই), সর্টিং ও পেজ ভাগ ডেটাবেজে; সব ট্যাবের কার্ডের সংখ্যা একটা query-তে।
+
 ## কমিশন তোলা (Teacher ও Student)
 
 `App\Services\WithdrawalService` — একমাত্র জায়গা। পেজ দুই প্যানেলেই "রেফারেল ও কমিশন" (`Support\Pages\ReferralsAndCommissionPage`); Admin `WithdrawalResource` (Payroll → Withdrawals, Teacher/Student ফিল্টারসহ)। Staff তোলে না — তার reward payout-এর সাথে নগদে।
@@ -274,4 +276,4 @@ Admin-এর পেজ: `StaffPayoutResource`, `QuestionRateResource`। Staff �
 | Staff | `app/Models/StaffEarning.php`, `StaffPayout.php`, `StaffProfile.php`, `QuestionRate.php` |
 | পেজ | `app/Filament/Support/Pages/MySubscriptionPage.php`, `MyProfilePage.php`, `ReferralsAndCommissionPage.php` |
 
-টেস্ট: `SubscriptionLimitServiceTest`, `SubscriptionPlanConditionsTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StudentReferralTest`, `TeacherCommissionTest`, `StaffReferralTest`, `ReferralReportTest`, `WalletServiceTest`, `OtpServiceTest`, `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest`।
+টেস্ট: `SubscriptionLimitServiceTest`, `SubscriptionPlanConditionsTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StudentReferralTest`, `TeacherCommissionTest`, `StaffReferralTest`, `ReferralReportTest`, `UserReportTest`, `WalletServiceTest`, `OtpServiceTest`, `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest`।

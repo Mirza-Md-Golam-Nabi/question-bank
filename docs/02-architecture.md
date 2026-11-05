@@ -23,7 +23,7 @@ app/
   Enums/                    সব status/type-এর মান (নিচে তালিকা)
   Filament/
     Resources/              Admin প্যানেলের resource (Questions, Staffs, Payments, …)
-    Pages/                  Admin প্যানেলের পেজ (BillingSettings, ReferralReport)
+    Pages/                  Admin প্যানেলের পেজ (BillingSettings, ReferralReport, UserReport)
     Teacher/                Teacher প্যানেল: Pages, Resources (Questions, Exams), Widgets
     Staff/                  Staff প্যানেল: Pages, Resources (Questions), Widgets
     Student/                Student প্যানেল: Pages, Widgets
@@ -77,6 +77,7 @@ Admin প্যানেলের resource `app/Filament/Resources/`-এ সর�
 | `StudentMistakeTracker` | student-এর ভুলের তালিকা |
 | `TeacherQuestionStats` | Teacher-এর নিজের ছাত্রদের প্রশ্নভিত্তিক ভুলের সংখ্যা |
 | `ReferralReport` | Admin-এর referral রিপোর্ট |
+| `UserSubscriptionReport` | Admin-এর "Users" পেজ: Google-এ লগইন করা user ও কে কতবার subscribe করেছে |
 
 ### Model-এ থাকা নিয়ম
 

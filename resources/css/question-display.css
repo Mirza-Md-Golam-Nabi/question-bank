@@ -833,3 +833,59 @@
         line-height: 1.25rem;
     }
 }
+
+/* Tabs above a list in the Admin panel (Users, Subscriptions): small
+   text, and on a phone they wrap onto a second line instead of making
+   the tab bar scroll sideways. */
+.qb-compact-tabs .fi-tabs {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.25rem;
+    width: fit-content;
+    overflow-x: visible;
+}
+
+.qb-compact-tabs .fi-tabs-item {
+    gap: 0.375rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+/* Coloured stat cards that must stay small on a phone (the "Users" page):
+   less padding and gap, smaller icon, label and figure. */
+@media (max-width: 767px) {
+    .qb-compact-stats .fi-grid {
+        gap: 0.5rem;
+    }
+
+    .qb-compact-stats .fi-wi-stats-overview-stat {
+        padding: 0.625rem 0.75rem;
+        border-radius: 0.625rem;
+    }
+
+    .qb-compact-stats .fi-wi-stats-overview-stat-content {
+        row-gap: 0.25rem;
+    }
+
+    .qb-compact-stats .fi-wi-stats-overview-stat-label-ctn {
+        align-items: flex-start;
+        column-gap: 0.375rem;
+    }
+
+    .qb-compact-stats .fi-wi-stats-overview-stat .fi-icon {
+        width: 0.875rem;
+        height: 0.875rem;
+        margin-top: 0.0625rem;
+    }
+
+    .qb-compact-stats .fi-wi-stats-overview-stat-label {
+        font-size: 0.6875rem;
+        line-height: 1rem;
+    }
+
+    .qb-compact-stats .fi-wi-stats-overview-stat-value {
+        font-size: 1.25rem;
+        line-height: 1.5rem;
+    }
+}

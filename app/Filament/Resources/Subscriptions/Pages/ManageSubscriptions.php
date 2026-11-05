@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Filament\Resources\Subscriptions\SubscriptionResource;
 use App\Filament\Support\GrantSubscriptionAction;
 use Filament\Resources\Pages\ManageRecords;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -36,5 +37,13 @@ class ManageSubscriptions extends ManageRecords
         }
 
         return $tabs;
+    }
+
+    /**
+     * The same small, wrapping tabs as the "Users" page.
+     */
+    public function getTabsContentComponent(): Component
+    {
+        return parent::getTabsContentComponent()->extraAttributes(['class' => 'qb-compact-tabs']);
     }
 }

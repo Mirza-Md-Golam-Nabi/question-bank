@@ -132,6 +132,12 @@ class Subscription extends Model
      * Paid for, so its holder counts as a paying customer (who earns
      * commission): not the free trial, not the role's free plan, not a gift.
      */
+    /**
+     * `isPaid()` as an SQL condition, for a query that joins
+     * `subscription_plans` — keep the two the same.
+     */
+    public const PAID_SQL = 'subscription_plans.is_trial = 0 and subscription_plans.is_default_free = 0 and subscriptions.is_gift = 0';
+
     public function isPaid(): bool
     {
         return $this->plan && ! $this->plan->is_trial && ! $this->plan->is_default_free && ! $this->is_gift;

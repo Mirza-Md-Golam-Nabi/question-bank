@@ -29,7 +29,7 @@
 | পরীক্ষা দেওয়া, গ্রেডিং, উত্তর প্রকাশ | `GuestExamFlowTest`, `StudentExamFlowTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `ExamModelTest` |
 | ফলাফল ও প্রিন্ট | `TeacherExamResultsTest`, `TeacherExamPrintTest` |
 | ভুলের অনুশীলন, Teacher-এর পরিসংখ্যান | `StudentMistakePracticeTest`, `TeacherQuestionStatsTest` |
-| Subscription, পেমেন্ট, referral, wallet | `SubscriptionLimitServiceTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StaffReferralTest`, `ReferralReportTest`, `WalletServiceTest`, `OtpServiceTest` |
+| Subscription, পেমেন্ট, referral, wallet | `SubscriptionLimitServiceTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StaffReferralTest`, `ReferralReportTest`, `UserReportTest`, `WalletServiceTest`, `OtpServiceTest` |
 | Staff-এর আয় | `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest` |
 | বোর্ড প্রশ্নপত্র | `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest` |
 | ড্যাশবোর্ড | `TeacherDashboardWidgetsTest`, `StaffDashboardWidgetsTest` |

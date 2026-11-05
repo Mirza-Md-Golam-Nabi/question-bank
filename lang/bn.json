@@ -1514,5 +1514,15 @@
     "New question added :time": "নতুন প্রশ্ন যুক্ত হয়েছে :time",
     ":count questions in the last :days days": "গত :days দিনে :countটি প্রশ্ন যুক্ত হয়েছে",
     "No question has been added yet.": "এখনো কোনো প্রশ্ন যুক্ত হয়নি।",
-    "Classes getting questions now": "বর্তমানে যে শ্রেণির প্রশ্ন যুক্ত হচ্ছে"
+    "Classes getting questions now": "বর্তমানে যে শ্রেণির প্রশ্ন যুক্ত হচ্ছে",
+    "Total users": "মোট ব্যবহারকারী",
+    "Subscribed users": "সাবস্ক্রাইব করেছেন",
+    "Never subscribed": "সাবস্ক্রাইব করেননি",
+    "Bought a subscription": "সাবস্ক্রিপশন কিনেছেন",
+    "Trial running": "ট্রায়াল চলছে",
+    "Took a trial": "ট্রায়াল নিয়েছেন",
+    "Given a gift": "উপহার পেয়েছেন",
+    "Times subscribed": "কতবার সাবস্ক্রাইব",
+    "Last subscribed": "শেষ সাবস্ক্রিপশন",
+    "Joined": "যোগ দিয়েছেন"
 }
