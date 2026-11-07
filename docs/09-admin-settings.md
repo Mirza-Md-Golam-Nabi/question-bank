@@ -72,6 +72,7 @@ Request দেখা ও পরিশোধ: `WithdrawalResource` (Admin → Pay
 
 | সেটিং | কলাম | ডিফল্ট | কাজ |
 |---|---|---|---|
+| কম দামের plan-এ বদলের চার্জ (%) | `plan_downgrade_fee_percent` | ১০ | চালু subscription কম দামের plan-এ বদলালে দামের পার্থক্যের এতটুকু রাখা হয়, বাকিটা ফেরত — [08-billing.md](08-billing.md#চালু-subscription-বদলানো-subscriptionchangeservice) |
 | Refund-এর সময়সীমা (দিন) | `refund_window_days` | ০ | approve-এর পর এত দিন পর্যন্ত পেমেন্ট refund করা যায়; referral reward-ও এত দিন পর পাকা হয়। ০ = refund নেই, reward সাথে সাথে পাকা। |
 
 ## ফোন নম্বর

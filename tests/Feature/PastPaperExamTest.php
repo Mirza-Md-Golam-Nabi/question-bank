@@ -13,6 +13,7 @@ use App\Filament\Student\Pages\TakeExamPage;
 use App\Filament\Teacher\Pages\PastPapers as TeacherPastPapers;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
 use App\Models\AcademicClass;
+use App\Models\AttemptAnswer;
 use App\Models\BillingSetting;
 use App\Models\Board;
 use App\Models\BoardCqQuestion;
@@ -82,15 +83,15 @@ describe('a student sitting a past paper', function () {
         [$first, $second] = array_keys(($this->answerKey)($this->paper));
         $key = ($this->answerKey)($this->paper);
 
-        $attempt->recordAnswers([$first => $key[$first][0], $second => $key[$second][1]]);
+        $attempt->recordAnswers([AttemptAnswer::PAPER_KEY_PREFIX.$first => $key[$first][0], AttemptAnswer::PAPER_KEY_PREFIX.$second => $key[$second][1]]);
         $attempt->submitAndAutoGrade();
 
         // 1 right, 1 wrong (-0.25), 1 blank.
         expect((float) $attempt->refresh()->total_score)->toBe(0.75)
-            ->and($attempt->answersByQuestion()->keys()->sort()->values()->all())->toBe([$first, $second])
+            ->and($attempt->answersByQuestion()->keys()->sort()->values()->all())->toBe(['p'.$first, 'p'.$second])
             ->and($attempt->answers()->whereNotNull('question_id')->exists())->toBeFalse()
-            // A past paper's questions are not the pool's: no mistakes list entry.
-            ->and(DB::table('student_question_mistakes')->count())->toBe(0);
+            // Its wrong and blank answers go on the mistakes list (rule 5.4).
+            ->and(DB::table('student_question_mistakes')->whereNotNull('board_mcq_question_id')->count())->toBe(2);
     });
 
     it('shows the questions with where they came from and the explanation on the result', function () {
@@ -189,7 +190,7 @@ describe('a teacher setting a past paper', function () {
         [$first, $second] = array_keys($key);
 
         $attempt = ExamAttempt::startForGuest($exam->refresh(), 'Rafi', '01711111111');
-        $attempt->recordAnswers([$first => $key[$first][0], $second => $key[$second][1]]);
+        $attempt->recordAnswers([AttemptAnswer::PAPER_KEY_PREFIX.$first => $key[$first][0], AttemptAnswer::PAPER_KEY_PREFIX.$second => $key[$second][1]]);
         $attempt->submitAndAutoGrade();
 
         expect((float) $attempt->refresh()->total_score)->toBe(0.5);

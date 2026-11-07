@@ -61,7 +61,9 @@ class SubscriptionLimitService
      * with these features and question difficulties — the one the exam is
      * then counted against. With `$countsAgainstLimits` off (editing,
      * publishing or printing an exam that was already counted) only the
-     * scope is checked.
+     * scope is checked. Without a class + subject (a practice exam of the
+     * mistakes made on past papers that have none) any grant's scope
+     * does.
      *
      * @param  array<int, PlanFeature>  $features
      * @param  array<int, Difficulty>  $difficulties
@@ -70,12 +72,12 @@ class SubscriptionLimitService
      */
     public function authorize(
         User $user,
-        ClassSubject $classSubject,
+        ?ClassSubject $classSubject,
         array $features = [],
         array $difficulties = [],
         bool $countsAgainstLimits = true,
     ): PlanGrant {
-        $grants = array_filter($this->grantsFor($user), fn (PlanGrant $grant) => $grant->covers($classSubject));
+        $grants = array_filter($this->grantsFor($user), fn (PlanGrant $grant) => $classSubject === null || $grant->covers($classSubject));
 
         if ($grants === []) {
             $this->deny(__('Your plan does not include this class and subject. Buy a plan that covers it to continue.'));

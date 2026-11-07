@@ -64,6 +64,7 @@ Admin প্যানেলের resource `app/Filament/Resources/`-এ সর�
 | `SelfPracticeExamService` | Student-এর self-practice পরীক্ষা (Auto, Manual, Mistakes) |
 | `SubscriptionLimitService` | user-এর সব plan মিলিয়ে কী পারে: শ্রেণি/বিষয়, difficulty, সুবিধা, দিনের ও মাসের সীমা; পরীক্ষা কোন plan-এ গোনা হবে (`PlanConditions`, `PlanGrant` সহ) |
 | `SubscriptionPurchaseService` | পেমেন্টের পুরো জীবন: request → approve / reject / refund; Super Admin-এর দেওয়া subscription (`grant()`) |
+| `SubscriptionChangeService` | চালু subscription অন্য plan-এ (পার্থক্য দেওয়া / চার্জ কেটে ফেরত) ও শ্রেণি/বিষয় ঠিক করা; plan বদলের পেমেন্টের approve এখানে আসে |
 | `ReferralService` | কে কাকে refer করতে পারে, discount, reward (Teacher-এর কমিশনের শর্তসহ) |
 | `StudentReferralService` | একজন student কখন, কার, কত দিনের referral-এ — শুরু, বদল, লক |
 | `SubscriptionMemberService` | group plan-এর সদস্য যোগ/সরানো (আসন, role, কত দিনে একবার) |

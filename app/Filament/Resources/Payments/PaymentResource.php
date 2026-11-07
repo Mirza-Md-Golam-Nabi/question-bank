@@ -4,14 +4,18 @@ namespace App\Filament\Resources\Payments;
 
 use App\Enums\Locale;
 use App\Enums\PaymentStatus;
+use App\Enums\PlanChangeRefundMethod;
 use App\Filament\Resources\Payments\Pages\ManagePayments;
+use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\Concerns\TranslatesResourceLabels;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\SubscriptionChangeActions;
 use App\Models\Payment;
 use App\Models\Subscription;
 use App\Services\SubscriptionPurchaseService;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -31,6 +35,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PaymentResource extends Resource
 {
+    use NotifiesValidationFailures;
     use TranslatesResourceLabels;
 
     protected static ?string $model = Payment::class;
@@ -42,7 +47,7 @@ class PaymentResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['user', 'referrer', 'plan'])
+            ->with(['user', 'referrer', 'plan', 'previousPlan'])
             // The "same number as referrer" flag for every row, in this
             // one query rather than a lookup per row.
             ->withExists(['itself as same_number_as_referrer' => fn (Builder $query) => $query->sharingPayerNumberWithReferrer()])
@@ -72,8 +77,20 @@ class PaymentResource extends Resource
             ->columns([
                 TextColumn::make('created_at')->label(__('Date'))->localDateTime()->sortable(),
                 TextColumn::make('user.name')->searchable(),
-                TextColumn::make('plan.name')->label(__('Plan'))->placeholder('—'),
+                TextColumn::make('plan.name')
+                    ->label(__('Plan'))
+                    ->placeholder('—')
+                    ->description(fn (Payment $record): ?string => $record->isPlanChange()
+                        ? __('Changed from :plan', ['plan' => $record->previousPlan?->name ?? '—'])
+                        : null),
+                TextColumn::make('type')->label(__('Type'))->badge()->toggleable(),
                 TextColumn::make('amount')->label(__('Paid'))->money('BDT'),
+                TextColumn::make('refund_amount')
+                    ->label(__('To give back'))
+                    ->money('BDT')
+                    ->description(fn (Payment $record): ?string => $record->refund_method?->getLabel())
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('discount_amount')->label(__('Discount'))->money('BDT')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('wallet_amount')->label(__('Wallet credit'))->money('BDT')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payer_provider')->label(__('Sent with'))->badge()->placeholder('—'),
@@ -103,10 +120,28 @@ class PaymentResource extends Resource
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->visible(fn (Payment $record): bool => $record->isPending())
                     ->requiresConfirmation()
-                    ->modalDescription(__('Only approve after checking that this transaction really arrived. The subscription starts immediately.'))
-                    ->action(fn (Payment $record) => self::notifyOutcome(
-                        app(SubscriptionPurchaseService::class)->approve($record, auth()->user()),
-                        __('Payment approved — subscription started.'),
+                    ->modalDescription(fn (Payment $record): string => match (true) {
+                        (float) $record->refund_amount > 0 => __('A change to a cheaper plan: give back :amount (to :provider :number, or into the wallet) first. The plan changes immediately.', [
+                            'amount' => '৳'.number_format((float) $record->refund_amount, 2),
+                            'provider' => $record->payer_provider?->getLabel() ?? '—',
+                            'number' => $record->payer_number ?? '—',
+                        ]),
+                        $record->isPlanChange() => __('Only approve after checking that this transaction really arrived. The plan changes immediately.'),
+                        default => __('Only approve after checking that this transaction really arrived. The subscription starts immediately.'),
+                    })
+                    ->schema(fn (Payment $record): array => (float) $record->refund_amount > 0 ? [
+                        Radio::make('refund_method')
+                            ->label(__('Given back'))
+                            ->options(SubscriptionChangeActions::refundMethodOptions($record->user))
+                            ->required(),
+                    ] : [])
+                    ->action(fn (Payment $record, array $data, Action $action) => self::notifyOutcome(
+                        self::rescueStaticallyWithNotification(fn (): bool => app(SubscriptionPurchaseService::class)->approve(
+                            $record,
+                            auth()->user(),
+                            PlanChangeRefundMethod::tryFrom((string) ($data['refund_method'] ?? '')),
+                        ), $action),
+                        $record->isPlanChange() ? __('Payment approved — plan changed.') : __('Payment approved — subscription started.'),
                     )),
                 Action::make('reject')
                     ->label(__('Reject'))
@@ -171,8 +206,13 @@ class PaymentResource extends Resource
      * action expects (someone else got there first) — say so rather than
      * report a success that didn't happen.
      */
-    private static function notifyOutcome(bool $done, string $successMessage): void
+    private static function notifyOutcome(?bool $done, string $successMessage): void
     {
+        // Null: the service refused and has already said why.
+        if ($done === null) {
+            return;
+        }
+
         $done
             ? Notification::make()->title($successMessage)->success()->send()
             : Notification::make()->title(__('This payment has already been handled.'))->warning()->send();

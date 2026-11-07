@@ -114,7 +114,9 @@ final class QuestionBlocks
 
     /**
      * What keeps the questions of one stimulus together: the stimulus (by
-     * its id, or the very object while it is not saved yet), or the
+     * its table and id — a practice exam of mistakes holds a past paper's
+     * MCQs beside the question bank's, whose stimulus ids can be the same
+     * number — or the very object while it is not saved yet), or the
      * question itself when it has none.
      */
     private static function groupKey(Model $question): string
@@ -122,7 +124,7 @@ final class QuestionBlocks
         $stimulusId = $question->getAttribute('stimulus_id');
 
         if ($stimulusId !== null) {
-            return "stimulus-{$stimulusId}";
+            return "stimulus-{$question->getTable()}-{$stimulusId}";
         }
 
         $stimulus = $question->relationLoaded('stimulus') ? $question->getRelation('stimulus') : null;

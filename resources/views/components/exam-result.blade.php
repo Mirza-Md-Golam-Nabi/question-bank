@@ -34,7 +34,7 @@
                 <x-exam-result-question
                     class="qb-result-item"
                     :question="$question"
-                    :answer="$answersByQuestion->get($question->id)"
+                    :answer="$answersByQuestion->get(\App\Models\AttemptAnswer::keyFor($question))"
                     :number="$number"
                 />
             @endforeach

@@ -156,7 +156,7 @@ School-এর পরীক্ষার খাতায় আরও: `school_cla
 
 ### `attempt_answers`
 
-`attempt_id`, `question_id` (nullable), `board_mcq_question_id` (nullable), `student_answer`, `is_correct`, `obtained_marks`; unique(attempt, question), unique(attempt, board_mcq_question)। প্রশ্নপত্রের পরীক্ষায় উত্তর `board_mcq_question_id`-এ, অন্যটায় `question_id`-এ (`Exam::answerColumn()`)। শুধু উত্তর দেওয়া প্রশ্নের সারি থাকে; ফাঁকা রাখা প্রশ্নের কোনো সারি নেই।
+`attempt_id`, `question_id` (nullable), `board_mcq_question_id` (nullable), `student_answer`, `is_correct`, `obtained_marks`; unique(attempt, question), unique(attempt, board_mcq_question)। প্রশ্নপত্রের MCQ-র উত্তর `board_mcq_question_id`-এ, প্রশ্নভাণ্ডারের `question_id`-এ (`AttemptAnswer::columnFor()`) — ভুলের অনুশীলনের পরীক্ষায় দুটোই থাকে। শুধু উত্তর দেওয়া প্রশ্নের সারি থাকে; ফাঁকা রাখা প্রশ্নের কোনো সারি নেই।
 
 ### `school_profiles`
 
@@ -186,7 +186,11 @@ School প্রতিবার স্কুলের software-এর রেজ�
 
 ### `student_question_mistakes`
 
-একজন student-এর ভুলের তালিকা: `student_id`, `question_id` (প্রশ্নের **প্রথম সংস্করণের** id), `correct_streak`, `locked_by_exam_id` (যে Teacher-এর পরীক্ষার উত্তর এখনো লুকানো); unique(student, question)।
+একজন student-এর ভুলের তালিকা: `student_id`, `question_id` (প্রশ্নের **প্রথম সংস্করণের** id) অথবা `board_mcq_question_id` (প্রশ্নপত্রের MCQ), `correct_streak`, `wrong_count` (কতবার ভুল), `last_answer` (শেষবার ভুলের সময় কী বেছেছিল; ফাঁকায় null), `last_wrong_exam_id`, `last_wrong_at`, `locked_by_exam_id` (যে Teacher-এর পরীক্ষার উত্তর এখনো লুকানো); unique(student, question), unique(student, board_mcq_question); index(student, last_wrong_at)।
+
+### `exam_board_mcq_questions`
+
+ভুলের অনুশীলনের পরীক্ষায় প্রশ্নপত্রের MCQ: `exam_id`, `board_mcq_question_id`, `order_index` (প্রশ্নভাণ্ডারের প্রশ্নের `exam_questions.order_index`-এর সাথে একই ক্রমে); unique(exam, board_mcq_question)। অন্য কোনো পরীক্ষায় এখানে কিছু থাকে না (`Exam::holdsPaperQuestions()`)।
 
 ### `teacher_question_stats`
 
@@ -197,7 +201,7 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | টেবিল | কলাম |
 |---|---|
 | `subscription_plans` | `name`, `target_role` (`teacher`/`student`), `price`, `duration_unit` (`days`/`months`/`years`/`until_date`/`unlimited`), `duration_length`, `ends_on`, `conditions` (JSON, শর্তের তালিকা — [08-billing.md](08-billing.md)), `is_default_free`, `is_trial`, `is_active` |
-| `subscriptions` | `user_id`, `plan_id`, `conditions` (কেনার সময়ের শর্তের কপি), `selections` (ক্রেতার বাছাই করা `class_ids`/`subject_ids`), `is_gift` (Super Admin বিনামূল্যে দিয়েছেন — পেইড গণ্য না), `status`, `starts_at`, `ends_at`, `auto_renew` |
+| `subscriptions` | `user_id`, `plan_id`, `conditions` (কেনার সময়ের শর্তের কপি), `selections` (ক্রেতার বাছাই করা `class_ids`/`subject_ids`), `plan_price` (plan বদলের সময় বর্তমান plan কত ধরা হবে — কেনার মুহূর্তের তালিকার দাম, উপহারে ০), `is_gift` (Super Admin বিনামূল্যে দিয়েছেন — পেইড গণ্য না), `status`, `starts_at` (মেয়াদ শুরু — একই plan আগে চালু থাকলে তার শেষ), `ends_at`, `auto_renew` |
 | `payments` | নিচে |
 | `wallet_transactions` | `user_id`, `type`, `amount`, `payment_id`, `withdrawal_id`, `expires_at` — শুধু যোগ হয়, কখনো বদলায় না |
 | `referral_rewards` | `referrer_id`, `payment_id` (unique), `amount`, `percent` (দেওয়ার মুহূর্তের শতাংশ), `matures_at`, `expires_at` (আর বসানো হয় না), `cancelled_at`, `payout_id` |
@@ -210,6 +214,9 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | কলাম | টীকা |
 |---|---|
 | `user_id`, `plan_id`, `subscription_id` | |
+| `type` | `purchase` (কেনা/দেওয়া) বা `plan_change` (চালু subscription অন্য plan-এ — `subscription_id` সেই subscription) |
+| `previous_plan_id` | plan বদলে আগের plan |
+| `refund_amount`, `refund_method` | কম দামের plan-এ বদলে কত ফেরত (চার্জ কেটে), আর Admin কীভাবে দিলেন (`wallet` / `mobile_banking`) |
 | `referrer_id`, `student_referral_id` | কেনার মুহূর্তে ক্রেতার referrer (ও student হলে কোন referral-এর অধীনে) — reward ও রিপোর্ট এখান থেকে |
 | `selections` | কেনার সময় ক্রেতা যে শ্রেণি/বিষয় বেছেছে; approve হলে subscription-এ যায় |
 | `list_price`, `discount_amount`, `wallet_amount`, `amount` | তালিকার দাম থেকে discount ও wallet বাদ দিয়ে `amount` = নগদে দেওয়া টাকা |

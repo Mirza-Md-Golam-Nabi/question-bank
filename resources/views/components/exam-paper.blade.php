@@ -22,14 +22,15 @@
      *
      * @var \App\Models\ExamAttempt $attempt
      * @var bool $livewire  Bind answers with wire:model instead of form field names.
-     * @var iterable<int, string> $savedAnswers  question id => answer already on record (plain form only).
+     * @var iterable<string, string> $savedAnswers  question key (AttemptAnswer::keyFor()) => answer already on record (plain form only).
      */
     use App\Enums\QuestionType;
     use App\Filament\Support\QuestionBlocks;
+    use App\Models\AttemptAnswer;
 
-    $bind = fn (int $questionId): string => $livewire
-        ? 'wire:model="answers.' . $questionId . '"'
-        : 'name="answers[' . $questionId . ']"';
+    $bind = fn (string $key): string => $livewire
+        ? 'wire:model="answers.' . $key . '"'
+        : 'name="answers[' . $key . ']"';
 @endphp
 
 <x-exam-heading :exam="$attempt->exam" class="mb-4" />
@@ -55,7 +56,8 @@
 
         @foreach ($block['questions'] as ['number' => $number, 'question' => $question])
         @php
-            $savedAnswer = $savedAnswers[$question->id] ?? null;
+            $key = AttemptAnswer::keyFor($question);
+            $savedAnswer = $savedAnswers[$key] ?? null;
         @endphp
 
         <div @class(['pt-4', 'border-t' => ! $block['stimulus'] || $number !== $block['questions'][0]['number']]) data-qb-question>
@@ -77,7 +79,7 @@
                         @endphp
 
                         <label class="flex items-center gap-2">
-                            <input type="radio" {!! $bind($question->id) !!} data-qb-answer="{{ $question->id }}" value="{{ $value }}" @checked($savedAnswer === $value)>
+                            <input type="radio" {!! $bind($key) !!} data-qb-answer="{{ $key }}" value="{{ $value }}" @checked($savedAnswer === $value)>
                             <span>
                                 {!! $option['option'] !!}
                                 <x-question-image :path="$option['image'] ?? null" option />
@@ -86,7 +88,7 @@
                     @endforeach
                 </div>
             @else
-                <textarea {!! $bind($question->id) !!} rows="4" class="qb-input" placeholder="{{ __('Write your answer...') }}">{{ $savedAnswer }}</textarea>
+                <textarea {!! $bind($key) !!} rows="4" class="qb-input" placeholder="{{ __('Write your answer...') }}">{{ $savedAnswer }}</textarea>
             @endif
         </div>
         @endforeach

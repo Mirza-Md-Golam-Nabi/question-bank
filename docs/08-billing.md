@@ -117,7 +117,7 @@ Subscription তালিকার **"সাবস্ক্রিপশন দ�
 | "প্রথম কেনা" গোনা হয় | হ্যাঁ | না (`Payment::scopeNotGift()`) |
 
 - User বেলে জানেন "আপনাকে … plan দেওয়া হয়েছে" (ট্রায়ালেও); Admin-দের কাছে কিছু যায় না। Log হয়।
-- **Subscription তালিকা:** উপরে "সব / Teacher / Student / School" ট্যাব (কার subscription), ফিল্টার টেবিলের উপরে ভাঁজ করা, আর user-এর নাম, email বা ফোন দিয়ে খোঁজা (`User::scopeMatching()` — ফোন যেকোনো রূপে লিখলেও; "সাবস্ক্রিপশন দিন"-এর user খোঁজাও একই)। এখানে নতুন subscription বানানোর কাঁচা ফর্ম নেই — আগে সেটা শর্তের কপি ছাড়া subscription বানাত, যা সব খুলে দিত। Edit-এ শুধু status ও শেষের সময় (বাতিল/মেয়াদ বদল; প্রতিটা বদল log হয়)।
+- **Subscription তালিকা:** উপরে "সব / Teacher / Student / School" ট্যাব (কার subscription), ফিল্টার টেবিলের উপরে ভাঁজ করা, আর user-এর নাম, email বা ফোন দিয়ে খোঁজা (`User::scopeMatching()` — ফোন যেকোনো রূপে লিখলেও; "সাবস্ক্রিপশন দিন"-এর user খোঁজাও একই)। এখানে নতুন subscription বানানোর কাঁচা ফর্ম নেই — আগে সেটা শর্তের কপি ছাড়া subscription বানাত, যা সব খুলে দিত। Edit-এ শুধু status ও শেষের সময় (বাতিল/মেয়াদ বদল; প্রতিটা বদল log হয়); plan ও শ্রেণি/বিষয় বদলানো নিচের "চালু subscription বদলানো"-তে।
 - টেস্ট: `SubscriptionGrantTest`।
 
 - **Idempotency:** প্রতিটা ধাপ একটা database transaction, যেটা আগে পেমেন্ট lock করে তার status আবার দেখে। দুইবার ক্লিক বা (ভবিষ্যতে) gateway-র callback দুইবার এলে দ্বিতীয়বার কিছু হয় না। একই transaction id দুইবার জমা দেওয়াও যায় না (unique)।
@@ -126,9 +126,38 @@ Subscription তালিকার **"সাবস্ক্রিপশন দ�
 - **Gateway এলে** শুধু `approve` ডাকার পথটা বদলাবে (Admin-এর জায়গায় callback)।
 - প্রতিটা ধাপ log হয়।
 
+### চালু subscription বদলানো (`SubscriptionChangeService`)
+
+কেনার পর ভুল শুধরানো বা অন্য plan-এ যাওয়ার একমাত্র পথ। পপআপ শুধু ফর্ম (`Support\SubscriptionChangeActions`) — owner-এর "আমার subscription" পেজে ("আমার subscription বদলান" অংশ) আর Super Admin-এর Subscription তালিকার সারিতে; সব নিয়ম service-এ।
+
+**অন্য plan-এ বদল**
+
+- **দাম:** বর্তমান plan ধরা হয় `subscriptions.plan_price` — কেনার মুহূর্তের তালিকার দাম (referral ছাড় পেয়ে কিনলেও পুরো দাম), উপহারে ০। নতুন plan-এর এখনকার দাম থেকে বাদ দিয়ে:
+  - বেশি হলে **পার্থক্যটুকু দিতে হয়** — উদাহরণ: ৩ মাস ৳৭৯, ১ বছর ৳২৯০ → ৳২১১। Referral ছাড় নেই, wallet নেই, ওই টাকায় কারো কমিশন নেই (payment-এ `referrer_id` ফাঁকা)। প্রথম কেনার কমিশন আগের মতোই থাকে।
+  - কম হলে **পার্থক্য থেকে Admin-এর % কেটে বাকিটা ফেরত** (`BillingSetting.plan_downgrade_fee_percent`, ডিফল্ট ১০) — ১ বছর → ৩ মাস: (২৯০ − ৭৯) × ৯০% = ৳১৮৯.৯০।
+  - সমান হলে টাকার লেনদেন নেই, সাথে সাথে বদলে যায়।
+- **মেয়াদ:** আনুপাতিক হিসাব নেই — নতুন plan-এর মেয়াদ গোনা হয় subscription শুরুর দিন থেকে (`starts_at`; একই plan আগে থেকে চালু থাকলে নতুনটার `starts_at` আগেরটার শেষ)। ১ মাস চালানোর পর ১ বছরে গেলে বাকি ১১ মাস। নতুন মেয়াদ আজকের আগে শেষ হয়ে যেত এমন plan-এ বদল হয় না (যেমন ৪ মাস চালিয়ে ৩ মাসের plan)।
+- **একই subscription থাকে:** row বদলায়, নতুন হয় না — তাই আজ/এই মাসে যা গোনা হয়েছে তা গোনাই থাকে, group-এর সদস্যরা সাথে যান। নতুন plan-এ সবার জায়গা না থাকলে আগে কাউকে সরাতে হয়। নতুন plan-এর শর্তের কপি বসে, plan চাইলে শ্রেণি/বিষয় আবার বাছাই (Student-এর প্রোফাইলের শ্রেণিও বদলায়)। টাকা দিয়ে বদলালে উপহার আর উপহার থাকে না (`is_gift` → false)। `plan_price` হয় যত টাকা দেওয়া হয়েছে, নতুন plan-এর দামের বেশি না।
+- **কে:** owner (group-এর সদস্য না), চালু subscription-এ, ট্রায়াল বা ফ্রি plan না। Owner বাছেন বিক্রি চালু plan থেকে; Super Admin যেকোনো plan থেকে (`grantablePlansFor()`, ট্রায়াল বাদে)।
+- **Owner-এর বদল = একটা pending payment** (`payments.type='plan_change'`, `previous_plan_id` → `plan_id`), তাই একসাথে একটাই অপেক্ষমাণ পেমেন্ট:
+  - বেশি দামে: কেনার মতোই bKash/Nagad-এ পাঠিয়ে মাধ্যম, নম্বর, transaction ID (`ManualPaymentDetails` — কেনা ও বদল একই যাচাই)। Admin Payments পেজে approve করলে বদলে যায়।
+  - কম দামে: কোন মাধ্যমের কোন নম্বরে টাকা চান (`payer_provider`, `payer_number`), ফেরতের টাকা `refund_amount`। Admin approve-এর সময় বাছেন **wallet-এ জমা** (Teacher/Student; `WalletTransactionType::PlanChangeRefund`) নাকি **bKash/Nagad-এ পাঠিয়েছেন** (`refund_method`); School-এর শুধু bKash/Nagad।
+  - Approve-এর মুহূর্তে আবার যাচাই হয় — এর মধ্যে subscription বদলে বা শেষ হয়ে গেলে, বা সদস্যদের জায়গা না থাকলে লাল বার্তা; তখন reject।
+- **Super Admin-এর বদল সাথে সাথে** (`changeAsSuperAdmin()`, `gateway='admin'`): হিসাব একই দেখায়, কিন্তু তিনি লেখেন আসলে কত নিয়েছেন (০ = মাফ) বা কত ফেরত দিয়েছেন ও কীভাবে; কারণ বাধ্যতামূলক, user বেলে দেখেন।
+- **Refund:** বদলানো subscription-এর কোনো পেমেন্ট আর refund হয় না (`Subscription::hasChangedPlan()`), বদলের পেমেন্টও না — ভুল হলে আবার বদলানো যায়।
+
+**শ্রেণি/বিষয় ঠিক করা** (`changeSelections()`) — যে plan-এ বাছাই আছে তার চালু subscription-এ, কেনার সময়ের শর্তের কপি দিয়েই যাচাই:
+
+| কে | কখন |
+|---|---|
+| Owner নিজে | যতক্ষণ কিছু ব্যবহার হয়নি (`hasBeenUsed()`) |
+| Super Admin | সবসময়, কারণ লিখে; user বেলে জানেন। আগে বানানো পরীক্ষা যেমন ছিল তেমনই থাকে |
+
+অন্য Admin-রা আগের মতো শুধু status ও শেষের সময় বদলাতে পারেন। প্রতিটা বদল log হয়। টেস্ট: `SubscriptionChangeTest`।
+
 ### Refund-এর নীতি: ব্যবহার না করলে পুরো টাকা, ব্যবহার করলে কিছু না
 
-- Refund হয় শুধু দুই শর্ত একসাথে মিললে (`Payment::isRefundable()`): Admin-এর সময়সীমার ভেতরে (`refund_window_days`), আর ওই subscription-এ **কিছুই গোনা হয়নি**। আংশিক refund নেই।
+- Refund হয় শুধু দুই শর্ত একসাথে মিললে (`Payment::isRefundable()`): Admin-এর সময়সীমার ভেতরে (`refund_window_days`), আর ওই subscription-এ **কিছুই গোনা হয়নি**। আংশিক refund নেই। Plan বদলানো subscription-এ refund নেই (ওপরে)।
 - "ব্যবহার" = ওই subscription-এ গোনা যেকোনো exam (`exams.subscription_id`) — Teacher-এর তৈরি পরীক্ষা, self-practice (তিন মোডই), বা বিগত সালের প্রশ্নপত্র (নিজে বসা বা পরীক্ষা হিসেবে নেওয়া)। Group plan-এ সদস্যদের ব্যবহারও ধরা হয়। তিন ভাগের সংজ্ঞা `Subscription::usageCounts()`-এ; একটার হিসাব `usage()`, পুরো তালিকার `withCount(Subscription::usageCounts('subscriptionExams'))` (এক query-তে), `hasBeenUsed()`।
 - Payments টেবিলের **"ব্যবহার"** কলামে প্রতিটা পেমেন্টের subscription-এর এই তিন সংখ্যা সবসময় দেখায় — refund-এর সময় পার হলেও।
 - Refund-এর শেষ সময় approve-এর মুহূর্তে তখনকার সেটিং দিয়ে বসে; পরে সেটিং বদলালে পুরনো পেমেন্টে বদলায় না।
@@ -146,6 +175,10 @@ Subscription তালিকার **"সাবস্ক্রিপশন দ�
 | `approve` | ক্রেতা | "আপনার plan চালু, … পর্যন্ত" |
 | `reject` | ক্রেতা | কারণ (Admin-এর note, না থাকলে সাধারণ কথা) + wallet credit ফেরতের কথা |
 | `refund` | ক্রেতা | plan শেষ, টাকা ফেরত + wallet credit ফেরতের কথা |
+| plan বদলের অনুরোধ | Admin-রা | "অমুক … থেকে … plan-এ বদলাতে চান" — টাকা ও transaction ID, অথবা কোন নম্বরে কত ফেরত |
+| plan বদলের অনুরোধ | owner | "অনুরোধ পৌঁছেছে, … হলেই বদলাবে" |
+| plan বদল হলো (approve / Super Admin / টাকা ছাড়া) | owner | "… থেকে …-এ বদলানো হয়েছে", কত দিন পর্যন্ত, ফেরতের টাকা কোথায় গেল, Super Admin হলে তাঁর কারণ |
+| Super Admin শ্রেণি/বিষয় বদলালেন | owner | কোন plan-এর, ও কারণ |
 
 - **কোন Admin-রা:** Admin সেটিংসের "Admin-দের নোটিফিকেশন" অংশে প্রতিটা ধরনের জন্য বাছা যায় (`admin_notification_recipients`); কাউকে না বাছলে সব সক্রিয় Admin ও Super Admin।
 - **ভাষা:** প্রতিটা নোটিফিকেশন প্রাপকের প্যানেলের ভাষায় লেখা হয় (Admin ইংরেজি, Teacher/Student বাংলা — `UserRole::defaultLocale()`), কারণ লেখাটা সেভ হয়ে থাকে। লিংক path হিসেবে সেভ, তাই ডোমেইন বদলালেও চলে।
@@ -153,7 +186,7 @@ Subscription তালিকার **"সাবস্ক্রিপশন দ�
 - বেল চার প্যানেলেই (`PanelDefaults`), প্রতি ৬০ সেকেন্ডে নতুনটা খোঁজে।
 - কোড: পাঠানোর একমাত্র পথ `App\Services\BellNotifier` (`toUser()`, `toAdmins()`); কেনার লেখাগুলো `App\Services\PurchaseNotifications`; Admin-এর ধরনের তালিকা `App\Enums\AdminNotificationTopic` (নতুন ধরন = একটা case)। টেস্ট: `PurchaseNotificationsTest`।
 
-Admin-এর পেজ: `PaymentResource` (approve, reject, refund), `SubscriptionResource` ("সাবস্ক্রিপশন দিন", বাতিল/মেয়াদ বদল), `SubscriptionPlanResource`।
+Admin-এর পেজ: `PaymentResource` (approve — plan বদলে ফেরতের পথসহ, reject, refund; "ধরন" ও "ফেরত দিতে হবে" কলাম), `SubscriptionResource` ("সাবস্ক্রিপশন দিন", Super Admin-এর "Plan বদলান"/"শ্রেণি/বিষয় বদলান", বাতিল/মেয়াদ বদল), `SubscriptionPlanResource`।
 
 ## Referral
 
@@ -268,7 +301,8 @@ Admin-এর পেজ: `StaffPayoutResource`, `QuestionRateResource`। Staff �
 | কী | কোথায় |
 |---|---|
 | Plan, শর্ত, লিমিট | `app/Services/SubscriptionLimitService.php`, `PlanConditions.php`, `PlanGrant.php`, `app/Filament/Resources/SubscriptionPlans/SubscriptionPlanResource.php`, `<x-plan-usage>` |
-| কেনা | `app/Services/SubscriptionPurchaseService.php`, `app/Models/Payment.php`, `Subscription.php`, `SubscriptionPlan.php` |
+| কেনা | `app/Services/SubscriptionPurchaseService.php`, `ManualPaymentDetails.php`, `app/Models/Payment.php`, `Subscription.php`, `SubscriptionPlan.php` |
+| চালু subscription বদলানো | `app/Services/SubscriptionChangeService.php`, `app/Filament/Support/SubscriptionChangeActions.php`, `resources/views/filament/pages/partials/plan-change-summary.blade.php` |
 | Referral | `app/Services/ReferralService.php`, `StudentReferralService.php`, `app/Models/ReferralReward.php`, `StudentReferral.php`, `app/Http/Controllers/ReferralLinkController.php` |
 | কমিশন তোলা | `app/Services/WithdrawalService.php`, `app/Models/Withdrawal.php`, `app/Filament/Support/Pages/ReferralsAndCommissionPage.php`, `app/Filament/Resources/Withdrawals/` |
 | Wallet | `app/Services/WalletService.php`, `app/Models/WalletTransaction.php` |
@@ -276,4 +310,4 @@ Admin-এর পেজ: `StaffPayoutResource`, `QuestionRateResource`। Staff �
 | Staff | `app/Models/StaffEarning.php`, `StaffPayout.php`, `StaffProfile.php`, `QuestionRate.php` |
 | পেজ | `app/Filament/Support/Pages/MySubscriptionPage.php`, `MyProfilePage.php`, `ReferralsAndCommissionPage.php` |
 
-টেস্ট: `SubscriptionLimitServiceTest`, `SubscriptionPlanConditionsTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `ReferralTest`, `StudentReferralTest`, `TeacherCommissionTest`, `StaffReferralTest`, `ReferralReportTest`, `UserReportTest`, `WalletServiceTest`, `OtpServiceTest`, `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest`।
+টেস্ট: `SubscriptionLimitServiceTest`, `SubscriptionPlanConditionsTest`, `SubscriptionPurchaseServiceTest`, `SubscriptionPurchaseFlowTest`, `SubscriptionResourcesTest`, `SubscriptionChangeTest`, `ReferralTest`, `StudentReferralTest`, `TeacherCommissionTest`, `StaffReferralTest`, `ReferralReportTest`, `UserReportTest`, `WalletServiceTest`, `OtpServiceTest`, `StaffPayrollTest`, `StaffPayoutTest`, `StaffPayrollResourcesTest`।

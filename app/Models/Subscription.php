@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\ExamType;
+use App\Enums\PaymentStatus;
+use App\Enums\PaymentType;
 use App\Enums\SubscriptionStatus;
 use App\Services\PlanConditions;
 use Closure;
@@ -18,9 +20,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * of conditions as it stood at purchase and `selections` the classes and
  * subjects the buyer picked, so editing the plan later never changes what
  * was already paid for. `is_gift`: given away by the Super Admin for
- * nothing — the same access, but not a paid subscription.
+ * nothing — the same access, but not a paid subscription. `plan_price`:
+ * what the plan it holds counts as when it is changed to another plan
+ * (SubscriptionChangeService) — its list price as bought, 0 for a gift.
  */
-#[Fillable(['user_id', 'plan_id', 'conditions', 'selections', 'is_gift', 'status', 'starts_at', 'ends_at', 'auto_renew'])]
+#[Fillable(['user_id', 'plan_id', 'conditions', 'selections', 'plan_price', 'is_gift', 'status', 'starts_at', 'ends_at', 'auto_renew'])]
 class Subscription extends Model
 {
     use HasFactory;
@@ -31,6 +35,7 @@ class Subscription extends Model
             'status' => SubscriptionStatus::class,
             'conditions' => 'array',
             'selections' => 'array',
+            'plan_price' => 'float',
             'is_gift' => 'boolean',
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
@@ -126,6 +131,18 @@ class Subscription extends Model
     public function hasBeenUsed(): bool
     {
         return $this->exams()->exists();
+    }
+
+    /**
+     * Changed to another plan since it was bought — its money then can't be
+     * refunded any more: the change was the way out instead.
+     */
+    public function hasChangedPlan(): bool
+    {
+        return $this->payments()
+            ->where('type', PaymentType::PlanChange)
+            ->where('status', PaymentStatus::Success)
+            ->exists();
     }
 
     /**

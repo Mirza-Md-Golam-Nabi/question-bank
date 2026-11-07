@@ -55,13 +55,25 @@ abstract class SelfPracticeExamPage extends Page
 
     /**
      * Builds the exam from the validated form data and returns the attempt
-     * started on it.
+     * started on it. The subject is there unless startsWithoutSubject()
+     * let the page go without one.
      *
      * @param  array<string, mixed>  $data
      *
      * @throws ValidationException
      */
-    abstract protected function createAttempt(User $student, ClassSubject $classSubject, array $data): ExamAttempt;
+    abstract protected function createAttempt(User $student, ?ClassSubject $classSubject, array $data): ExamAttempt;
+
+    /**
+     * Whether the form's choice stands for an exam of no one subject —
+     * every page but the mistakes one needs a subject.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function startsWithoutSubject(array $data): bool
+    {
+        return false;
+    }
 
     /**
      * Practice is always in the student's own class, set on their profile.
@@ -81,7 +93,7 @@ abstract class SelfPracticeExamPage extends Page
         $data = $this->form->getState();
         $classSubject = $this->classSubject($data['class_subject_id'] ?? null);
 
-        if (! $classSubject) {
+        if (! $classSubject && ! $this->startsWithoutSubject($data)) {
             $this->addError('data.class_subject_id', __('Choose a subject.'));
 
             return;

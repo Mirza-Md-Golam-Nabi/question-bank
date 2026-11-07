@@ -64,7 +64,7 @@ class GeneratePracticeExam extends SelfPracticeExamPage
         return __('Generate exam');
     }
 
-    protected function createAttempt(User $student, ClassSubject $classSubject, array $data): ExamAttempt
+    protected function createAttempt(User $student, ?ClassSubject $classSubject, array $data): ExamAttempt
     {
         return app(SelfPracticeExamService::class)->generateAuto(
             $student,

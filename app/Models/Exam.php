@@ -127,6 +127,30 @@ class Exam extends Model
     }
 
     /**
+     * The past paper MCQs on a practice exam of the student's mistakes,
+     * which can hold them beside the question bank's (CLAUDE.md rule 5.4) —
+     * each knowing its paper, for its "where it came from" label. No other
+     * exam has any.
+     */
+    public function boardMcqQuestions(): BelongsToMany
+    {
+        return $this->belongsToMany(BoardMcqQuestion::class, 'exam_board_mcq_questions')
+            ->with(['stimulus', 'boardQuestionPaper.board'])
+            ->withPivot('order_index')
+            ->withTimestamps()
+            ->orderByPivot('order_index');
+    }
+
+    /**
+     * Whether this exam may hold past paper MCQs one by one — only a
+     * practice exam of mistakes does.
+     */
+    public function holdsPaperQuestions(): bool
+    {
+        return $this->generation_mode === GenerationMode::Mistakes;
+    }
+
+    /**
      * The past paper this exam is, whole — its questions are the paper's,
      * never the question pool's (CLAUDE.md rule 5).
      */
@@ -164,12 +188,20 @@ class Exam extends Model
      * What is sat online, whichever kind of exam this is: a past paper's
      * MCQs (each knowing its paper, for its "where it came from" label) or
      * the exam's online questions. The one list the exam page, the answers
-     * kept and the grading all go by.
+     * kept and the grading all go by. A practice exam of mistakes has both
+     * kinds, in the order they were drawn.
      *
      * @return EloquentCollection<int, Question|BoardMcqQuestion>
      */
     public function onlineItems(): EloquentCollection
     {
+        if ($this->holdsPaperQuestions()) {
+            return $this->onlineQuestions
+                ->concat($this->boardMcqQuestions)
+                ->sortBy(fn (Model $question): int => (int) $question->pivot->order_index)
+                ->values();
+        }
+
         if (! $this->isPastPaper()) {
             return $this->onlineQuestions;
         }

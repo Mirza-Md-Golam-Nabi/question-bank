@@ -8,6 +8,7 @@ use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
 use App\Filament\Resources\Questions\Pages\EditQuestion;
 use App\Filament\Support\RelationManagers\PaperMcqQuestionsRelationManager;
 use App\Filament\Teacher\Pages\PastPapers as TeacherPastPapers;
+use App\Models\AttemptAnswer;
 use App\Models\BoardMcqQuestion;
 use App\Models\BoardQuestionPaper;
 use App\Models\Chapter;
@@ -56,7 +57,7 @@ beforeEach(function () {
     $this->setExam = fn (NoAnswerMarking $marking, ?float $negativeMarks = null, ExamDeliveryMode $mode = ExamDeliveryMode::Online): Exam => app(PastPaperExamService::class)
         ->createTeacherExam($this->teacher, $this->paper->refresh(), $mode, 30, $negativeMarks, $marking);
 
-    /** Hands in a paper with these answers. */
+    /** Hands in a paper with these answers (keyed by the paper MCQ's id). */
     $this->sit = function (Exam $exam, array $answers): ExamAttempt {
         $attempt = ExamAttempt::create([
             'exam_id' => $exam->id,
@@ -64,7 +65,7 @@ beforeEach(function () {
             'is_guest' => false,
             'started_at' => now(),
         ]);
-        $attempt->recordAnswers($answers);
+        $attempt->recordAnswers(collect($answers)->mapWithKeys(fn (string $pick, int $id): array => [AttemptAnswer::PAPER_KEY_PREFIX.$id => $pick])->all());
         $attempt->submitAndAutoGrade();
 
         return $attempt->refresh();

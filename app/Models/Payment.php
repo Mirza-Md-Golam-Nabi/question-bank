@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\MobileBankingProvider;
 use App\Enums\PaymentGateway;
 use App\Enums\PaymentStatus;
+use App\Enums\PaymentType;
+use App\Enums\PlanChangeRefundMethod;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,13 +17,16 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
- * One purchase of a subscription plan. `amount` is what was paid in cash;
- * `list_price`, `discount_amount` and `wallet_amount` record how the plan's
- * price came down to it. A payment only ever changes state through
+ * One purchase of a subscription plan — or, when `type` is a plan change,
+ * one change of a running subscription to another plan (`previous_plan_id`
+ * → `plan_id`): `amount` is then the difference paid for an upgrade and
+ * `refund_amount` what is owed back for a downgrade. `amount` is what was
+ * paid in cash; `list_price`, `discount_amount` and `wallet_amount` record
+ * how the plan's price came down to it. A payment only ever changes state through
  * SubscriptionPurchaseService (approve / reject / refund).
  */
 #[Fillable([
-    'user_id', 'subscription_id', 'plan_id', 'referrer_id', 'student_referral_id', 'selections', 'list_price', 'discount_amount', 'wallet_amount',
+    'user_id', 'type', 'subscription_id', 'plan_id', 'previous_plan_id', 'refund_amount', 'refund_method', 'referrer_id', 'student_referral_id', 'selections', 'list_price', 'discount_amount', 'wallet_amount',
     'amount', 'gateway', 'gateway_transaction_id', 'payer_provider', 'payer_number', 'status',
     'paid_at', 'reviewed_by', 'reviewed_at', 'refundable_until', 'refunded_at', 'review_note',
 ])]
@@ -32,6 +37,9 @@ class Payment extends Model
     protected function casts(): array
     {
         return [
+            'type' => PaymentType::class,
+            'refund_method' => PlanChangeRefundMethod::class,
+            'refund_amount' => 'float',
             'gateway' => PaymentGateway::class,
             'payer_provider' => MobileBankingProvider::class,
             'status' => PaymentStatus::class,
@@ -60,6 +68,19 @@ class Payment extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(SubscriptionPlan::class, 'plan_id');
+    }
+
+    /**
+     * For a plan change: the plan the subscription held before it.
+     */
+    public function previousPlan(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionPlan::class, 'previous_plan_id');
+    }
+
+    public function isPlanChange(): bool
+    {
+        return $this->type === PaymentType::PlanChange;
     }
 
     /**
@@ -139,7 +160,7 @@ class Payment extends Model
      */
     public function isGift(): bool
     {
-        return $this->gateway === PaymentGateway::Admin && $this->amount <= 0;
+        return ! $this->isPlanChange() && $this->gateway === PaymentGateway::Admin && $this->amount <= 0;
     }
 
     /**
@@ -148,7 +169,8 @@ class Payment extends Model
     public function scopeNotGift(Builder $query): Builder
     {
         return $query->where(fn (Builder $q) => $q
-            ->where('gateway', '!=', PaymentGateway::Admin)
+            ->where('type', PaymentType::PlanChange)
+            ->orWhere('gateway', '!=', PaymentGateway::Admin)
             ->orWhere('amount', '>', 0));
     }
 
@@ -176,11 +198,16 @@ class Payment extends Model
     /**
      * Money comes back only for a subscription nothing has been done with —
      * inside the refund period, and with no exam, self-practice or past
-     * paper counted against it (by the buyer or a group member).
+     * paper counted against it (by the buyer or a group member) — and only
+     * for the purchase itself, of a subscription never changed to another
+     * plan (a plan change is not refunded; it is changed again instead).
      */
     public function isRefundable(): bool
     {
-        return $this->isWithinRefundPeriod() && ! $this->subscription?->hasBeenUsed();
+        return ! $this->isPlanChange()
+            && $this->isWithinRefundPeriod()
+            && ! $this->subscription?->hasBeenUsed()
+            && ! $this->subscription?->hasChangedPlan();
     }
 
     public function referralReward(): HasOne

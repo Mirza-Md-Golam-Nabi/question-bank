@@ -2,6 +2,7 @@
     'question',
     'answer' => null,
     'number' => null,
+    'verdict' => true,
 ])
 
 @php
@@ -14,6 +15,7 @@
      *
      * @var \App\Models\Question|\App\Models\BoardMcqQuestion $question  Shown with its explanation; a past paper's MCQ also with where it came from.
      * @var \App\Models\AttemptAnswer|null $answer  Null when the question was left unanswered.
+     * @var bool $verdict  The line with how it was marked — left out on the mistakes list, which isn't one exam's result.
      */
     use App\Enums\QuestionType;
     use App\Filament\Support\QuestionDisplay;
@@ -67,6 +69,7 @@
             @endforeach
         </ol>
 
+        @if ($verdict)
         <p @class([
             'qb-result-verdict',
             'qb-result-verdict--correct' => $answer?->is_correct === true,
@@ -83,6 +86,7 @@
                 {{ $answer->is_correct ? __('Correct') : __('Incorrect') }} — {{ __(':marks marks', ['marks' => QuestionDisplay::marks($answer->obtained_marks)]) }}
             @endif
         </p>
+        @endif
 
         <x-question-explanation :text="$question->explanation" />
     @else

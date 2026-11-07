@@ -27,7 +27,7 @@ use Illuminate\Database\Eloquent\Model;
     'commission_first_purchase_only', 'referral_lock_days', 'referral_change_days',
     'teacher_reserve_amount', 'teacher_min_withdrawal', 'student_reserve_amount', 'student_min_withdrawal',
     'group_member_change_days', 'teacher_device_limit', 'student_device_limit', 'login_stay_days',
-    'refund_window_days', 'phone_bonus_exams', 'otp_required_for_credit',
+    'refund_window_days', 'plan_downgrade_fee_percent', 'phone_bonus_exams', 'otp_required_for_credit',
     'admin_notification_recipients', 'question_import_max', 'question_import_image_max_kb', 'question_import_images_max_mb', 'teacher_question_import_enabled', 'staff_paper_import_enabled', 'duplicate_similarity_percent',
     'difficulty_min_answers', 'difficulty_hard_max_percent', 'difficulty_medium_max_percent',
     'mistake_clear_streak', 'practice_minutes_per_question', 'practice_minutes_step', 'default_negative_marks', 'paper_rates',
@@ -66,6 +66,7 @@ class BillingSetting extends Model
         'student_device_limit' => 2,
         'login_stay_days' => 0,
         'refund_window_days' => 0,
+        'plan_downgrade_fee_percent' => 10,
         'referee_discount_percent' => 0,
         'phone_bonus_exams' => 0,
         'otp_required_for_credit' => false,
@@ -109,6 +110,7 @@ class BillingSetting extends Model
             'student_device_limit' => 'integer',
             'login_stay_days' => 'integer',
             'refund_window_days' => 'integer',
+            'plan_downgrade_fee_percent' => 'float',
             'referee_discount_percent' => 'float',
             'phone_bonus_exams' => 'integer',
             'otp_required_for_credit' => 'boolean',
@@ -250,6 +252,23 @@ class BillingSetting extends Model
     public function refundDeadlineFrom(CarbonInterface $approvedAt): CarbonInterface
     {
         return $approvedAt->copy()->addDays($this->refund_window_days);
+    }
+
+    /**
+     * What is given back when a subscription is changed to a plan cheaper
+     * by `$difference`: the difference less the Admin's downgrade fee.
+     */
+    public function downgradeRefundOf(float $difference): float
+    {
+        return max(0.0, round($difference * (1 - $this->plan_downgrade_fee_percent / 100), 2));
+    }
+
+    /**
+     * The downgrade fee as written to a user — "10", "12.5".
+     */
+    public function downgradeFeeLabel(): string
+    {
+        return rtrim(rtrim(number_format($this->plan_downgrade_fee_percent, 2), '0'), '.');
     }
 
     /**

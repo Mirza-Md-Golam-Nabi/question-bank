@@ -159,6 +159,11 @@ class BillingSettings extends Page
                             ->helperText(__('A payment can be refunded for this many days after approval, and a referral reward only becomes available once they have passed. 0 = no refunds; rewards are available at once.'))
                             ->integer()->minValue(0)->required()
                             ->columnSpanFull(),
+                        TextInput::make('plan_downgrade_fee_percent')
+                            ->label(__('Fee for changing to a cheaper plan (%)'))
+                            ->helperText(__('When a subscription is changed to a cheaper plan, this much of the price difference is kept and the rest given back.'))
+                            ->numeric()->minValue(0)->maxValue(100)->suffix('%')->required()
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make(__('Phone number'))

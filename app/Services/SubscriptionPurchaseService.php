@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\MobileBankingProvider;
 use App\Enums\PaymentGateway;
 use App\Enums\PaymentStatus;
+use App\Enums\PlanChangeRefundMethod;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Enums\WalletTransactionType;
@@ -50,6 +51,7 @@ class SubscriptionPurchaseService
         private readonly ReferralService $referrals,
         private readonly OtpService $otp,
         private readonly PurchaseNotifications $notifications,
+        private readonly SubscriptionChangeService $changes,
     ) {}
 
     /**
@@ -128,7 +130,7 @@ class SubscriptionPurchaseService
             $transactionId = trim((string) ($details['transaction_id'] ?? ''));
 
             if ($quote['payable'] > 0) {
-                $this->ensurePaymentDetailsAreUsable($details['payer_provider'] ?? null, $payerNumber, $transactionId);
+                ManualPaymentDetails::ensureUsable($details['payer_provider'] ?? null, $payerNumber, $transactionId);
             }
 
             // Checked last: a code works once, so it mustn't be used up by a
@@ -164,7 +166,7 @@ class SubscriptionPurchaseService
                 $this->wallet->debit($user, $quote['wallet'], WalletTransactionType::Purchase, $payment);
             }
 
-            $this->followPickedClass($user, $selections);
+            $user->followPickedClass($selections);
 
             Log::info('Subscription purchase requested.', [
                 'payment_id' => $payment->id,
@@ -192,14 +194,24 @@ class SubscriptionPurchaseService
      * that period ends). False when the payment was no longer pending — already
      * approved or rejected — in which case nothing happens.
      *
+     * A plan change is approved the same way: the subscription then moves to
+     * its new plan (SubscriptionChangeService::apply()) — `$refundMethod`
+     * being how the Admin gave back what a downgrade owes.
+     *
      * @param  ?User  $reviewer  The Admin approving it; null when no person was involved.
+     *
+     * @throws ValidationException When a plan change can no longer be made.
      */
-    public function approve(Payment $payment, ?User $reviewer = null): bool
+    public function approve(Payment $payment, ?User $reviewer = null, ?PlanChangeRefundMethod $refundMethod = null): bool
     {
+        if ($payment->isPlanChange()) {
+            return $this->changes->approve($payment, $reviewer, $refundMethod);
+        }
+
         return $this->thenNotify($payment, fn (Payment $payment) => $this->notifications->approved($payment), DB::transaction(function () use ($payment, $reviewer): bool {
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
-            if (! $payment?->isPending() || ! $payment->plan) {
+            if (! $payment?->isPending() || ! $payment->plan || $payment->isPlanChange()) {
                 return false;
             }
 
@@ -302,7 +314,7 @@ class SubscriptionPurchaseService
                 'review_note' => $note,
             ]);
 
-            $this->followPickedClass($user, $selections);
+            $user->followPickedClass($selections);
             $this->complete($payment, $admin, $days);
 
             Log::info('Subscription given by the Super Admin.', [
@@ -354,19 +366,6 @@ class SubscriptionPurchaseService
             'subscription_id' => $subscription->id,
             'reviewed_by' => $reviewer?->id,
         ]);
-    }
-
-    /**
-     * A student's class follows the one they buy for, so their practice
-     * and their next purchase start from it.
-     *
-     * @param  array{class_ids: array<int, int>, subject_ids: array<int, int>}  $selections
-     */
-    private function followPickedClass(User $user, array $selections): void
-    {
-        if ($user->role === UserRole::Student && count($selections['class_ids']) === 1) {
-            $user->update(['academic_class_id' => $selections['class_ids'][0]]);
-        }
     }
 
     /**
@@ -500,9 +499,12 @@ class SubscriptionPurchaseService
             'plan_id' => $plan->id,
             'conditions' => $plan->conditions ?? [],
             'selections' => $selections,
+            'plan_price' => $isGift ? 0 : (float) $plan->price,
             'is_gift' => $isGift,
             'status' => SubscriptionStatus::Active,
-            'starts_at' => now(),
+            // A renewal starts when the period it follows ends — which is
+            // also what a later plan change counts its new length from.
+            'starts_at' => $periodStart,
             'ends_at' => $days !== null ? $periodStart->copy()->addDays($days) : $plan->periodEndFrom($periodStart),
         ]);
     }
@@ -511,36 +513,6 @@ class SubscriptionPurchaseService
     {
         if ($payment->wallet_amount > 0) {
             $this->wallet->credit($payment->user, $payment->wallet_amount, WalletTransactionType::PurchaseReturn, $payment);
-        }
-    }
-
-    /**
-     * @throws ValidationException
-     */
-    private function ensurePaymentDetailsAreUsable(MobileBankingProvider|string|null $provider, ?string $payerNumber, string $transactionId): void
-    {
-        $provider = $provider instanceof MobileBankingProvider ? $provider->value : $provider;
-
-        if (! array_key_exists((string) $provider, BillingSetting::current()->receivingNumbers())) {
-            throw ValidationException::withMessages(['payer_provider' => __('Choose how you sent the payment.')]);
-        }
-
-        if ($payerNumber === null) {
-            throw ValidationException::withMessages([
-                'payer_number' => __('Enter the mobile number you sent the payment from.'),
-            ]);
-        }
-
-        if ($transactionId === '') {
-            throw ValidationException::withMessages(['transaction_id' => __('Enter the transaction ID.')]);
-        }
-
-        // The same transaction can't pay for two purchases — also what
-        // keeps a resubmitted form from creating a second payment.
-        if (Payment::where('gateway_transaction_id', $transactionId)->exists()) {
-            throw ValidationException::withMessages([
-                'transaction_id' => __('This transaction ID has already been used.'),
-            ]);
         }
     }
 }

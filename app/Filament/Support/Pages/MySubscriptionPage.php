@@ -9,6 +9,7 @@ use App\Filament\Support\Concerns\ShowsPlanSummary;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\PlanPickFields;
+use App\Filament\Support\SubscriptionChangeActions;
 use App\Models\BillingSetting;
 use App\Models\Payment;
 use App\Models\Subscription;
@@ -16,6 +17,7 @@ use App\Models\SubscriptionMember;
 use App\Models\SubscriptionPlan;
 use App\Services\OtpService;
 use App\Services\PlanConditions;
+use App\Services\SubscriptionChangeService;
 use App\Services\SubscriptionMemberService;
 use App\Services\SubscriptionPurchaseService;
 use App\Services\WalletService;
@@ -29,6 +31,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\HtmlString;
 
@@ -104,7 +107,7 @@ abstract class MySubscriptionPage extends Page
 
     public function pendingPayment(): ?Payment
     {
-        return Auth::user()->pendingPayment()?->load('plan');
+        return Auth::user()->pendingPayment()?->load(['plan', 'previousPlan']);
     }
 
     /**
@@ -112,7 +115,7 @@ abstract class MySubscriptionPage extends Page
      */
     public function payments(): Collection
     {
-        return Auth::user()->payments()->with('plan')->latest('id')->limit(10)->get();
+        return Auth::user()->payments()->with(['plan', 'previousPlan'])->latest('id')->limit(10)->get();
     }
 
     /**
@@ -273,6 +276,39 @@ abstract class MySubscriptionPage extends Page
             ->filter(fn (Subscription $subscription): bool => $members->canManage(Auth::user(), $subscription))
             ->each(fn (Subscription $subscription) => $subscription->setRelation('currentMembers', $members->membersOf($subscription)))
             ->values();
+    }
+
+    /**
+     * The user's own subscriptions they can change, each with what can be
+     * changed: the plan, and (while unused) the classes/subjects. Asked
+     * here because a button rendered with arguments doesn't check its own
+     * visibility.
+     *
+     * @return SupportCollection<int, array{subscription: Subscription, plan: bool, selections: bool}>
+     */
+    public function changeableSubscriptions(): SupportCollection
+    {
+        $changes = app(SubscriptionChangeService::class);
+
+        return Auth::user()->subscriptions()->active()->with('plan')->latest('starts_at')->get()
+            ->map(fn (Subscription $subscription): array => [
+                'subscription' => $subscription,
+                'plan' => $changes->canChangePlan(Auth::user(), $subscription),
+                'selections' => $changes->canChangeSelections(Auth::user(), $subscription),
+            ])
+            ->filter(fn (array $changeable): bool => $changeable['plan'] || $changeable['selections'])
+            ->values()
+            ->toBase();
+    }
+
+    public function changePlanAction(): Action
+    {
+        return SubscriptionChangeActions::changePlan()->size('sm');
+    }
+
+    public function changeSelectionsAction(): Action
+    {
+        return SubscriptionChangeActions::changeSelections()->size('sm')->color('gray');
     }
 
     public function addMemberAction(): Action

@@ -28,6 +28,20 @@ trait NotifiesValidationFailures
      */
     protected function rescueWithNotification(Closure $work, ?Action $action = null): mixed
     {
+        return static::rescueStaticallyWithNotification($work, $action);
+    }
+
+    /**
+     * The same, for a class whose table and actions are built statically
+     * (a Filament resource).
+     *
+     * @template TResult
+     *
+     * @param  Closure(): TResult  $work
+     * @return TResult|null
+     */
+    protected static function rescueStaticallyWithNotification(Closure $work, ?Action $action = null): mixed
+    {
         try {
             return $work();
         } catch (ValidationException $exception) {

@@ -8,6 +8,7 @@ use App\Enums\ExamType;
 use App\Enums\GenerationMode;
 use App\Enums\QuestionType;
 use App\Models\BillingSetting;
+use App\Models\BoardMcqQuestion;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
@@ -15,6 +16,7 @@ use App\Models\Question;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -112,16 +114,23 @@ class SelfPracticeExamService
 
     /**
      * A practice exam drawn from the questions the student keeps getting
-     * wrong (StudentMistakeTracker decides which those are, and which of
-     * them may be shown yet) — only those of a difficulty their plan allows.
+     * wrong, in one section of their list — a subject of their class, or
+     * (null) the past papers outside them — narrowed, if the student likes,
+     * to the question bank's chapter/topic or the past papers' year
+     * (MistakeFilter). StudentMistakeTracker decides
+     * which those are and which may be shown yet; the question bank's come
+     * only in a difficulty their plan allows. It holds a past paper's MCQs
+     * beside the question bank's (CLAUDE.md rule 5.4), and is counted like
+     * any other practice exam — not against the past-paper allowance, as
+     * those papers were already sat.
      *
-     * @throws ValidationException when the plans don't allow it, or the student has no mistakes to practise in the subject
+     * @throws ValidationException when the plans don't allow it, or the student has no mistakes to practise there
      */
-    public function generateFromMistakes(User $student, ClassSubject $classSubject, int $questionCount): ExamAttempt
+    public function generateFromMistakes(User $student, ?ClassSubject $section, int $questionCount, MistakeFilter $filter = new MistakeFilter): ExamAttempt
     {
-        $grant = $this->subscriptionLimits->authorize($student, $classSubject);
+        $grant = $this->subscriptionLimits->authorize($student, $section);
 
-        $questions = $this->mistakes->drawForPractice($student, $classSubject, $questionCount, $grant->difficulties);
+        $questions = $this->mistakes->drawForPractice($student, $section, $questionCount, $grant->difficulties, $filter);
 
         if ($questions->isEmpty()) {
             throw ValidationException::withMessages([
@@ -129,7 +138,7 @@ class SelfPracticeExamService
             ]);
         }
 
-        return $this->createExamAndAttempt($student, $grant, $classSubject, $questions, GenerationMode::Mistakes);
+        return $this->createExamAndAttempt($student, $grant, $section, $questions, GenerationMode::Mistakes);
     }
 
     /**
@@ -147,9 +156,9 @@ class SelfPracticeExamService
     }
 
     /**
-     * @param  Collection<int, Question>  $questions
+     * @param  SupportCollection<int, Question|BoardMcqQuestion>  $questions  Past paper MCQs only on a practice exam of mistakes.
      */
-    private function createExamAndAttempt(User $student, PlanGrant $grant, ClassSubject $classSubject, Collection $questions, GenerationMode $mode): ExamAttempt
+    private function createExamAndAttempt(User $student, PlanGrant $grant, ?ClassSubject $classSubject, SupportCollection $questions, GenerationMode $mode): ExamAttempt
     {
         return DB::transaction(function () use ($student, $grant, $classSubject, $questions, $mode) {
             $exam = Exam::create([
@@ -158,14 +167,16 @@ class SelfPracticeExamService
                 'subscription_id' => $grant->subscriptionId,
                 'exam_type' => ExamType::SelfPractice,
                 'generation_mode' => $mode,
-                'subject_id' => $classSubject->subject_id,
-                'class_subject_id' => $classSubject->id,
+                'subject_id' => $classSubject?->subject_id,
+                'class_subject_id' => $classSubject?->id,
                 'duration_minutes' => BillingSetting::current()->practiceMinutesFor($questions->count()),
                 'status' => ExamStatus::Draft,
             ]);
 
             foreach ($questions->values() as $index => $question) {
-                $exam->questions()->attach($question->id, ['order_index' => $index + 1, 'marks_override' => null]);
+                $question instanceof BoardMcqQuestion
+                    ? $exam->boardMcqQuestions()->attach($question->id, ['order_index' => $index + 1])
+                    : $exam->questions()->attach($question->id, ['order_index' => $index + 1, 'marks_override' => null]);
             }
 
             $exam->recalculateTotalMarks();

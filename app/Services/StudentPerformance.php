@@ -270,10 +270,15 @@ class StudentPerformance
         $answers = $pool;
 
         if (! $poolOnly) {
+            // A past paper's MCQ is had on the whole paper's exam, or one by
+            // one on a practice exam of mistakes.
             $papers = $scope->constrainAnsweredExams(DB::table('exam_attempts as attempt')
                 ->join('exams', 'exams.id', '=', 'attempt.exam_id')
-                ->join('board_question_papers as paper', 'paper.id', '=', 'exams.board_question_paper_id')
-                ->join('board_mcq_questions as paper_mcq', 'paper_mcq.board_question_paper_id', '=', 'paper.id')
+                ->leftJoin('exam_board_mcq_questions as practised', 'practised.exam_id', '=', 'exams.id')
+                ->join('board_mcq_questions as paper_mcq', fn (JoinClause $mcq) => $mcq
+                    ->on('paper_mcq.board_question_paper_id', '=', 'exams.board_question_paper_id')
+                    ->orOn('paper_mcq.id', '=', 'practised.board_mcq_question_id'))
+                ->join('board_question_papers as paper', 'paper.id', '=', 'paper_mcq.board_question_paper_id')
                 ->leftJoin('attempt_answers as answer', fn (JoinClause $answer) => $answer
                     ->on('answer.attempt_id', '=', 'attempt.id')
                     ->on('answer.board_mcq_question_id', '=', 'paper_mcq.id'))

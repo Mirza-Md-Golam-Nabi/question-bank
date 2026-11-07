@@ -15,6 +15,37 @@
         </p>
     </x-filament::section>
 
+    @php $changeableSubscriptions = $this->changeableSubscriptions(); @endphp
+
+    @if ($changeableSubscriptions->isNotEmpty())
+        <x-filament::section :heading="__('Change my subscription')" icon="heroicon-o-arrows-right-left">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ __('Move to another plan: a dearer one costs the difference, a cheaper one gives the difference back less a :percent% fee. The new length counts from when the subscription started.', ['percent' => \App\Models\BillingSetting::current()->downgradeFeeLabel()]) }}
+            </p>
+
+            <ul class="mt-3 divide-y divide-gray-100 text-sm dark:divide-white/10">
+                @foreach ($changeableSubscriptions as $changeable)
+                    <li class="flex flex-wrap items-center justify-between gap-3 py-2">
+                        <span>
+                            <span class="font-medium">{{ $changeable['subscription']->plan?->name }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">
+                                — {{ $changeable['subscription']->ends_at ? __('until :date', ['date' => \App\Enums\Locale::current()->writeDigits($changeable['subscription']->ends_at->translatedFormat('j F Y'))]) : __('No end') }}
+                            </span>
+                        </span>
+                        <span class="flex flex-wrap gap-2">
+                            @if ($changeable['plan'] && $pendingPayment === null)
+                                {{ ($this->changePlanAction)(['subscription' => $changeable['subscription']->id]) }}
+                            @endif
+                            @if ($changeable['selections'])
+                                {{ ($this->changeSelectionsAction)(['subscription' => $changeable['subscription']->id]) }}
+                            @endif
+                        </span>
+                    </li>
+                @endforeach
+            </ul>
+        </x-filament::section>
+    @endif
+
     @foreach ($this->groupSubscriptions() as $groupSubscription)
         <x-filament::section :heading="__('People on my plan: :plan', ['plan' => $groupSubscription->plan?->name])" icon="heroicon-o-users">
             <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -43,6 +74,14 @@
 
     @if ($pendingPayment)
         <x-filament::section :heading="__('Payment waiting for approval')" icon="heroicon-o-clock" icon-color="warning">
+            @if ($pendingPayment->isPlanChange())
+                <p class="text-sm">
+                    {{ (float) $pendingPayment->refund_amount > 0
+                        ? __('Change :from to :plan — ৳:amount to be given back to you', ['from' => $pendingPayment->previousPlan?->name, 'plan' => $pendingPayment->plan?->name, 'amount' => number_format((float) $pendingPayment->refund_amount, 2)])
+                        : __('Change :from to :plan — ৳:amount (Transaction ID: :transaction)', ['from' => $pendingPayment->previousPlan?->name, 'plan' => $pendingPayment->plan?->name, 'amount' => number_format($pendingPayment->amount, 2), 'transaction' => $pendingPayment->gateway_transaction_id]) }}
+                </p>
+                <p class="mt-1 text-sm text-gray-500">{{ __('Your plan changes as soon as the Admin approves it.') }}</p>
+            @else
             <p class="text-sm">
                 {{ __(':plan — ৳:amount (Transaction ID: :transaction)', [
                     'plan' => $pendingPayment->plan?->name,
@@ -51,6 +90,7 @@
                 ]) }}
             </p>
             <p class="mt-1 text-sm text-gray-500">{{ __('Your subscription starts as soon as the payment is approved.') }}</p>
+            @endif
         </x-filament::section>
     @endif
 
@@ -102,8 +142,18 @@
                         @foreach ($payments as $payment)
                             <tr>
                                 <td>{{ $payment->created_at->format('M j, Y') }}</td>
-                                <td>{{ $payment->plan?->name ?? '—' }}</td>
-                                <td>৳{{ number_format($payment->amount, 2) }}</td>
+                                <td>
+                                    {{ $payment->plan?->name ?? '—' }}
+                                    @if ($payment->isPlanChange())
+                                        <span class="block text-xs text-gray-500">{{ __('Changed from :plan', ['plan' => $payment->previousPlan?->name ?? '—']) }}</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    ৳{{ number_format($payment->amount, 2) }}
+                                    @if ((float) $payment->refund_amount > 0)
+                                        <span class="block text-xs text-gray-500">{{ __('Given back: ৳:amount', ['amount' => number_format((float) $payment->refund_amount, 2)]) }}</span>
+                                    @endif
+                                </td>
                                 <td>
                                     {{ $payment->status->getLabel() }}
                                     @if (filled($payment->review_note))

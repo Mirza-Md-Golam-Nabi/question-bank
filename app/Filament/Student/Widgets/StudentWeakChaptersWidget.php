@@ -52,6 +52,15 @@ class StudentWeakChaptersWidget extends TableWidget
                     ->icon(Heroicon::OutlinedArrowPath)
                     ->url(PractiseMistakes::getUrl(panel: 'student')),
             ])
+            ->recordActions([
+                // Straight into that chapter's mistakes — practice is of the
+                // student's own class only, as the practice page is.
+                Action::make('practiseChapter')
+                    ->label(__('Practise'))
+                    ->icon(Heroicon::OutlinedArrowPath)
+                    ->visible(fn (Chapter $record): bool => $record->classSubject?->academic_class_id === Auth::user()->academic_class_id)
+                    ->url(fn (Chapter $record): string => PractiseMistakes::getUrl(['subject' => $record->class_subject_id, 'chapter' => $record->id], panel: 'student')),
+            ])
             ->columns([
                 SubjectColumn::make('classSubject.subject'),
                 TextColumn::make('name')->label(__('Chapter')),

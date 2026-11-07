@@ -151,7 +151,7 @@ window.guardExamSubmit = function guardExamSubmit({ root, isTimeUp, submit }) {
  * reach the server on submit (or when time runs out), so otherwise they
  * would be lost. The same for a guest's paper and a signed-in student's.
  *
- * Each answer field carries `data-qb-answer="{question id}"`. Ticking one
+ * Each answer field carries `data-qb-answer="{question key}"` ("12", or "p12" for a past paper's MCQ). Ticking one
  * again fires `input` and `change`, so Livewire's `wire:model` takes it up.
  *
  * @param {object} options

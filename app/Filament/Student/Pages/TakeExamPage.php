@@ -3,7 +3,6 @@
 namespace App\Filament\Student\Pages;
 
 use App\Enums\ExamAttemptStatus;
-use App\Enums\QuestionType;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
 use App\Models\ExamAttempt;
 use Filament\Notifications\Notification;
@@ -23,7 +22,7 @@ class TakeExamPage extends Page
     public ExamAttempt $attempt;
 
     /**
-     * @var array<int, string>
+     * @var array<string, string> question key (AttemptAnswer::keyFor()) => answer
      */
     public array $answers = [];
 
@@ -87,10 +86,5 @@ class TakeExamPage extends Page
         Notification::make()->title(__('Exam submitted'))->success()->send();
 
         $this->redirect(ExamResultPage::getUrl(['attempt' => $this->attempt->id]));
-    }
-
-    public function isMcq(int $questionId): bool
-    {
-        return $this->attempt->exam->onlineItems()->firstWhere('id', $questionId)?->question_type === QuestionType::Mcq;
     }
 }

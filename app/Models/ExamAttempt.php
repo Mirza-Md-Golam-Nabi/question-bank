@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Random\Engine\Mt19937;
@@ -393,24 +394,49 @@ class ExamAttempt extends Model
     }
 
     /**
-     * The answers on record, keyed by the question each answers (a past
-     * paper's MCQ or a question-bank question — Exam::answerColumn()).
+     * The answers on record, keyed by the question each answers
+     * (AttemptAnswer::keyFor() — "12" for a question-bank question, "p12"
+     * for a past paper's MCQ).
      *
-     * @return array<int, string>
+     * @return array<string, string>
      */
     public function savedAnswers(): array
     {
-        return $this->answers()->pluck('student_answer', $this->exam->answerColumn())->all();
+        return $this->answers()
+            ->get(['question_id', 'board_mcq_question_id', 'student_answer'])
+            ->mapWithKeys(fn (AttemptAnswer $answer): array => [$answer->key() => $answer->student_answer])
+            ->all();
     }
 
     /**
      * The graded answers keyed the same way, for showing a result.
      *
-     * @return Collection<int, AttemptAnswer>
+     * @return Collection<string, AttemptAnswer>
      */
     public function answersByQuestion(): Collection
     {
-        return $this->answers->keyBy($this->exam->answerColumn());
+        return $this->answers->keyBy(fn (AttemptAnswer $answer): string => $answer->key());
+    }
+
+    /**
+     * Writes answer rows: each kind of question against its own column's
+     * unique key, so a paper of both kinds is still one statement per kind.
+     *
+     * @param  SupportCollection<int, array{question: Model, values: array<string, mixed>}>  $rows
+     * @param  array<int, string>  $update
+     */
+    private function upsertAnswers(SupportCollection $rows, array $update): void
+    {
+        $rows->groupBy(fn (array $row): string => AttemptAnswer::columnFor($row['question']))
+            ->each(fn (SupportCollection $rowsOfKind, string $column) => AttemptAnswer::upsert(
+                $rowsOfKind->map(fn (array $row): array => [
+                    'attempt_id' => $this->id,
+                    $column => $row['question']->getKey(),
+                    ...$row['values'],
+                ])->values()->all(),
+                ['attempt_id', $column],
+                $update,
+            ));
     }
 
     /**
@@ -472,26 +498,22 @@ class ExamAttempt extends Model
             return;
         }
 
-        $examQuestionIds = $this->exam->onlineItems()->pluck('id')->flip();
-        $column = $this->exam->answerColumn();
+        $examQuestions = $this->exam->onlineItems()->keyBy(fn (Model $question): string => AttemptAnswer::keyFor($question));
 
         $rows = collect($answers)
-            ->filter(fn (mixed $studentAnswer, int|string $questionId): bool => $examQuestionIds->has($questionId)
+            ->filter(fn (mixed $studentAnswer, int|string $key): bool => $examQuestions->has((string) $key)
                 && is_string($studentAnswer)
                 && $studentAnswer !== '')
-            ->map(fn (string $studentAnswer, int|string $questionId): array => [
-                'attempt_id' => $this->id,
-                $column => (int) $questionId,
-                'student_answer' => $studentAnswer,
+            ->map(fn (string $studentAnswer, int|string $key): array => [
+                'question' => $examQuestions->get((string) $key),
+                'values' => ['student_answer' => $studentAnswer],
             ])
             ->values();
 
         // One statement for the whole paper rather than two per question —
         // a whole class's pages send this at the same instant when the
         // clock runs out.
-        if ($rows->isNotEmpty()) {
-            AttemptAnswer::upsert($rows->all(), ['attempt_id', $column], ['student_answer']);
-        }
+        $this->upsertAnswers($rows, ['student_answer']);
 
         $this->unsetRelation('answers');
     }
@@ -513,16 +535,19 @@ class ExamAttempt extends Model
         // The exam's questions are already in memory, so no answer has to
         // load its own question.
         $exam = $this->exam;
-        $examQuestionsById = ($exam->isPastPaper() ? $exam->onlineItems() : $exam->questions)->keyBy('id');
-        $column = $exam->answerColumn();
+        // Every question of the exam, the printed-only CQs too: their answers
+        // are left as they are below.
+        $examQuestions = ($exam->isPastPaper() || $exam->holdsPaperQuestions() ? $exam->onlineItems() : $exam->questions)
+            ->keyBy(fn (Model $question): string => AttemptAnswer::keyFor($question));
         $penalty = $exam->marksLostPerWrongAnswer();
 
         /** @var array<string, array{is_correct: bool, obtained_marks: float, ids: array<int, int>}> $outcomes */
         $outcomes = [];
         $correctQuestionIds = [];
+        $correctPaperQuestionIds = [];
 
-        foreach ($this->answers()->get(['id', $column, 'student_answer']) as $answer) {
-            $question = $examQuestionsById->get($answer->{$column});
+        foreach ($this->answers()->get(['id', 'question_id', 'board_mcq_question_id', 'student_answer']) as $answer) {
+            $question = $examQuestions->get($answer->key());
 
             if ($question?->question_type !== QuestionType::Mcq || $exam->isWithoutCorrectAnswer($question)) {
                 continue;
@@ -538,7 +563,9 @@ class ExamAttempt extends Model
             $outcomes["{$isCorrect}|{$marks}"] ??= ['is_correct' => (bool) $isCorrect, 'obtained_marks' => $marks, 'ids' => []];
             $outcomes["{$isCorrect}|{$marks}"]['ids'][] = $answer->id;
 
-            if ($isCorrect) {
+            if ($isCorrect && $question instanceof BoardMcqQuestion) {
+                $correctPaperQuestionIds[] = $question->id;
+            } elseif ($isCorrect) {
                 $correctQuestionIds[] = $question->id;
             }
         }
@@ -553,7 +580,7 @@ class ExamAttempt extends Model
             ]);
         }
 
-        $this->awardNoAnswerMarks($examQuestionsById);
+        $this->awardNoAnswerMarks($examQuestions);
 
         $this->unsetRelation('answers');
 
@@ -569,7 +596,7 @@ class ExamAttempt extends Model
             app(QuestionDifficultyTracker::class)->recordAttempt($this, $correctQuestionIds);
         }
 
-        $this->recordStatistics($correctQuestionIds);
+        $this->recordStatistics($correctQuestionIds, $correctPaperQuestionIds);
     }
 
     /**
@@ -589,27 +616,23 @@ class ExamAttempt extends Model
 
         $rows = $examQuestions
             ->filter(fn (Model $question): bool => $exam->isWithoutCorrectAnswer($question))
-            ->map(fn (Model $question): array => [
-                'attempt_id' => $this->id,
-                $exam->answerColumn() => $question->id,
-                'obtained_marks' => $question->marks,
-            ])
+            ->map(fn (Model $question): array => ['question' => $question, 'values' => ['obtained_marks' => $question->marks]])
             ->values();
 
-        if ($rows->isNotEmpty()) {
-            AttemptAnswer::upsert($rows->all(), ['attempt_id', $exam->answerColumn()], ['obtained_marks']);
-        }
+        $this->upsertAnswers($rows, ['obtained_marks']);
     }
 
     /**
      * Passes a graded paper on to what is kept about answers beyond the
-     * paper itself: the student's own mistakes list, and their teacher's
-     * numbers for each question. Does nothing the second time for the
-     * same attempt.
+     * paper itself: the student's own mistakes list (every kind of exam,
+     * past papers too), and their teacher's numbers for each question (the
+     * question bank's only). Does nothing the second time for the same
+     * attempt.
      *
-     * @param  array<int, int>  $correctQuestionIds  The questions this attempt answered correctly.
+     * @param  array<int, int>  $correctQuestionIds  The question-bank questions this attempt answered correctly.
+     * @param  array<int, int>  $correctPaperQuestionIds  The past paper MCQs it answered correctly.
      */
-    public function recordStatistics(array $correctQuestionIds): void
+    public function recordStatistics(array $correctQuestionIds, array $correctPaperQuestionIds = []): void
     {
         // Claiming the attempt and finding it already claimed are one
         // statement, so two submissions arriving together record it once.
@@ -618,14 +641,17 @@ class ExamAttempt extends Model
             ->whereNull('statistics_recorded_at')
             ->update(['statistics_recorded_at' => now()]);
 
-        // A past paper's questions are not the pool's, so neither the
-        // mistakes list nor the teacher's question numbers take them.
-        if ($claimed === 0 || $this->exam->isPastPaper()) {
+        if ($claimed === 0) {
             return;
         }
 
-        app(StudentMistakeTracker::class)->recordAttempt($this, $correctQuestionIds);
-        app(TeacherQuestionStats::class)->recordAttempt($this, $correctQuestionIds);
+        app(StudentMistakeTracker::class)->recordAttempt($this, $correctQuestionIds, $correctPaperQuestionIds);
+
+        // A past paper's questions are not the pool's, so the teacher's
+        // question numbers don't take them.
+        if (! $this->exam->isPastPaper()) {
+            app(TeacherQuestionStats::class)->recordAttempt($this, $correctQuestionIds);
+        }
     }
 
     /**
@@ -638,16 +664,43 @@ class ExamAttempt extends Model
         self::query()
             ->submitted()
             ->whereNull('statistics_recorded_at')
-            ->with([
-                'exam.questions',
-                'answers' => fn (HasMany $answers) => $answers->where('is_correct', true)->select(['id', 'attempt_id', 'question_id']),
-            ])
+            ->with(self::withCorrectAnswers())
             ->chunkById(200, function (Collection $attempts): void {
                 foreach ($attempts as $attempt) {
                     if ($attempt->exam) {
-                        $attempt->recordStatistics($attempt->answers->pluck('question_id')->all());
+                        $attempt->recordStatistics(...$attempt->correctlyAnsweredIds());
                     }
                 }
             });
+    }
+
+    /**
+     * What replaying a handed-in attempt needs loaded: its exam's questions
+     * and only its correct answers.
+     *
+     * @return array<string|int, mixed>
+     */
+    public static function withCorrectAnswers(): array
+    {
+        return [
+            'exam.questions',
+            'answers' => fn (HasMany $answers) => $answers->where('is_correct', true)->select(['id', 'attempt_id', 'question_id', 'board_mcq_question_id', 'is_correct']),
+        ];
+    }
+
+    /**
+     * The questions a graded attempt got right, from its loaded answers
+     * (withCorrectAnswers()) — the question bank's and the past papers'.
+     *
+     * @return array{0: array<int, int>, 1: array<int, int>}
+     */
+    public function correctlyAnsweredIds(): array
+    {
+        $correct = $this->answers->where('is_correct', true);
+
+        return [
+            $correct->pluck('question_id')->filter()->values()->all(),
+            $correct->pluck('board_mcq_question_id')->filter()->values()->all(),
+        ];
     }
 }

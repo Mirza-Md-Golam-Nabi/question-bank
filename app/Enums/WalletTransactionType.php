@@ -14,6 +14,7 @@ enum WalletTransactionType: string implements HasLabel
     case PurchaseReturn = 'purchase_return';
     case Withdrawal = 'withdrawal';
     case WithdrawalReturn = 'withdrawal_return';
+    case PlanChangeRefund = 'plan_change_refund';
 
     public function getLabel(): ?string
     {
@@ -22,6 +23,7 @@ enum WalletTransactionType: string implements HasLabel
             self::PurchaseReturn => __('Returned from a cancelled purchase'),
             self::Withdrawal => __('Taken out as cash'),
             self::WithdrawalReturn => __('Returned from a rejected withdrawal'),
+            self::PlanChangeRefund => __('Returned from a change to a cheaper plan'),
         };
     }
 }

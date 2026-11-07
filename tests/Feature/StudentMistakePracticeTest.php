@@ -2,6 +2,7 @@
 
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
+use App\Enums\MistakeSource;
 use App\Filament\Pages\BillingSettings;
 use App\Filament\Student\Pages\PractiseMistakes;
 use App\Filament\Student\Widgets\StudentWeakChaptersWidget;
@@ -14,13 +15,16 @@ use App\Models\ExamAttempt;
 use App\Models\Question;
 use App\Models\Subject;
 use App\Models\SubscriptionPlan;
+use App\Models\Topic;
 use App\Models\User;
+use App\Services\MistakeFilter;
 use App\Services\SelfPracticeExamService;
 use App\Services\StudentMistakeTracker;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 
 use function Pest\Livewire\livewire;
 
@@ -292,6 +296,66 @@ it('starts mistake practice from its page, listing only subjects with mistakes',
         ->assertRedirect();
 
     expect(Exam::where('generation_mode', GenerationMode::Mistakes)->count())->toBe(1);
+});
+
+it('narrows mistake practice to a chapter, and a topic in it', function () {
+    $light = Chapter::factory()->create(['class_subject_id' => $this->classSubject->id, 'name' => 'Light']);
+    $speed = Topic::factory()->create(['chapter_id' => $this->chapter->id, 'name' => 'Speed']);
+    $inTopic = ($this->mcq)(['topic_id' => $speed->id]);
+    $noTopic = ($this->mcq)();
+    $otherChapter = Question::factory()->approved()->for($light)->create();
+    ($this->sit)(($this->examOf)([$inTopic, $noTopic, $otherChapter]), []);
+
+    $drawn = fn (MistakeFilter $filter): array => $this->tracker
+        ->drawForPractice($this->student, $this->classSubject, 10, filter: $filter)
+        ->pluck('id')->sort()->values()->all();
+
+    expect($drawn(new MistakeFilter))->toBe([$inTopic->id, $noTopic->id, $otherChapter->id])
+        ->and($drawn(new MistakeFilter(MistakeSource::QuestionBank, chapterId: $this->chapter->id)))->toBe([$inTopic->id, $noTopic->id])
+        ->and($drawn(new MistakeFilter(MistakeSource::QuestionBank, chapterId: $this->chapter->id, topicId: $speed->id)))->toBe([$inTopic->id])
+        ->and($this->tracker->countsByChapter($this->student, $this->classSubject)->all())->toEqual([$this->chapter->id => 2, $light->id => 1])
+        ->and($this->tracker->countsByTopic($this->student, $this->classSubject, $this->chapter->id)->all())->toEqual([$speed->id => 1]);
+});
+
+it('starts mistake practice of one chapter from its page, listing only that chapter\'s mistakes', function () {
+    $this->actingAs($this->student);
+    Filament::setCurrentPanel(Filament::getPanel('student'));
+    $light = Chapter::factory()->create(['class_subject_id' => $this->classSubject->id, 'name' => 'Light']);
+    $motion = ($this->mcq)(['question_text' => '<p>About motion</p>']);
+    $optics = Question::factory()->approved()->for($light)->create(['question_text' => '<p>About optics</p>']);
+    ($this->sit)(($this->examOf)([$motion, $optics]), []);
+
+    livewire(PractiseMistakes::class)
+        ->assertSee('About optics')
+        ->fillForm(['mistake_source' => MistakeSource::QuestionBank->value])
+        ->assertSee('Motion (1)')
+        ->assertSee('Light (1)')
+        ->fillForm(['chapter_id' => $light->id, 'question_count' => 5])
+        ->assertSee('About optics')
+        ->assertDontSee('About motion')
+        ->call('start')
+        ->assertHasNoFormErrors()
+        ->assertRedirect();
+
+    expect(Exam::where('generation_mode', GenerationMode::Mistakes)->sole()->questions->pluck('id')->all())->toBe([$optics->id]);
+});
+
+it('opens on a weak chapter\'s mistakes from the dashboard', function () {
+    $this->actingAs($this->student);
+    Filament::setCurrentPanel(Filament::getPanel('student'));
+    $light = Chapter::factory()->create(['class_subject_id' => $this->classSubject->id, 'name' => 'Light']);
+    $motion = ($this->mcq)(['question_text' => '<p>About motion</p>']);
+    $optics = Question::factory()->approved()->for($light)->create(['question_text' => '<p>About optics</p>']);
+    ($this->sit)(($this->examOf)([$motion, $optics]), []);
+
+    livewire(StudentWeakChaptersWidget::class)
+        ->assertSee(PractiseMistakes::getUrl(['subject' => $this->classSubject->id, 'chapter' => $light->id], panel: 'student'));
+
+    Livewire::withQueryParams(['subject' => $this->classSubject->id, 'chapter' => $light->id])
+        ->test(PractiseMistakes::class)
+        ->assertFormSet(['mistake_source' => MistakeSource::QuestionBank->value, 'chapter_id' => $light->id])
+        ->assertSee('About optics')
+        ->assertDontSee('About motion');
 });
 
 it('counts mistake practice towards the same monthly limit as other self-practice', function () {

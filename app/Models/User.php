@@ -230,6 +230,20 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
+     * A student's class follows the one they pick on a subscription (when
+     * buying it or correcting it), so their practice and their next
+     * purchase start from it.
+     *
+     * @param  array{class_ids: array<int, int>, subject_ids: array<int, int>}  $selections
+     */
+    public function followPickedClass(array $selections): void
+    {
+        if ($this->role === UserRole::Student && count($selections['class_ids']) === 1) {
+            $this->update(['academic_class_id' => $selections['class_ids'][0]]);
+        }
+    }
+
+    /**
      * A Bangladeshi mobile number in its one stored form (`01XXXXXXXXX`),
      * however it was typed — spaces, dashes, a leading +88 or 88. Null
      * when it isn't a valid mobile number.
