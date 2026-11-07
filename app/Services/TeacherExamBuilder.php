@@ -237,9 +237,7 @@ class TeacherExamBuilder
      */
     private function negativeMarksFor(ExamDeliveryMode $deliveryMode, ?float $negativeMarks): ?float
     {
-        return $deliveryMode->includesOnline() && $negativeMarks !== null && $negativeMarks > 0
-            ? round($negativeMarks, 2)
-            : null;
+        return $deliveryMode->includesOnline() ? Exam::storedNegativeMarks($negativeMarks) : null;
     }
 
     /**

@@ -25,6 +25,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 #[Fillable([
     'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id', 'board_question_paper_id',
@@ -350,6 +351,45 @@ class Exam extends Model
     public function marksLostPerWrongAnswer(): float
     {
         return $this->negative_marks !== null && $this->negative_marks > 0 ? $this->negative_marks : 0.0;
+    }
+
+    /**
+     * How a chosen amount off per wrong answer is stored: rounded to two
+     * places, or null for no negative marking.
+     */
+    public static function storedNegativeMarks(?float $negativeMarks): ?float
+    {
+        return $negativeMarks !== null && $negativeMarks > 0 ? round($negativeMarks, 2) : null;
+    }
+
+    /**
+     * Whether the teacher may still turn negative marking on or off, or
+     * change the amount: only on a teacher's exam taken online (a printed
+     * paper is marked by hand), and only until a student has started it —
+     * otherwise papers already marked would be marked differently.
+     */
+    public function canChangeNegativeMarking(): bool
+    {
+        return $this->exam_type === ExamType::TeacherExam
+            && $this->delivery_mode->includesOnline()
+            && ! ($this->attempts_exists ?? $this->attempts()->exists());
+    }
+
+    /**
+     * Sets the marks taken off per wrong answer; null (or 0) turns negative
+     * marking off.
+     *
+     * @throws ValidationException
+     */
+    public function changeNegativeMarking(?float $negativeMarks): void
+    {
+        if (! $this->canChangeNegativeMarking()) {
+            throw ValidationException::withMessages([
+                'negative_marks' => __('Students have already started this exam, so its negative marking can no longer be changed.'),
+            ]);
+        }
+
+        $this->forceFill(['negative_marks' => self::storedNegativeMarks($negativeMarks)])->save();
     }
 
     public function showsAnswersToStudents(): bool

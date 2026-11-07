@@ -7,8 +7,10 @@ use App\Enums\ExamType;
 use App\Enums\Locale;
 use App\Enums\QuestionType;
 use App\Filament\School\Pages\SendToSchoolResults;
+use App\Filament\Support\Concerns\NotifiesValidationFailures;
 use App\Filament\Support\CurrentPanel;
 use App\Filament\Support\FutureDateTimePicker;
+use App\Filament\Support\NegativeMarkingFields;
 use App\Filament\Support\SubjectColumn;
 use App\Filament\Support\TableActions;
 use App\Filament\Teacher\Pages\SelectQuestions;
@@ -33,6 +35,8 @@ use Illuminate\Support\Js;
 
 class ExamsTable
 {
+    use NotifiesValidationFailures;
+
     /**
      * Whether there are answers still to unlock: the exam is being taken
      * online and students can't see its answers yet.
@@ -271,6 +275,39 @@ class ExamsTable
                                 : __('Exam end time removed'))
                             ->success()
                             ->send();
+                    }),
+                // Negative marking can be switched on or off, or its amount
+                // changed, until a student starts — papers already marked
+                // must not be marked differently from the ones still to come.
+                Action::make('negativeMarking')
+                    ->label(fn (Exam $record): string => $record->marksLostPerWrongAnswer() > 0
+                        ? __('Negative marking: :marks', ['marks' => Locale::current()->writeDigits((string) $record->marksLostPerWrongAnswer())])
+                        : __('Negative marking: off'))
+                    ->color('gray')
+                    ->icon('heroicon-o-minus-circle')
+                    ->visible(fn (Exam $record): bool => $record->canChangeNegativeMarking())
+                    ->modalHeading(__('Negative marking'))
+                    ->modalSubmitActionLabel(__('Save'))
+                    ->fillForm(fn (Exam $record): array => NegativeMarkingFields::fill($record))
+                    ->schema(NegativeMarkingFields::make())
+                    ->authorize('update')
+                    ->action(function (Exam $record, array $data, Action $action) {
+                        $negativeMarks = NegativeMarkingFields::valueFrom($data);
+
+                        $changed = self::rescueStaticallyWithNotification(function () use ($record, $negativeMarks): bool {
+                            $record->changeNegativeMarking($negativeMarks);
+
+                            return true;
+                        }, $action);
+
+                        if ($changed) {
+                            Notification::make()
+                                ->title($record->marksLostPerWrongAnswer() > 0
+                                    ? __('Negative marking set to :marks per wrong answer', ['marks' => Locale::current()->writeDigits((string) $record->marksLostPerWrongAnswer())])
+                                    : __('Negative marking turned off'))
+                                ->success()
+                                ->send();
+                        }
                     }),
                 // Students only see their score until this is pressed —
                 // otherwise a blank paper would reveal the answer key to

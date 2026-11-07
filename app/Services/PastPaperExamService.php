@@ -120,7 +120,7 @@ class PastPaperExamService
      */
     private function negativeMarks(?float $negativeMarks): ?float
     {
-        return $negativeMarks !== null && $negativeMarks > 0 ? round($negativeMarks, 2) : null;
+        return Exam::storedNegativeMarks($negativeMarks);
     }
 
     /**

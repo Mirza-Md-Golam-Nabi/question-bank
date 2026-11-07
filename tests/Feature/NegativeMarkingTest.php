@@ -3,6 +3,7 @@
 use App\Enums\ExamDeliveryMode;
 use App\Enums\QuestionType;
 use App\Filament\Teacher\Pages\SelectQuestions;
+use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
 use App\Models\AttemptAnswer;
 use App\Models\BillingSetting;
 use App\Models\Chapter;
@@ -13,8 +14,10 @@ use App\Models\Question;
 use App\Models\User;
 use App\Services\TeacherExamBuilder;
 use Database\Seeders\RoleSeeder;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Validation\ValidationException;
 
 use function Pest\Livewire\livewire;
 
@@ -107,6 +110,36 @@ it('lets the teacher turn it on when saving an online exam, starting on the admi
     // The paper says so above the questions, before the first answer.
     expect(Blade::render('<x-exam-heading :exam="$exam" />', ['exam' => $exam]))
         ->toContain('0.25 taken off for each wrong answer');
+});
+
+it('lets the teacher change negative marking from the exams list until a student starts', function () {
+    $teacher = User::factory()->teacher()->create();
+    $this->actingAs($teacher);
+    Filament::setCurrentPanel(Filament::getPanel('teacher'));
+    $exam = Exam::factory()->delivery(ExamDeliveryMode::Online)->published()->create(['created_by' => $teacher->id]);
+
+    livewire(ListExams::class)
+        ->callAction(TestAction::make('negativeMarking')->table($exam), ['negative_marking' => true, 'negative_marks' => 0.5])
+        ->assertHasNoActionErrors()
+        ->assertNotified();
+    expect($exam->refresh()->negative_marks)->toEqual(0.5);
+
+    livewire(ListExams::class)
+        ->callAction(TestAction::make('negativeMarking')->table($exam), ['negative_marking' => false])
+        ->assertHasNoActionErrors();
+    expect($exam->refresh()->negative_marks)->toBeNull();
+
+    ExamAttempt::create(['exam_id' => $exam->id, 'student_id' => User::factory()->student()->create()->id, 'started_at' => now()]);
+
+    livewire(ListExams::class)->assertActionHidden(TestAction::make('negativeMarking')->table($exam));
+    expect(fn () => $exam->refresh()->changeNegativeMarking(0.25))->toThrow(ValidationException::class)
+        ->and($exam->refresh()->negative_marks)->toBeNull();
+});
+
+it('offers no negative marking on a print-only exam', function () {
+    $exam = Exam::factory()->delivery(ExamDeliveryMode::Offline)->create();
+
+    expect($exam->canChangeNegativeMarking())->toBeFalse();
 });
 
 it('keeps negative marking off a print-only exam', function () {

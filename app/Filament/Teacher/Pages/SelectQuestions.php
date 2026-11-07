@@ -8,9 +8,9 @@ use App\Enums\QuestionType;
 use App\Filament\Support\CurrentPanel;
 use App\Filament\Support\FutureDateTimePicker;
 use App\Filament\Support\NavigationGroup;
+use App\Filament\Support\NegativeMarkingFields;
 use App\Filament\Support\Pages\QuestionPickerPage;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
-use App\Models\BillingSetting;
 use App\Models\ClassSubject;
 use App\Models\Exam;
 use App\Models\Question;
@@ -330,9 +330,7 @@ class SelectQuestions extends QuestionPickerPage
                 : __("Saving counts as one exam towards your plan's limit, whether you publish it online or only print it."))
             ->modalSubmitActionLabel(fn (): string => $this->editingExam ? __('Save changes') : __('Save exam'))
             ->fillForm(fn (): array => [
-                'negative_marking' => ($this->editingExam?->marksLostPerWrongAnswer() ?? 0) > 0,
-                // Starts on the Admin's amount; the teacher can change it.
-                'negative_marks' => $this->editingExam?->negative_marks ?: BillingSetting::current()->default_negative_marks,
+                ...NegativeMarkingFields::fill($this->editingExam),
                 ...$this->editingExam?->only(['title', 'duration_minutes']) ?? [],
             ])
             ->schema([
@@ -349,19 +347,7 @@ class SelectQuestions extends QuestionPickerPage
                     ->required(),
                 // Only an exam taken online is marked by the system; a
                 // printed paper is marked by hand.
-                Toggle::make('negative_marking')
-                    ->label(__('Negative marking'))
-                    ->helperText(__('Marks are taken off for each wrong answer online. A blank answer loses nothing, and the total never goes below 0.'))
-                    ->visible(fn (): bool => $this->deliveryMode()->includesOnline())
-                    ->live(),
-                TextInput::make('negative_marks')
-                    ->label(__('Marks taken off per wrong answer'))
-                    ->numeric()
-                    ->minValue(0.01)
-                    ->maxValue(100)
-                    ->step(0.01)
-                    ->visible(fn (Get $get): bool => $this->deliveryMode()->includesOnline() && (bool) $get('negative_marking'))
-                    ->required(fn (Get $get): bool => (bool) $get('negative_marking')),
+                ...NegativeMarkingFields::make(fn (): bool => $this->deliveryMode()->includesOnline()),
                 // Optional, and it can be set or changed later from the
                 // exams list — there is no link to close on a print-only exam.
                 // When editing, the end time keeps being managed from the list.
@@ -385,7 +371,7 @@ class SelectQuestions extends QuestionPickerPage
                             $arguments['ids'] ?? [],
                             $data['title'],
                             (int) $data['duration_minutes'],
-                            $this->negativeMarksFrom($data),
+                            NegativeMarkingFields::valueFrom($data),
                         )
                         : $builder->build(
                             Auth::user(),
@@ -395,7 +381,7 @@ class SelectQuestions extends QuestionPickerPage
                             $data['title'],
                             (int) $data['duration_minutes'],
                             FutureDateTimePicker::parse($data['link_expires_at'] ?? null),
-                            $this->negativeMarksFrom($data),
+                            NegativeMarkingFields::valueFrom($data),
                         );
                 } catch (ValidationException $exception) {
                     Notification::make()
@@ -423,13 +409,5 @@ class SelectQuestions extends QuestionPickerPage
     public function examsUrl(): string
     {
         return ExamResource::getUrl('index');
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function negativeMarksFrom(array $data): ?float
-    {
-        return ($data['negative_marking'] ?? false) ? (float) ($data['negative_marks'] ?? 0) : null;
     }
 }
