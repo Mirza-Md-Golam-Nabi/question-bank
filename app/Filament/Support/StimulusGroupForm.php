@@ -91,7 +91,6 @@ class StimulusGroupForm
                 ->addActionLabel(__('Add a question'))
                 ->defaultItems(QuestionStimulus::MIN_QUESTIONS)
                 ->minItems(QuestionStimulus::MIN_QUESTIONS)
-                ->maxItems(QuestionStimulus::MAX_QUESTIONS)
                 ->reorderable()
                 ->collapsible()
                 ->itemLabel(fn (array $state): ?string => strip_tags((string) ($state['question_text'] ?? '')) ?: null)

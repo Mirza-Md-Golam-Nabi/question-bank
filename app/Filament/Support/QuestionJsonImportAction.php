@@ -49,6 +49,15 @@ class QuestionJsonImportAction
     public const ACCEPTED_FIELD = 'accepted_duplicates';
 
     /**
+     * Ctrl/Cmd+Enter presses the wizard's button that is showing — "Next"
+     * on the first step, the submit button on the preview — the same as a
+     * click, so the server checks everything as usual. Heard on the whole
+     * page while the window shows, because moving to the preview leaves the
+     * focus on the page's body, outside the window.
+     */
+    private const NEXT_OR_SUBMIT_SHORTCUT_HANDLER = 'if (! $event.repeat && $el.getClientRects().length > 0) { $event.preventDefault(); const footer = $el.querySelector(\'.fi-sc-wizard-footer\'); const button = footer ? [...footer.children].reverse().find((part) => part.getClientRects().length > 0)?.querySelector(\'button:not([disabled])\') : null; button?.click() }';
+
+    /**
      * The preview's work, per Livewire component — so per request — and
      * per JSON.
      *
@@ -141,6 +150,10 @@ class QuestionJsonImportAction
             ->modalHeading(__('Add questions from JSON'))
             ->modalWidth(Width::FourExtraLarge)
             ->modalSubmitActionLabel(__('Add questions'))
+            ->extraModalWindowAttributes([
+                'x-on:keydown.ctrl.enter.window' => self::NEXT_OR_SUBMIT_SHORTCUT_HANDLER,
+                'x-on:keydown.meta.enter.window' => self::NEXT_OR_SUBMIT_SHORTCUT_HANDLER,
+            ])
             ->steps([
                 Step::make(__('Paste JSON'))
                     ->columns(2)

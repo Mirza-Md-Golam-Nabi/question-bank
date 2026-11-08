@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A stimulus of a past paper, shared by two or three of its MCQs — part of
+ * A stimulus of a past paper, over one or more of its MCQs — part of
  * the paper, approved with it, and removed with its questions.
  */
 #[Fillable(['board_question_paper_id', 'text', 'editor_mode', 'image'])]

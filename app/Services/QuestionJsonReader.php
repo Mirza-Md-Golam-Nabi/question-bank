@@ -129,7 +129,7 @@ final class QuestionJsonReader
                     : __('"explanation" (optional — leave it out or empty when there is none): why the answer is the right one.'))
                 : null,
             $this->onlyType !== QuestionType::Cq
-                ? __('MCQs that share a stimulus go in one object: "stimulus" is its text ("" when its "image" is all of it), and "questions" lists :min to :max MCQs. Do not write "answer questions 42 and 43" — the paper numbers them itself.', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])
+                ? __('MCQs that share a stimulus go in one object: "stimulus" is its text ("" when its "image" is all of it), and "questions" lists its MCQs — one or more. Do not write "answer questions 42 and 43" — the paper numbers them itself.')
                 : null,
             $this->withCqAnswers && $this->onlyType !== QuestionType::Mcq
                 ? __('"answer" on a sub-question (may be left out): its answer.')
@@ -334,8 +334,8 @@ final class QuestionJsonReader
         $questions = $item['questions'] ?? null;
 
         if (! is_array($questions) || ! array_is_list($questions)
-            || count($questions) < QuestionStimulus::MIN_QUESTIONS || count($questions) > QuestionStimulus::MAX_QUESTIONS) {
-            return [...$problems, __('"questions" of a stimulus must be a list of :min to :max MCQs', ['min' => QuestionStimulus::MIN_QUESTIONS, 'max' => QuestionStimulus::MAX_QUESTIONS])];
+            || count($questions) < QuestionStimulus::MIN_QUESTIONS) {
+            return [...$problems, __('"questions" of a stimulus must be a list of at least :min MCQ', ['min' => QuestionStimulus::MIN_QUESTIONS])];
         }
 
         foreach ($questions as $index => $question) {

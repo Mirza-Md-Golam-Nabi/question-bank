@@ -12,6 +12,7 @@ use App\Filament\Teacher\Resources\Questions\Pages\ListQuestions as TeacherListQ
 use App\Models\BillingSetting;
 use App\Models\Chapter;
 use App\Models\Question;
+use App\Models\QuestionStimulus;
 use App\Models\Topic;
 use App\Models\User;
 use App\Services\QuestionDuplicateScreening;
@@ -115,6 +116,21 @@ it('stores an MCQ\'s explanation when one is given, and none when it is left out
         '<p>প্রথমটির ব্যাখ্যা।</p>',
         null,
     ]);
+});
+
+it('takes a stimulus over one MCQ or over many, but not over none', function () {
+    $group = fn (int $count): array => ['stimulus' => 'একটি উদ্দীপক।', 'questions' => array_map(
+        fn (int $number): array => ($this->mcq)(['question' => "উদ্দীপকের প্রশ্ন {$number}?"]),
+        range(1, $count),
+    )];
+
+    expect(($this->problems)([['stimulus' => 'একটি উদ্দীপক।', 'questions' => []]]))->toHaveCount(1);
+
+    ($this->import)([$group(1)]);
+    ($this->import)([$group(8)]);
+
+    expect(Question::whereNotNull('stimulus_id')->count())->toBe(9)
+        ->and(QuestionStimulus::withCount('questions')->orderBy('id')->pluck('questions_count')->all())->toBe([1, 8]);
 });
 
 it('checks an explanation like any other text', function () {
@@ -314,6 +330,18 @@ it('offers a format guide to copy that ends with that same sample', function () 
 
     expect($html)->toContain(e($guide))
         ->and($html)->toContain('copy()');
+});
+
+it('binds ctrl+enter in the window to its next or submit button', function () {
+    $attributes = livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+        ->mountAction('importQuestionsFromJson')
+        ->instance()
+        ->getMountedAction()
+        ->getExtraModalWindowAttributes();
+
+    expect($attributes)
+        ->toHaveKeys(['x-on:keydown.ctrl.enter.window', 'x-on:keydown.meta.enter.window'])
+        ->and($attributes['x-on:keydown.ctrl.enter.window'])->toContain('.fi-sc-wizard-footer');
 });
 
 it('accepts JSON wrapped in a code fence or in a "questions" key', function () {

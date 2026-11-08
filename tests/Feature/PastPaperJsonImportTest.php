@@ -285,6 +285,18 @@ describe('the "Add from JSON" button beside the new-question button', function (
         expect($this->paper->cqQuestions()->count())->toBe(1);
     });
 
+    it('binds ctrl+enter in the window to its next or submit button', function () {
+        $attributes = livewire(PaperMcqQuestionsRelationManager::class, ['ownerRecord' => $this->paper, 'pageClass' => EditBoardQuestionPaper::class])
+            ->mountAction(TestAction::make('importPaperQuestionsFromJson')->table())
+            ->instance()
+            ->getMountedAction()
+            ->getExtraModalWindowAttributes();
+
+        expect($attributes)
+            ->toHaveKeys(['x-on:keydown.ctrl.enter.window', 'x-on:keydown.meta.enter.window'])
+            ->and($attributes['x-on:keydown.ctrl.enter.window'])->toContain('.fi-sc-wizard-footer');
+    });
+
     it('is hidden from staff until the admin allows it', function () {
         $staff = User::factory()->staff()->create();
         $paper = BoardQuestionPaper::factory()->admission()->create(['created_by' => $staff->id]);

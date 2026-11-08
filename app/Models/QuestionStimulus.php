@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A stimulus of the question bank, shared by two or three MCQs of one
+ * A stimulus of the question bank, over one or more MCQs of one
  * chapter. It has no status of its own: it is seen wherever — and only
  * where — its questions are (CLAUDE.md rule 2), and is approved, rejected
  * and versioned together with them (App\Services\StimulusGroupService).
@@ -22,13 +22,11 @@ class QuestionStimulus extends Model
     use HasFactory, IsStimulus;
 
     /**
-     * How few and how many MCQs share one stimulus — the same for a group
-     * typed into the form or pasted as JSON, in the question bank or on a
-     * past paper (one question needs no shared stimulus).
+     * How few MCQs stand under one stimulus — the same for a group typed
+     * into the form or pasted as JSON, in the question bank or on a past
+     * paper. There is no upper limit.
      */
-    public const MIN_QUESTIONS = 2;
-
-    public const MAX_QUESTIONS = 6;
+    public const MIN_QUESTIONS = 1;
 
     protected $table = 'question_stimuli';
 
