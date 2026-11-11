@@ -39,7 +39,57 @@
             content: '.';
         }
 
+        .qb-answer-key {
+            margin: 0 auto;
+            border-collapse: collapse;
+            font-size: 1rem;
+        }
+
+        .qb-answer-key th,
+        .qb-answer-key td {
+            min-width: 3rem;
+            padding: 0.3rem 0.75rem;
+            border: 1px solid #6b7280;
+            text-align: center;
+        }
+
+        .qb-answer-key th {
+            background: #f3f4f6;
+            font-weight: 600;
+        }
+
+        .qb-answer-key-answer {
+            font-weight: 600;
+        }
+
+        /* A thicker line between one number/answer pair and the next. */
+        .qb-answer-key th:nth-child(2n):not(:last-child),
+        .qb-answer-key td:nth-child(2n):not(:last-child) {
+            border-right-width: 3px;
+        }
+
+        .qb-answer-key tr {
+            break-inside: avoid;
+        }
+
+        /* On a phone screen all five pairs still fit side by side. */
+        @media screen and (max-width: 640px) {
+            .qb-answer-key {
+                font-size: 0.8125rem;
+            }
+
+            .qb-answer-key th,
+            .qb-answer-key td {
+                min-width: 0;
+                padding: 0.25rem 0.3rem;
+            }
+        }
+
         @media print {
+            .qb-answer-key th {
+                background: #fff !important;
+            }
+
             html,
             body {
                 background: #fff !important;
@@ -71,17 +121,20 @@
                 {{ __('Print / Save as PDF') }}
             </button>
 
-            @if ($showAnswers)
-                <a href="{{ \App\Filament\Support\CurrentPanel::route('exams.print', $exam) }}"
-                   class="qb-btn qb-btn--outline text-sm">
-                    {{ __('Questions only') }}
-                </a>
-            @else
-                <a href="{{ \App\Filament\Support\CurrentPanel::route('exams.print', ['exam' => $exam, 'answers' => 1]) }}"
-                   class="qb-btn qb-btn--outline text-sm">
-                    {{ __('With answers') }}
-                </a>
-            @endif
+            {{-- The other forms of this paper: not the one on screen, and no
+                 answer key for a CQ-only paper (CQ has no answers to list). --}}
+            @foreach ([
+                ['answers' => null, 'label' => __('Questions only'), 'hidden' => ! $showAnswers && ! $isAnswerKey],
+                ['answers' => 1, 'label' => __('With answers'), 'hidden' => $showAnswers],
+                ['answers' => 'key', 'label' => __('Answer key only'), 'hidden' => $isAnswerKey || $mcqQuestions->isEmpty()],
+            ] as $copy)
+                @unless ($copy['hidden'])
+                    <a href="{{ \App\Filament\Support\CurrentPanel::route('exams.print', array_filter(['exam' => $exam, 'answers' => $copy['answers']])) }}"
+                       class="qb-btn qb-btn--outline text-sm">
+                        {{ $copy['label'] }}
+                    </a>
+                @endunless
+            @endforeach
 
             <a href="{{ ExamResource::getUrl('index') }}"
                class="ms-auto text-sm font-medium text-gray-600 hover:underline">
@@ -117,9 +170,14 @@
 
             @if ($showAnswers)
                 <p class="mt-2 text-sm font-semibold">{{ __('Answer copy — for the teacher') }}</p>
+            @elseif ($isAnswerKey)
+                <p class="mt-2 text-sm font-semibold">{{ __('Answer key') }}</p>
             @endif
         </header>
 
+        @if ($isAnswerKey)
+            @include('teacher.partials.exam-answer-key', ['mcqQuestions' => $mcqQuestions])
+        @else
         @if ($mcqQuestions->isNotEmpty())
             <section class="mb-8">
                 @if ($cqQuestions->isNotEmpty())
@@ -160,6 +218,7 @@
                     </div>
                 @endforeach
             </section>
+        @endif
         @endif
     </main>
 

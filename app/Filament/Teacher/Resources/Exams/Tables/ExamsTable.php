@@ -20,6 +20,7 @@ use App\Models\Exam;
 use App\Services\ExamRepeater;
 use App\Services\TeacherExamBuilder;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -56,6 +57,19 @@ class ExamsTable
     private static function hasAttempts(Exam $exam): bool
     {
         return (bool) ($exam->attempts_exists ?? $exam->attempts()->exists());
+    }
+
+    /**
+     * Whether the printed paper has any MCQ — only those have an answer key.
+     * Read from the counts the table loads with its rows.
+     */
+    private static function hasMcqQuestions(Exam $exam): bool
+    {
+        if ($exam->isPastPaper()) {
+            return $exam->boardQuestionPaper->mcq_questions_count > 0;
+        }
+
+        return (bool) ($exam->has_mcq_questions ?? $exam->questions()->where('question_type', QuestionType::Mcq)->exists());
     }
 
     /**
@@ -169,6 +183,8 @@ class ExamsTable
             // have started it, instead of each row asking separately.
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->withExists('attempts')
+                // Whether there is an answer key to print (only MCQ has one).
+                ->withExists(['questions as has_mcq_questions' => fn (Builder $question) => $question->where('question_type', QuestionType::Mcq)])
                 // A past paper's questions are counted on the paper.
                 ->with(['boardQuestionPaper' => fn ($paper) => $paper->withCount(['mcqQuestions', 'cqQuestions'])]))
             ->columns([
@@ -221,198 +237,211 @@ class ExamsTable
             ->filters([
                 SelectFilter::make('status')->options(ExamStatus::class),
             ])
+            // Only the two buttons used all the time stay on the row; the
+            // rest sit in one "more" menu so the row doesn't overflow.
             ->recordActions([
-                Action::make('publish')
-                    ->label(__('Publish'))
-                    ->color('success')
-                    ->icon('heroicon-o-globe-alt')
-                    ->visible(fn (Exam $record) => $record->status === ExamStatus::Draft && $record->delivery_mode->includesOnline())
-                    ->requiresConfirmation()
-                    ->authorize('publish')
-                    ->action(function (Exam $record) {
-                        $record->recalculateTotalMarks();
-                        $record->publish();
-
-                        Notification::make()->title(__('Exam published'))->success()->send();
-                    }),
                 self::resultsAction(),
-                // A School's exam: its online MCQ marks into the school
-                // management software's results (CLAUDE.md rule 12).
-                Action::make('sendToSchoolResults')
-                    ->label(__('Send to school results'))
-                    ->tooltip(__('Send to school results'))
-                    ->icon('heroicon-o-paper-airplane')
-                    ->iconButton()
-                    ->color('success')
-                    ->visible(fn (Exam $record): bool => CurrentPanel::id() === 'school'
-                        && $record->status !== ExamStatus::Draft
-                        && $record->delivery_mode->includesOnline())
-                    ->url(fn (Exam $record): string => SendToSchoolResults::getUrl(['exam' => $record->id])),
                 self::copyShareLinkAction(),
-                // The last moment a student can start the exam; after it the
-                // share link stops taking new attempts on its own.
-                Action::make('setEndTime')
-                    ->label(fn (Exam $record) => $record->link_expires_at ? __('Change end time') : __('Set end time'))
-                    ->color('gray')
-                    ->icon('heroicon-o-calendar-days')
-                    ->visible(fn (Exam $record) => $record->delivery_mode->includesOnline())
-                    ->modalHeading(__('Exam end time'))
-                    ->modalDescription(__('After this time the exam link stops working for anyone who has not started yet. Students already taking the exam can finish it. Leave it empty for no end time.'))
-                    ->modalSubmitActionLabel(__('Save'))
-                    ->fillForm(fn (Exam $record): array => ['link_expires_at' => $record->link_expires_at])
-                    ->schema([
-                        FutureDateTimePicker::make('link_expires_at')->label(__('Exam ends at')),
-                    ])
-                    ->authorize('update')
-                    ->action(function (Exam $record, array $data) {
-                        $endsAt = FutureDateTimePicker::parse($data['link_expires_at'] ?? null);
+                ActionGroup::make([
+                    Action::make('publish')
+                        ->label(__('Publish'))
+                        ->color('success')
+                        ->icon('heroicon-o-globe-alt')
+                        ->visible(fn (Exam $record) => $record->status === ExamStatus::Draft && $record->delivery_mode->includesOnline())
+                        ->requiresConfirmation()
+                        ->authorize('publish')
+                        ->action(function (Exam $record) {
+                            $record->recalculateTotalMarks();
+                            $record->publish();
 
-                        $record->closeLinkAt($endsAt);
+                            Notification::make()->title(__('Exam published'))->success()->send();
+                        }),
+                    // A School's exam: its online MCQ marks into the school
+                    // management software's results (CLAUDE.md rule 12).
+                    Action::make('sendToSchoolResults')
+                        ->label(__('Send to school results'))
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('success')
+                        ->visible(fn (Exam $record): bool => CurrentPanel::id() === 'school'
+                            && $record->status !== ExamStatus::Draft
+                            && $record->delivery_mode->includesOnline())
+                        ->url(fn (Exam $record): string => SendToSchoolResults::getUrl(['exam' => $record->id])),
+                    // The last moment a student can start the exam; after it the
+                    // share link stops taking new attempts on its own.
+                    Action::make('setEndTime')
+                        ->label(fn (Exam $record) => $record->link_expires_at ? __('Change end time') : __('Set end time'))
+                        ->color('gray')
+                        ->icon('heroicon-o-calendar-days')
+                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOnline())
+                        ->modalHeading(__('Exam end time'))
+                        ->modalDescription(__('After this time the exam link stops working for anyone who has not started yet. Students already taking the exam can finish it. Leave it empty for no end time.'))
+                        ->modalSubmitActionLabel(__('Save'))
+                        ->fillForm(fn (Exam $record): array => ['link_expires_at' => $record->link_expires_at])
+                        ->schema([
+                            FutureDateTimePicker::make('link_expires_at')->label(__('Exam ends at')),
+                        ])
+                        ->authorize('update')
+                        ->action(function (Exam $record, array $data) {
+                            $endsAt = FutureDateTimePicker::parse($data['link_expires_at'] ?? null);
 
-                        Notification::make()
-                            ->title($endsAt
-                                ? __('The exam will close on :time', ['time' => $endsAt->translatedFormat('j M Y, g:i A')])
-                                : __('Exam end time removed'))
-                            ->success()
-                            ->send();
-                    }),
-                // Negative marking can be switched on or off, or its amount
-                // changed, until a student starts — papers already marked
-                // must not be marked differently from the ones still to come.
-                Action::make('negativeMarking')
-                    ->label(fn (Exam $record): string => $record->marksLostPerWrongAnswer() > 0
-                        ? __('Negative marking: :marks', ['marks' => Locale::current()->writeDigits((string) $record->marksLostPerWrongAnswer())])
-                        : __('Negative marking: off'))
-                    ->color('gray')
-                    ->icon('heroicon-o-minus-circle')
-                    ->visible(fn (Exam $record): bool => $record->canChangeNegativeMarking())
-                    ->modalHeading(__('Negative marking'))
-                    ->modalSubmitActionLabel(__('Save'))
-                    ->fillForm(fn (Exam $record): array => NegativeMarkingFields::fill($record))
-                    ->schema(NegativeMarkingFields::make())
-                    ->authorize('update')
-                    ->action(function (Exam $record, array $data, Action $action) {
-                        $negativeMarks = NegativeMarkingFields::valueFrom($data);
+                            $record->closeLinkAt($endsAt);
 
-                        $changed = self::rescueStaticallyWithNotification(function () use ($record, $negativeMarks): bool {
-                            $record->changeNegativeMarking($negativeMarks);
-
-                            return true;
-                        }, $action);
-
-                        if ($changed) {
                             Notification::make()
-                                ->title($record->marksLostPerWrongAnswer() > 0
-                                    ? __('Negative marking set to :marks per wrong answer', ['marks' => Locale::current()->writeDigits((string) $record->marksLostPerWrongAnswer())])
-                                    : __('Negative marking turned off'))
+                                ->title($endsAt
+                                    ? __('The exam will close on :time', ['time' => $endsAt->translatedFormat('j M Y, g:i A')])
+                                    : __('Exam end time removed'))
                                 ->success()
                                 ->send();
-                        }
-                    }),
-                // Students only see their score until this is pressed —
-                // otherwise a blank paper would reveal the answer key to
-                // anyone who has yet to sit the exam.
-                Action::make('releaseAnswers')
-                    ->label(__('Release answers'))
-                    ->color('info')
-                    ->icon('heroicon-o-lock-open')
-                    ->visible(fn (Exam $record) => self::canReleaseAnswers($record))
-                    ->requiresConfirmation()
-                    ->modalDescription(__('Students will be able to see every question, the correct answers and their own answers. Do this only after everyone has finished the exam.'))
-                    ->authorize('update')
-                    ->action(function (Exam $record) {
-                        $record->releaseAnswers();
+                        }),
+                    // Negative marking can be switched on or off, or its amount
+                    // changed, until a student starts — papers already marked
+                    // must not be marked differently from the ones still to come.
+                    Action::make('negativeMarking')
+                        ->label(fn (Exam $record): string => $record->marksLostPerWrongAnswer() > 0
+                            ? __('Negative marking: :marks', ['marks' => Locale::current()->writeDigits((string) $record->marksLostPerWrongAnswer())])
+                            : __('Negative marking: off'))
+                        ->color('gray')
+                        ->icon('heroicon-o-minus-circle')
+                        ->visible(fn (Exam $record): bool => $record->canChangeNegativeMarking())
+                        ->modalHeading(__('Negative marking'))
+                        ->modalSubmitActionLabel(__('Save'))
+                        ->fillForm(fn (Exam $record): array => NegativeMarkingFields::fill($record))
+                        ->schema(NegativeMarkingFields::make())
+                        ->authorize('update')
+                        ->action(function (Exam $record, array $data, Action $action) {
+                            $negativeMarks = NegativeMarkingFields::valueFrom($data);
 
-                        Notification::make()->title(__('Answers released to students'))->success()->send();
-                    }),
-                // The same unlock, but left to happen on its own at a time
-                // the teacher picks — e.g. when the exam window closes.
-                Action::make('scheduleAnswers')
-                    ->label(fn (Exam $record) => $record->hasPendingAnswerRelease() ? __('Change release time') : __('Schedule answers'))
-                    ->color('info')
-                    ->icon('heroicon-o-clock')
-                    ->visible(fn (Exam $record) => self::canReleaseAnswers($record))
-                    ->modalHeading(__('Release answers automatically'))
-                    ->modalDescription(__('At this time students will be able to see every question, the correct answers and their own answers — without you doing anything. Leave it empty to cancel the schedule.'))
-                    ->modalSubmitActionLabel(__('Save'))
-                    ->fillForm(fn (Exam $record): array => ['answers_release_at' => $record->answers_release_at])
-                    ->schema([
-                        FutureDateTimePicker::make('answers_release_at')->label(__('Release answers at')),
-                    ])
-                    ->authorize('update')
-                    ->action(function (Exam $record, array $data) {
-                        $releaseAt = FutureDateTimePicker::parse($data['answers_release_at'] ?? null);
+                            $changed = self::rescueStaticallyWithNotification(function () use ($record, $negativeMarks): bool {
+                                $record->changeNegativeMarking($negativeMarks);
 
-                        $record->scheduleAnswerRelease($releaseAt);
+                                return true;
+                            }, $action);
 
-                        Notification::make()
-                            ->title($releaseAt
-                                ? __('Answers will be released on :time', ['time' => $releaseAt->translatedFormat('j M Y, g:i A')])
-                                : __('Answer release schedule cancelled'))
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('hideAnswers')
-                    ->label(__('Hide answers'))
-                    ->color('gray')
-                    ->icon('heroicon-o-lock-closed')
-                    // Released by hand or by the schedule having come due.
-                    ->visible(fn (Exam $record) => $record->exam_type === ExamType::TeacherExam && $record->showsAnswersToStudents())
-                    ->requiresConfirmation()
-                    ->authorize('update')
-                    ->action(function (Exam $record) {
-                        $record->hideAnswers();
+                            if ($changed) {
+                                Notification::make()
+                                    ->title($record->marksLostPerWrongAnswer() > 0
+                                        ? __('Negative marking set to :marks per wrong answer', ['marks' => Locale::current()->writeDigits((string) $record->marksLostPerWrongAnswer())])
+                                        : __('Negative marking turned off'))
+                                    ->success()
+                                    ->send();
+                            }
+                        }),
+                    // Students only see their score until this is pressed —
+                    // otherwise a blank paper would reveal the answer key to
+                    // anyone who has yet to sit the exam.
+                    Action::make('releaseAnswers')
+                        ->label(__('Release answers'))
+                        ->color('info')
+                        ->icon('heroicon-o-lock-open')
+                        ->visible(fn (Exam $record) => self::canReleaseAnswers($record))
+                        ->requiresConfirmation()
+                        ->modalDescription(__('Students will be able to see every question, the correct answers and their own answers. Do this only after everyone has finished the exam.'))
+                        ->authorize('update')
+                        ->action(function (Exam $record) {
+                            $record->releaseAnswers();
 
-                        Notification::make()->title(__('Answers hidden from students'))->success()->send();
-                    }),
-                self::viewQuestionsAction(),
-                Action::make('print')
-                    ->label(__('Print / PDF'))
-                    ->color('gray')
-                    ->icon('heroicon-o-printer')
-                    ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline())
-                    ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', $record))
-                    ->openUrlInNewTab(),
-                // Editing works like creating: the exam opens in the question
-                // picker with its questions already selected. Gone once a
-                // student has started it — the paper they sat must not change
-                // — and for a past paper, whose questions are the paper's.
-                Action::make('editQuestions')
-                    ->label(__('Edit'))
-                    ->tooltip(__('Edit'))
-                    ->icon('heroicon-o-pencil-square')
-                    ->iconButton()
-                    ->visible(fn (Exam $record) => ! self::hasAttempts($record) && ! $record->isPastPaper())
-                    ->authorize('update')
-                    ->url(fn (Exam $record): string => SelectQuestions::getUrl(['exam' => $record->id])),
-                self::takeAgainAction(),
-                // The way back to an editable paper once students have started:
-                // call the exam off, which deletes everything they did on it.
-                Action::make('cancelExam')
-                    ->label(__('Cancel exam'))
-                    ->tooltip(__('Cancel exam'))
-                    ->icon('heroicon-o-x-circle')
-                    ->iconButton()
-                    ->color('danger')
-                    ->visible(fn (Exam $record) => self::hasAttempts($record))
-                    ->requiresConfirmation()
-                    ->modalHeading(__('Cancel this exam?'))
-                    ->modalDescription(fn (Exam $record): string => trans_choice(
-                        'This permanently deletes the result of :count student who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.|This permanently deletes the results of all :count students who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.',
-                        $record->attempts()->count(),
-                    ))
-                    ->modalSubmitActionLabel(__('Yes, cancel and delete results'))
-                    ->authorize('update')
-                    ->action(function (Exam $record) {
-                        $deleted = $record->cancel();
+                            Notification::make()->title(__('Answers released to students'))->success()->send();
+                        }),
+                    // The same unlock, but left to happen on its own at a time
+                    // the teacher picks — e.g. when the exam window closes.
+                    Action::make('scheduleAnswers')
+                        ->label(fn (Exam $record) => $record->hasPendingAnswerRelease() ? __('Change release time') : __('Schedule answers'))
+                        ->color('info')
+                        ->icon('heroicon-o-clock')
+                        ->visible(fn (Exam $record) => self::canReleaseAnswers($record))
+                        ->modalHeading(__('Release answers automatically'))
+                        ->modalDescription(__('At this time students will be able to see every question, the correct answers and their own answers — without you doing anything. Leave it empty to cancel the schedule.'))
+                        ->modalSubmitActionLabel(__('Save'))
+                        ->fillForm(fn (Exam $record): array => ['answers_release_at' => $record->answers_release_at])
+                        ->schema([
+                            FutureDateTimePicker::make('answers_release_at')->label(__('Release answers at')),
+                        ])
+                        ->authorize('update')
+                        ->action(function (Exam $record, array $data) {
+                            $releaseAt = FutureDateTimePicker::parse($data['answers_release_at'] ?? null);
 
-                        Notification::make()
-                            ->title(__('Exam cancelled'))
-                            ->body(trans_choice(':count result was deleted. You can now edit the exam.|:count results were deleted. You can now edit the exam.', $deleted))
-                            ->success()
-                            ->send();
-                    }),
-                DeleteAction::make()->iconButton(),
+                            $record->scheduleAnswerRelease($releaseAt);
+
+                            Notification::make()
+                                ->title($releaseAt
+                                    ? __('Answers will be released on :time', ['time' => $releaseAt->translatedFormat('j M Y, g:i A')])
+                                    : __('Answer release schedule cancelled'))
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('hideAnswers')
+                        ->label(__('Hide answers'))
+                        ->color('gray')
+                        ->icon('heroicon-o-lock-closed')
+                        // Released by hand or by the schedule having come due.
+                        ->visible(fn (Exam $record) => $record->exam_type === ExamType::TeacherExam && $record->showsAnswersToStudents())
+                        ->requiresConfirmation()
+                        ->authorize('update')
+                        ->action(function (Exam $record) {
+                            $record->hideAnswers();
+
+                            Notification::make()->title(__('Answers hidden from students'))->success()->send();
+                        }),
+                    // Shared with the dashboard as icon buttons; a labelled
+                    // menu item here.
+                    self::viewQuestionsAction()->grouped(),
+                    Action::make('print')
+                        ->label(__('Print / PDF'))
+                        ->color('gray')
+                        ->icon('heroicon-o-printer')
+                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline())
+                        ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', $record))
+                        ->openUrlInNewTab(),
+                    // Just the answer key (MCQ number → right option's
+                    // letter); CQ has no answers, so not for a CQ-only paper.
+                    Action::make('printAnswerKey')
+                        ->label(__('Print answer key only'))
+                        ->color('gray')
+                        ->icon('heroicon-o-key')
+                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
+                        ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', ['exam' => $record, 'answers' => 'key']))
+                        ->openUrlInNewTab(),
+                    // Editing works like creating: the exam opens in the question
+                    // picker with its questions already selected. Gone once a
+                    // student has started it — the paper they sat must not change
+                    // — and for a past paper, whose questions are the paper's.
+                    Action::make('editQuestions')
+                        ->label(__('Edit'))
+                        ->icon('heroicon-o-pencil-square')
+                        ->visible(fn (Exam $record) => ! self::hasAttempts($record) && ! $record->isPastPaper())
+                        ->authorize('update')
+                        ->url(fn (Exam $record): string => SelectQuestions::getUrl(['exam' => $record->id])),
+                    self::takeAgainAction()->grouped(),
+                    // The way back to an editable paper once students have started:
+                    // call the exam off, which deletes everything they did on it.
+                    Action::make('cancelExam')
+                        ->label(__('Cancel exam'))
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->visible(fn (Exam $record) => self::hasAttempts($record))
+                        ->requiresConfirmation()
+                        ->modalHeading(__('Cancel this exam?'))
+                        ->modalDescription(fn (Exam $record): string => trans_choice(
+                            'This permanently deletes the result of :count student who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.|This permanently deletes the results of all :count students who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.',
+                            $record->attempts()->count(),
+                        ))
+                        ->modalSubmitActionLabel(__('Yes, cancel and delete results'))
+                        ->authorize('update')
+                        ->action(function (Exam $record) {
+                            $deleted = $record->cancel();
+
+                            Notification::make()
+                                ->title(__('Exam cancelled'))
+                                ->body(trans_choice(':count result was deleted. You can now edit the exam.|:count results were deleted. You can now edit the exam.', $deleted))
+                                ->success()
+                                ->send();
+                        }),
+                    DeleteAction::make(),
+                ])
+                    ->label(__('More actions'))
+                    ->tooltip(__('More actions'))
+                    ->icon('heroicon-m-ellipsis-vertical')
+                    ->color('gray'),
             ])
             ->toolbarActions(TableActions::bulkDelete());
     }

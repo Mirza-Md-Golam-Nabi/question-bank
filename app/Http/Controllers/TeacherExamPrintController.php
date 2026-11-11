@@ -12,7 +12,9 @@ use Illuminate\View\View;
 /**
  * The printable question paper for an offline exam (CLAUDE.md rule 10) —
  * a plain page the teacher turns into a PDF with the browser's own
- * Print → "Save as PDF", in a "questions only" and a "with answers" form.
+ * Print → "Save as PDF", in three forms: "questions only", "with answers"
+ * (`?answers=1`) and the answer key alone (`?answers=key` — a table of MCQ
+ * numbers and the letters of their right options; CQ has no answers).
  * The same for an exam made of a past paper, whose questions are the
  * paper's. Registered inside the Teacher panel's authenticated routes.
  */
@@ -28,13 +30,18 @@ class TeacherExamPrintController extends Controller
 
         $questions = $exam->printedItems();
         $questionsByType = $questions->groupBy(fn (Model $question) => $question->question_type->value);
+        $mcqQuestions = $questionsByType->get(QuestionType::Mcq->value, collect());
+        $isAnswerKey = $request->query('answers') === 'key';
+
+        abort_if($isAnswerKey && $mcqQuestions->isEmpty(), 404);
 
         return view('teacher.exam-print', [
             'exam' => $exam,
-            'mcqQuestions' => $questionsByType->get(QuestionType::Mcq->value, collect()),
+            'mcqQuestions' => $mcqQuestions,
             'cqQuestions' => $questionsByType->get(QuestionType::Cq->value, collect()),
             'totalMarks' => $exam->marksOf($questions),
-            'showAnswers' => $request->boolean('answers'),
+            'isAnswerKey' => $isAnswerKey,
+            'showAnswers' => ! $isAnswerKey && $request->boolean('answers'),
         ]);
     }
 }

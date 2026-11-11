@@ -67,6 +67,20 @@ trait HasMcqOptions
             ->all();
     }
 
+    /**
+     * Where the right options sit (0 = the first) — for the answer key,
+     * which prints their letters. Several or none on a past paper, as above.
+     *
+     * @return array<int, int>
+     */
+    public function correctOptionIndexes(): array
+    {
+        return collect($this->options ?? [])
+            ->filter(fn (array $option): bool => (bool) ($option['is_correct'] ?? false))
+            ->keys()
+            ->all();
+    }
+
     public function hasCorrectAnswer(): bool
     {
         return $this->correctAnswerValues() !== [];
