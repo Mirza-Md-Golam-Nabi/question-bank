@@ -30,6 +30,25 @@
         <button type="button" class="qb-print-settings-close" data-settings-toggle aria-label="{{ __('Close') }}">✕</button>
     </div>
 
+    {{-- Editing the paper's own words (print-editing.js) — not a saved setting. --}}
+    <section class="qb-print-settings-group">
+        <h3>{{ __('Edit the paper') }}</h3>
+
+        <label class="qb-print-switch">
+            <span>{{ __('Editing mode') }}</span>
+            <input type="checkbox" role="switch" data-editing-toggle>
+        </label>
+
+        <p class="text-xs text-gray-500">{{ __('Click any text on the paper to change it. It changes only this printed paper, not the question bank, and is remembered in this browser.') }}</p>
+
+        <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="font-medium text-primary-700" data-edits-count data-template="{{ __(':count changes on this paper') }}"></span>
+            <button type="button" hidden class="font-medium text-red-600 hover:underline" data-edits-reset data-confirm="{{ __('Undo every change made to this paper?') }}">
+                {{ __('Undo all changes') }}
+            </button>
+        </div>
+    </section>
+
     {{-- The header --}}
     <section class="qb-print-settings-group">
         <h3>{{ __('Paper header') }}</h3>

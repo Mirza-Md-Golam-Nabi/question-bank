@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ExamDeliveryMode;
+use App\Enums\QuestionType;
 use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
 use App\Models\BillingSetting;
 use App\Models\BoardMcqQuestion;
@@ -219,4 +220,17 @@ describe('print settings', function () {
         expect($response->viewData('defaultInstructions')['mcq'])->toBe('Fill the right circle.')
             ->and($response->viewData('chapterNames'))->toBe([$exam->questions->first()->chapter->name]);
     });
+});
+
+it('marks the paper\'s own words as editable, but never the institution name', function () {
+    $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+    $mcq = $exam->questions->firstWhere('question_type', QuestionType::Mcq);
+
+    $this->get(route('filament.teacher.exams.print', $exam))
+        ->assertOk()
+        ->assertSee('data-edit-scope="Question-'.$mcq->id.'"', escape: false)
+        ->assertSee('data-editable="title"', escape: false)
+        ->assertSee('data-editing-toggle', escape: false)
+        ->assertDontSee('data-print-institution data-editable', escape: false)
+        ->assertSee('qb-print-edits:'.$exam->id, escape: false);
 });

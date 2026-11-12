@@ -530,6 +530,7 @@ livewire(ListUsers::class)
 
 1. **প্রিন্ট সেটিং:** MCQ ১/২/৩ কলামে, **CQ সবসময় এক কলামে**। সেটিংয়ের তালিকা, শুরুর মান ও সীমা শুধু `App\Support\PrintSettings`-এ (`users.print_settings`); পাতায় লাগায় `print-settings.js`। PDF আগের মতোই ব্রাউজারের Print দিয়ে (নিয়ম ১০.৮)।
 2. **নির্দেশনা:** MCQ ও CQ অংশের আলাদা, Admin-এর লেখা (`BillingSetting.print_mcq_instructions`/`print_cq_instructions`); user নিজের প্রশ্নপত্রে বদলাতে পারেন।
+2.1. **এডিটিং মোড:** পাতার লেখা (শিরোনাম, হেডারের লাইন, প্রশ্ন, উদ্দীপক, অপশন, CQ অংশ) প্রিন্টের আগে বদলানো যায় — **শুধু ওই প্রিন্টে, প্রশ্নভাণ্ডারের প্রশ্ন কখনো না** (সার্ভারে কিছু যায় না; পরীক্ষাপ্রতি ব্রাউজারে মনে থাকে — `print-editing.js`)। **প্রতিষ্ঠানের নাম কখনো এডিটযোগ্য না** — নইলে পেইড নামের নিয়ম পাশ কাটানো যায়।
 3. **প্রতিষ্ঠানের নাম:** প্রথম নাম ফ্রি (School-এর প্রথম নাম প্রোফাইলের স্কুলের নাম, বদলানো যায়)। প্রতিটা নাম বদলানো যায় Admin-এর দিনে একবার (`institution_name_change_days`) — নইলে ফ্রি নাম বারবার বদলে অনেক নাম চালানো যেত। অতিরিক্ত নাম Admin-এর দাম + দিনে (`institution_name_price`/`institution_name_days`; ০ = বিক্রি বন্ধ), সবার (Teacher ও School) জন্য একই; subscription কেনার মতোই bKash/Nagad + Admin approve (`payments.type = institution_name`), Teacher wallet-ও দিতে পারেন; refund, referral ছাড় বা কমিশন নেই, subscription-এর "পেইড গ্রাহক"/"প্রথম কেনা"-য় গোনা হয় না। আগে renew করলে আগের মেয়াদের শেষ থেকে। মেয়াদ শেষে নামটা প্রিন্টে আসে না, আবার টাকা দেওয়া পর্যন্ত — কোনো job ছাড়া, দেখানোর মুহূর্তে হিসাব। নিয়ম শুধু `InstitutionNameService`-এ (+ `InstitutionName::isUsable()`)।
 
 ## Roles & Permissions (সংক্ষেপে)
@@ -720,7 +721,7 @@ CLAUDE.md
 | Plan-এর শর্ত পড়া, কে কী পারে, কোন plan-এ গোনা হবে | `App\Services\PlanConditions`, `PlanGrant`, `SubscriptionLimitService` (`authorize()`, `allows()`, `allowedDifficultiesFor()`, `constrainToAccessible()`) |
 | কেনার/দেওয়ার ফর্মে plan-এর শ্রেণি/বিষয় বাছাই | `Support\PlanPickFields` |
 | bKash/Nagad-এ টাকা নেওয়া (একটাই অপেক্ষমাণ পেমেন্ট, wallet, যাচাই, OTP) — subscription বা অন্য যেকোনো কেনা জিনিস; ফর্মের ঘর; "কোড পাঠান" | `SubscriptionPurchaseService::placeManual()`; `Support\ManualPaymentFields`; `Support\Concerns\SendsCreditOtp` |
-| প্রশ্নপত্রের প্রিন্ট সেটিং; প্রতিষ্ঠানের নাম (ফ্রি/পেইড, বদলানো, পেমেন্ট) | `App\Support\PrintSettings` (+ `resources/js/print-settings.js`, `teacher.partials.print-settings-panel`); `App\Services\InstitutionNameService`, পেজ `Support\Pages\InstitutionNamesPage` |
+| প্রশ্নপত্রের প্রিন্ট সেটিং ও এডিটিং মোড; প্রতিষ্ঠানের নাম (ফ্রি/পেইড, বদলানো, পেমেন্ট) | `App\Support\PrintSettings` (+ `resources/js/print-settings.js`, `print-editing.js`, `teacher.partials.print-settings-panel`); `App\Services\InstitutionNameService`, পেজ `Support\Pages\InstitutionNamesPage` |
 | চালু subscription-এর plan বা শ্রেণি/বিষয় বদলানো (owner-এর পেজ ও Super Admin-এর তালিকা) | `App\Services\SubscriptionChangeService`; পপআপ `Support\SubscriptionChangeActions` (`changePlan()`, `changeSelections()`); টাকা পাঠানোর ঘরের যাচাই `App\Services\ManualPaymentDetails` |
 | Super Admin-এর "সাবস্ক্রিপশন দিন" পপআপ | `Support\GrantSubscriptionAction` (`make()`, `forRecord()`) |
 | "আমার plan" (প্রতিটা plan, তার শর্ত ও আজ/এই মাসের ব্যবহার) | `<x-plan-usage>`, `Support\Concerns\ShowsPlanSummary` |

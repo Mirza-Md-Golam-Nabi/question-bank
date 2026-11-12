@@ -15,6 +15,7 @@ export default defineConfig({
                 'resources/js/exam-timer.js',
                 'resources/js/result-sheet-image.js',
                 'resources/js/print-settings.js',
+                'resources/js/print-editing.js',
             ],
             refresh: true,
             fonts: [

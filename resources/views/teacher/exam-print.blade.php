@@ -20,7 +20,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $exam->title }}</title>
     @fonts
-    @vite(['resources/css/app.css', 'resources/js/katex-embed-renderer.js', 'resources/js/print-settings.js'])
+    @vite(['resources/css/app.css', 'resources/js/katex-embed-renderer.js', 'resources/js/print-settings.js', 'resources/js/print-editing.js'])
 
     {{-- The page size, margins and page numbers — rewritten by print-settings.js. --}}
     <style id="qb-page-rule">@page { size: A4; margin: 12mm 10mm; }</style>
@@ -84,6 +84,22 @@
 
         .qb-paper-number::after {
             content: '.';
+        }
+
+        /* Editing mode (print-editing.js): what can be changed is outlined — on screen only. */
+        @media screen {
+            .qb-paper[data-editing] [contenteditable='true'] {
+                outline: 1px dashed #93c5fd;
+                outline-offset: 1px;
+                border-radius: 2px;
+                cursor: text;
+            }
+
+            .qb-paper[data-editing] [contenteditable='true']:hover,
+            .qb-paper[data-editing] [contenteditable='true']:focus {
+                outline: 2px solid #3b82f6;
+                background: #eff6ff;
+            }
         }
 
         /* The MCQ part in columns, read down one column and on to the next. */
@@ -452,24 +468,24 @@
             <header class="mb-4 border-b border-gray-300 pb-3 text-center">
                 <p class="qb-paper-institution" data-print-institution hidden></p>
 
-                <h1 class="text-[1.25em] font-bold" data-print-part="exam_title">{{ $exam->title }}</h1>
+                <h1 class="text-[1.25em] font-bold" data-print-part="exam_title" data-editable="title">{{ $exam->title }}</h1>
 
                 @if ($exam->classSubject)
                     <p class="mt-1">
-                        <span data-print-part="class">{{ $exam->classSubject->academicClass->name }}</span>
-                        <span data-print-part="subject">{{ $exam->subject->name }}</span>
+                        <span data-print-part="class" data-editable="class">{{ $exam->classSubject->academicClass->name }}</span>
+                        <span data-print-part="subject" data-editable="subject">{{ $exam->subject->name }}</span>
                     </p>
                 @elseif ($exam->subject)
-                    <p class="mt-1" data-print-part="subject">{{ $exam->subject->name }}</p>
+                    <p class="mt-1" data-print-part="subject" data-editable="subject">{{ $exam->subject->name }}</p>
                 @endif
 
                 @if ($chapterNames !== [])
-                    <p class="mt-1 text-[0.9em]" data-print-part="chapters">{{ __('Chapters') }}: {{ implode(', ', $chapterNames) }}</p>
+                    <p class="mt-1 text-[0.9em]" data-print-part="chapters" data-editable="chapters">{{ __('Chapters') }}: {{ implode(', ', $chapterNames) }}</p>
                 @endif
 
                 <p class="mt-2 flex justify-between text-[0.9em]">
-                    <span>{{ __('Time') }}: {{ __(':minutes minutes', ['minutes' => $digits((string) $exam->duration_minutes)]) }}</span>
-                    <span>{{ __('Total marks') }}: {{ $digits(QuestionDisplay::marks($totalMarks)) }}</span>
+                    <span data-editable="time">{{ __('Time') }}: {{ __(':minutes minutes', ['minutes' => $digits((string) $exam->duration_minutes)]) }}</span>
+                    <span data-editable="marks">{{ __('Total marks') }}: {{ $digits(QuestionDisplay::marks($totalMarks)) }}</span>
                 </p>
 
                 @if ($showAnswers)
@@ -498,7 +514,7 @@
                                 @endif
 
                                 @foreach ($block['questions'] as ['number' => $number, 'question' => $question])
-                                    <div class="qb-paper-question">
+                                    <div class="qb-paper-question" data-edit-scope="{{ class_basename($question) }}-{{ $question->id }}">
                                         <span class="qb-paper-number">{{ $digits((string) $number) }}</span>
                                         <div class="min-w-0 flex-1">
                                             @include('filament.support.questions.question-body', ['question' => $question, 'showAnswers' => $showAnswers, 'showStimulus' => false])
@@ -520,7 +536,7 @@
 
                         {{-- CQ is always in one column. --}}
                         @foreach ($cqQuestions->values() as $index => $question)
-                            <div class="qb-paper-question">
+                            <div class="qb-paper-question" data-edit-scope="{{ class_basename($question) }}-{{ $question->id }}">
                                 <span class="qb-paper-number">{{ $digits((string) ($index + 1)) }}</span>
                                 <div class="min-w-0 flex-1">
                                     {{-- Only a past paper's CQ can carry answers. --}}
@@ -537,6 +553,7 @@
     <script type="application/json" id="qb-print-settings-data">
         {!! json_encode([
             'settings' => $printSettings,
+            'editsKey' => 'qb-print-edits:'.$exam->id,
             'saveUrl' => CurrentPanel::route('exams.print-settings'),
             'institutionNames' => $institutionNames,
             'defaultInstructions' => ['mcq_instructions' => $defaultInstructions['mcq'], 'cq_instructions' => $defaultInstructions['cq']],

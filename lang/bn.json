@@ -1700,5 +1700,11 @@
     "Space between columns": "কলামের গ্যাপ",
     "Saved": "সেভ হয়েছে",
     "Not saved — check your connection": "সেভ হয়নি — ইন্টারনেট সংযোগ দেখুন",
-    "Right side": "ডানে"
+    "Right side": "ডানে",
+    "Edit the paper": "প্রশ্নপত্র এডিট",
+    "Editing mode": "এডিটিং মোড",
+    "Click any text on the paper to change it. It changes only this printed paper, not the question bank, and is remembered in this browser.": "পাতার যেকোনো লেখায় ক্লিক করে বদলান। শুধু এই প্রশ্নপত্রের প্রিন্টে বদলায়, প্রশ্নভাণ্ডারে না; এই ব্রাউজারে মনে থাকে।",
+    ":count changes on this paper": "এই প্রশ্নপত্রে :countটি পরিবর্তন",
+    "Undo every change made to this paper?": "এই প্রশ্নপত্রের সব পরিবর্তন মুছে ফেলবেন?",
+    "Undo all changes": "সব পরিবর্তন মুছুন"
 }
