@@ -108,7 +108,10 @@ it('offers "print answer key only" in the exam list only for a printed paper wit
         ->assertTableActionVisible('printAnswerKey', $offline)
         ->assertTableActionHasUrl('printAnswerKey', route('filament.teacher.exams.print', ['exam' => $offline, 'answers' => 'key']), $offline)
         ->assertTableActionHidden('printAnswerKey', $online)
-        ->assertTableActionHidden('printAnswerKey', $cqOnly);
+        ->assertTableActionHidden('printAnswerKey', $cqOnly)
+        ->assertTableActionHasUrl('printOmrSheet', route('filament.teacher.exams.print', ['exam' => $offline, 'answers' => 'omr']), $offline)
+        ->assertTableActionHidden('printOmrSheet', $online)
+        ->assertTableActionHidden('printOmrSheet', $cqOnly);
 });
 
 it('lists a past paper\'s several right options, or a dash when it gives none', function () {
@@ -193,9 +196,20 @@ describe('print settings', function () {
     });
 
     it('refuses a setting out of its limits', function () {
-        $this->postJson(route('filament.teacher.exams.print-settings'), ['columns' => 5, 'paper_size' => 'B5'])
+        $this->postJson(route('filament.teacher.exams.print-settings'), ['columns' => 5, 'paper_size' => 'B5', 'footer_text' => str_repeat('x', PrintSettings::RUNNING_TEXT_MAX + 1)])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['columns', 'paper_size']);
+            ->assertJsonValidationErrors(['columns', 'paper_size', 'footer_text']);
+    });
+
+    it('gives the page a name\'s logo only while the name can be printed', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        $free = InstitutionName::factory()->free()->create(['user_id' => $this->teacher->id, 'logo_path' => 'institution-logos/free.png']);
+        InstitutionName::factory()->expired()->create(['user_id' => $this->teacher->id, 'logo_path' => 'institution-logos/old.png']);
+
+        $logos = $this->get(route('filament.teacher.exams.print', $exam))->assertOk()->viewData('institutionLogos');
+
+        expect($logos->keys()->all())->toBe([$free->id])
+            ->and($logos->first())->toEndWith('institution-logos/free.png');
     });
 
     it('only offers the names that can be printed now', function () {
@@ -233,4 +247,37 @@ it('marks the paper\'s own words as editable, but never the institution name', f
         ->assertSee('data-editing-toggle', escape: false)
         ->assertDontSee('data-print-institution data-editable', escape: false)
         ->assertSee('qb-print-edits:'.$exam->id, escape: false);
+});
+
+describe('the OMR sheet', function () {
+    it('has a circle for every option of every mcq, numbered as on the paper', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        $second = Question::factory()->approved()->create(['options' => [
+            ['option' => 'a', 'image' => null, 'is_correct' => true],
+            ['option' => 'b', 'image' => null, 'is_correct' => false],
+            ['option' => 'c', 'image' => null, 'is_correct' => false],
+        ]]);
+        $exam->questions()->attach($second->id, ['order_index' => 3, 'marks_override' => null]);
+
+        $html = $this->get(route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 'omr']))
+            ->assertOk()
+            ->assertSee('OMR answer sheet')
+            ->assertSee('data-omr-roll', escape: false)
+            ->assertDontSee('Capital of Bangladesh?')
+            ->assertDontSee('What is a cell?')
+            ->getContent();
+
+        preg_match_all('/<div class="qb-omr-item[^"]*">\s*<span class="qb-omr-number">(\d+)<\/span>(.*?)<\/div>/s', $html, $items, PREG_SET_ORDER);
+
+        expect(collect($items)->mapWithKeys(fn (array $item): array => [$item[1] => substr_count($item[2], 'qb-omr-bubble')])->all())
+            ->toBe([1 => 2, 2 => 3]);
+    });
+
+    it('is not offered for a paper with no mcq', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        $exam->questions()->where('question_type', 'mcq')->get()->each(fn (Question $question) => $exam->questions()->detach($question->id));
+
+        $this->get(route('filament.teacher.exams.print', $exam))->assertOk()->assertDontSee('OMR sheet');
+        $this->get(route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 'omr']))->assertNotFound();
+    });
 });

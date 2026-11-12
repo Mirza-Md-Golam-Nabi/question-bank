@@ -208,7 +208,7 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | `referral_rewards` | `referrer_id`, `payment_id` (unique), `amount`, `percent` (দেওয়ার মুহূর্তের শতাংশ), `matures_at`, `expires_at` (আর বসানো হয় না), `cancelled_at`, `payout_id` |
 | `student_referrals` | `student_id`, `referrer_id`, `source` (`code`/`link`/`exam`), `exam_id`, `starts_at`, `changeable_until` (নিজে লেখা কোড এই পর্যন্ত বদলানো যায়), `ends_at` — একজন student একবারে একটা চালু; শেষ হলে মোছা হয় না |
 | `subscription_members` | `subscription_id`, `email` (সদস্যের Google email; একাউন্ট খোলার আগেও যোগ করা যায়), `removed_at` — group plan-এর অন্য সদস্যরা; মোছা হয় না, শুধু চিহ্নিত |
-| `institution_names` | `user_id` (Teacher বা School), `name`, `is_free` (প্রথম নাম — সবসময় ব্যবহারযোগ্য), `paid_until` (অতিরিক্ত নাম এই পর্যন্ত প্রিন্ট করা যায়), `renamed_at` (শেষ কবে বদলানো — এর পর Admin-এর দিন না গেলে আবার বদলানো যায় না) → [06-exams.md](06-exams.md#প্রতিষ্ঠানের-নাম-institutionnameservice) |
+| `institution_names` | `user_id` (Teacher বা School), `name`, `logo_path` (ঐচ্ছিক লোগো, public disk — নামের সাথেই প্রিন্ট হয়), `is_free` (প্রথম নাম — সবসময় ব্যবহারযোগ্য), `paid_until` (অতিরিক্ত নাম এই পর্যন্ত প্রিন্ট করা যায়), `renamed_at` (নাম বা লোগো শেষ কবে বদলানো — এর পর Admin-এর দিন না গেলে আবার বদলানো যায় না) → [06-exams.md](06-exams.md#প্রতিষ্ঠানের-নাম-institutionnameservice) |
 | `withdrawals` | `user_id` (Teacher বা Student), `amount`, `provider`, `account_number` (`encrypted`), `number_used_by_referred_buyer` (জালিয়াতির সংকেত), `status` (`requested`/`paid`/`rejected`), `processed_by`, `processed_at`, `transaction_id`, `note` |
 
 ### `payments`

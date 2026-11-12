@@ -6,9 +6,11 @@
 
     @var array<string, mixed> $printSettings
     @var \Illuminate\Support\Collection<int, string> $institutionNames  Usable names, by id.
+    @var \Illuminate\Support\Collection<int, string> $institutionLogos  Their logos' URLs, by id (only those with one).
     @var array{mcq: string, cq: string} $defaultInstructions
     @var bool $hasMcq
     @var bool $hasCq
+    @var bool $isOmrSheet
 --}}
 @php
     use App\Enums\Locale;
@@ -71,12 +73,35 @@
             <input type="range" min="14" max="48" data-setting="institution_font_size" data-type="int">
         </label>
 
+        {{-- A logo is added to a name on the "Institution names" page and printed with it. --}}
+        @if ($institutionLogos->isNotEmpty())
+            <label class="qb-print-switch">
+                <span>{{ __('Logo') }}</span>
+                <input type="checkbox" role="switch" data-setting="show_logo" data-type="bool">
+            </label>
+
+            <div class="qb-print-field" data-shown-with="show_logo">
+                <span>{{ __('Logo position') }}</span>
+                <div class="qb-print-choices">
+                    @foreach (['left' => __('Left'), 'above' => __('Above the name'), 'right' => __('Right side')] as $position => $label)
+                        <button type="button" @foreach ($choice('logo_position', $position) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>{{ $label }}</button>
+                    @endforeach
+                </div>
+            </div>
+
+            <label class="qb-print-field" data-shown-with="show_logo">
+                <span>{{ __('Logo size') }} <output data-output="logo_size" data-unit="mm"></output></span>
+                <input type="range" min="10" max="40" data-setting="logo_size" data-type="int">
+            </label>
+        @endif
+
         @foreach ([
             'show_exam_title' => __('Exam name'),
             'show_class' => __('Class name'),
             'show_subject' => __('Subject name'),
             'show_chapters' => __('Chapter names'),
             'show_instructions' => __('Instructions'),
+            'show_student_fields' => __('Lines for name and roll'),
         ] as $setting => $label)
             <label class="qb-print-switch">
                 <span>{{ $label }}</span>
@@ -94,6 +119,19 @@
             </label>
         @endforeach
     </section>
+
+    {{-- The OMR sheet's own setting --}}
+    @if ($isOmrSheet)
+        <section class="qb-print-settings-group">
+            <h3>{{ __('OMR sheet') }}</h3>
+
+            <label class="qb-print-field">
+                <span>{{ __('Digits in the roll number') }} <output data-output="omr_roll_digits" data-unit=""></output></span>
+                <input type="range" min="0" max="10" data-setting="omr_roll_digits" data-type="int">
+            </label>
+            <p class="text-xs text-gray-500">{{ __('0 = no roll number circles.') }}</p>
+        </section>
+    @endif
 
     {{-- The page --}}
     <section class="qb-print-settings-group">
@@ -119,6 +157,13 @@
                 @endforeach
             </div>
         </div>
+
+        @foreach (['header_text' => __('Text at the top of every page'), 'footer_text' => __('Text at the bottom of every page')] as $setting => $label)
+            <label class="qb-print-field">
+                <span>{{ $label }}</span>
+                <input type="text" maxlength="{{ PrintSettings::RUNNING_TEXT_MAX }}" data-setting="{{ $setting }}" data-type="text">
+            </label>
+        @endforeach
 
         <label class="qb-print-switch">
             <span>{{ __('Page numbers') }}</span>

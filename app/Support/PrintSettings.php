@@ -17,7 +17,10 @@ use Illuminate\Validation\ValidationException;
  *
  * `mcq_instructions` / `cq_instructions` null = the Admin's text
  * (BillingSetting.print_*_instructions). `institution_name_id` is only a
- * wish — the page prints it only while that name is usable.
+ * wish — the page prints it (and its logo) only while that name is usable.
+ * `header_text` / `footer_text` are printed small at the top / bottom of
+ * every page; `omr_roll_digits` is how many digits the OMR sheet's roll
+ * number has (0 = no roll grid).
  */
 final class PrintSettings
 {
@@ -28,6 +31,12 @@ final class PrintSettings
     public const TEXT_ALIGNS = ['left', 'center', 'right', 'justify'];
 
     public const PAGE_NUMBER_POSITIONS = ['center', 'right'];
+
+    /** Where the institution's logo sits: beside the name or above it. */
+    public const LOGO_POSITIONS = ['left', 'above', 'right'];
+
+    /** The longest running header/footer line (every page's top/bottom). */
+    public const RUNNING_TEXT_MAX = 120;
 
     /**
      * The fonts a paper can be printed in, by key — each loaded by the
@@ -48,11 +57,18 @@ final class PrintSettings
     public const DEFAULTS = [
         'institution_name_id' => null,
         'institution_font_size' => 26,
+        'show_logo' => true,
+        'logo_position' => 'left',
+        'logo_size' => 18,
         'show_exam_title' => true,
         'show_class' => true,
         'show_subject' => true,
         'show_chapters' => false,
         'show_instructions' => true,
+        'show_student_fields' => false,
+        'header_text' => null,
+        'footer_text' => null,
+        'omr_roll_digits' => 4,
         'mcq_instructions' => null,
         'cq_instructions' => null,
         'paper_size' => 'A4',
@@ -116,11 +132,18 @@ final class PrintSettings
         return [
             'institution_name_id' => ['nullable', 'integer'],
             'institution_font_size' => ['integer', 'between:14,48'],
+            'show_logo' => ['boolean'],
+            'logo_position' => [Rule::in(self::LOGO_POSITIONS)],
+            'logo_size' => ['integer', 'between:10,40'],
             'show_exam_title' => ['boolean'],
             'show_class' => ['boolean'],
             'show_subject' => ['boolean'],
             'show_chapters' => ['boolean'],
             'show_instructions' => ['boolean'],
+            'show_student_fields' => ['boolean'],
+            'header_text' => ['nullable', 'string', 'max:'.self::RUNNING_TEXT_MAX],
+            'footer_text' => ['nullable', 'string', 'max:'.self::RUNNING_TEXT_MAX],
+            'omr_roll_digits' => ['integer', 'between:0,10'],
             'mcq_instructions' => ['nullable', 'string', 'max:1000'],
             'cq_instructions' => ['nullable', 'string', 'max:1000'],
             'paper_size' => [Rule::in(self::PAPER_SIZES)],

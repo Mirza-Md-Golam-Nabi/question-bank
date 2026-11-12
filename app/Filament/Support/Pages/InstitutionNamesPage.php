@@ -14,6 +14,7 @@ use App\Models\Payment;
 use App\Services\InstitutionNameService;
 use App\Services\WalletService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -115,6 +116,53 @@ abstract class InstitutionNamesPage extends Page
                 $this->rescueWithNotification(fn () => $this->service()->rename(Auth::user(), $this->ownName($arguments), $data['name']), $action);
 
                 Notification::make()->title(__('Name saved'))->success()->send();
+            });
+    }
+
+    /**
+     * Puts in or replaces a name's logo — a change, like the name's own.
+     */
+    public function logoAction(): Action
+    {
+        return Action::make('logo')
+            ->label(fn (array $arguments): string => $this->ownName($arguments)->logo_path ? __('Change logo') : __('Add logo'))
+            ->icon(Heroicon::OutlinedPhoto)
+            ->size('sm')
+            ->color('gray')
+            ->modalHeading(fn (array $arguments): string => __('Logo of ":name"', ['name' => $this->ownName($arguments)->name]))
+            ->modalDescription(Locale::current()->writeDigits(__('Printed beside the name. Putting in or changing a logo counts as a change of the name: after it, neither can be changed again for :days days.', ['days' => $this->settings()->institution_name_change_days])))
+            ->schema([
+                FileUpload::make('logo')
+                    ->label(__('Logo'))
+                    ->image()
+                    ->maxSize(InstitutionNameService::LOGO_MAX_KB)
+                    ->disk('public')->visibility('public')
+                    ->directory(InstitutionNameService::LOGO_DIRECTORY)
+                    ->required(),
+            ])
+            ->action(function (array $data, array $arguments, Action $action): void {
+                $this->rescueWithNotification(fn () => $this->service()->changeLogo(Auth::user(), $this->ownName($arguments), $data['logo']), $action);
+
+                Notification::make()->title(__('Logo saved'))->success()->send();
+            });
+    }
+
+    public function removeLogoAction(): Action
+    {
+        return Action::make('removeLogo')
+            ->label(__('Remove logo'))
+            ->icon(Heroicon::OutlinedXMark)
+            ->size('sm')
+            ->color('gray')
+            ->requiresConfirmation()
+            ->action(function (array $arguments, Action $action): void {
+                $this->rescueWithNotification(function () use ($arguments): bool {
+                    $this->service()->removeLogo(Auth::user(), $this->ownName($arguments));
+
+                    return true;
+                }, $action);
+
+                Notification::make()->title(__('Logo removed'))->success()->send();
             });
     }
 

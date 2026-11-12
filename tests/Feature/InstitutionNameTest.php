@@ -17,6 +17,8 @@ use App\Services\WalletService;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 use function Pest\Livewire\livewire;
@@ -174,6 +176,65 @@ describe('an extra name', function () {
 
         expect(fn () => $this->names->requestRenewal(User::factory()->teacher()->create(), $name, ($this->paidBy)()))
             ->toThrow(ValidationException::class);
+    });
+});
+
+describe('the logo', function () {
+    beforeEach(function () {
+        Storage::fake('public');
+        $this->logo = fn (string $file = 'logo.png'): string => UploadedFile::fake()->image($file)->store(InstitutionNameService::LOGO_DIRECTORY, 'public');
+    });
+
+    it('is put in like a change of the name: not again before the admin\'s days', function () {
+        $name = $this->names->saveFreeName($this->teacher, 'Free School');
+        $first = ($this->logo)();
+
+        $this->names->changeLogo($this->teacher, $name, $first);
+        $second = ($this->logo)('other.png');
+
+        expect($name->refresh()->logoUrl())->toContain($first)
+            ->and(fn () => $this->names->changeLogo($this->teacher, $name, $second))->toThrow(ValidationException::class)
+            ->and(fn () => $this->names->rename($this->teacher, $name, 'Other School'))->toThrow(ValidationException::class);
+
+        // The refused file is not left behind.
+        Storage::disk('public')->assertMissing($second);
+
+        $this->travel(31)->days();
+        $third = ($this->logo)('third.png');
+        $this->names->changeLogo($this->teacher, $name, $third);
+
+        expect($name->refresh()->logo_path)->toBe($third);
+        Storage::disk('public')->assertMissing($first);
+    });
+
+    it('can be taken out at any time, with its file', function () {
+        $name = $this->names->saveFreeName($this->teacher, 'Free School');
+        $this->names->changeLogo($this->teacher, $name, $path = ($this->logo)());
+
+        $this->names->removeLogo($this->teacher, $name);
+
+        expect($name->refresh()->logo_path)->toBeNull();
+        Storage::disk('public')->assertMissing($path);
+    });
+
+    it('cannot be put on someone else\'s name', function () {
+        $name = $this->names->saveFreeName($this->teacher, 'Free School');
+
+        expect(fn () => $this->names->changeLogo(User::factory()->teacher()->create(), $name, ($this->logo)()))
+            ->toThrow(ValidationException::class);
+    });
+
+    it('is added from the page', function () {
+        $name = $this->names->saveFreeName($this->teacher, 'Free School');
+        $this->actingAs($this->teacher);
+        Filament::setCurrentPanel(Filament::getPanel('teacher'));
+
+        livewire(TeacherInstitutionNames::class)
+            ->callAction(TestAction::make('logo')->arguments(['name' => $name->id]), ['logo' => UploadedFile::fake()->image('logo.png')])
+            ->assertHasNoActionErrors()
+            ->assertNotified();
+
+        expect($name->refresh()->logo_path)->toStartWith(InstitutionNameService::LOGO_DIRECTORY.'/');
     });
 });
 

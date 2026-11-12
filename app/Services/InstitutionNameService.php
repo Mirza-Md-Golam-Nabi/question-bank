@@ -15,6 +15,7 @@ use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -29,7 +30,10 @@ use Illuminate\Validation\ValidationException;
  *    again adds the days to the end of what is left. Once the days run out
  *    only the free name can be printed, until it is paid for again;
  *  - a name can be changed once every `institution_name_change_days` —
- *    otherwise the free one could stand in for any number of names.
+ *    otherwise the free one could stand in for any number of names. Its
+ *    logo is printed beside it and can carry words too, so putting in or
+ *    replacing a logo is a change under the same limit; taking it out is
+ *    not.
  *
  * Paying goes through the same bKash/Nagad-and-Admin route as a
  * subscription (SubscriptionPurchaseService::placeManual()); the Admin's
@@ -38,6 +42,10 @@ use Illuminate\Validation\ValidationException;
 class InstitutionNameService
 {
     public const MAX_LENGTH = 150;
+
+    public const LOGO_MAX_KB = 512;
+
+    public const LOGO_DIRECTORY = 'institution-logos';
 
     public function __construct(
         private readonly SubscriptionPurchaseService $purchases,
@@ -167,6 +175,58 @@ class InstitutionNameService
     }
 
     /**
+     * Puts in or replaces the name's logo — a file already stored on the
+     * public disk (the upload field's). A change like a new name: not
+     * again before the Admin's days. A refused logo's file is deleted.
+     *
+     * @throws ValidationException
+     */
+    public function changeLogo(User $user, InstitutionName $institutionName, string $logoPath): InstitutionName
+    {
+        try {
+            $this->ensureOwns($user, $institutionName);
+
+            if ($next = $this->nextRenameAt($institutionName)) {
+                throw ValidationException::withMessages(['logo' => __('This name can be changed again on :date.', [
+                    'date' => $next->translatedFormat('j F Y'),
+                ])]);
+            }
+        } catch (ValidationException $exception) {
+            Storage::disk('public')->delete($logoPath);
+
+            throw $exception;
+        }
+
+        $old = $institutionName->logo_path;
+        $institutionName->update(['logo_path' => $logoPath, 'renamed_at' => now()]);
+
+        if ($old && $old !== $logoPath) {
+            Storage::disk('public')->delete($old);
+        }
+
+        Log::info('Institution logo changed.', ['institution_name_id' => $institutionName->id, 'user_id' => $user->id]);
+
+        return $institutionName;
+    }
+
+    /**
+     * Takes the logo out — at any time, it only makes the paper plainer.
+     *
+     * @throws ValidationException
+     */
+    public function removeLogo(User $user, InstitutionName $institutionName): void
+    {
+        $this->ensureOwns($user, $institutionName);
+
+        if ($institutionName->logo_path) {
+            Storage::disk('public')->delete($institutionName->logo_path);
+            $institutionName->update(['logo_path' => null]);
+
+            Log::info('Institution logo removed.', ['institution_name_id' => $institutionName->id, 'user_id' => $user->id]);
+        }
+    }
+
+    /**
      * Asks for one more name: the name is kept straight away (not usable
      * yet) and its payment waits for the Admin — unless wallet credit
      * covered it all, when it is usable at once.
@@ -219,6 +279,10 @@ class InstitutionNameService
 
         if (! $this->canDelete($institutionName)) {
             throw ValidationException::withMessages(['name' => __('Only an extra name that is not paid for now can be removed.')]);
+        }
+
+        if ($institutionName->logo_path) {
+            Storage::disk('public')->delete($institutionName->logo_path);
         }
 
         $institutionName->delete();

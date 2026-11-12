@@ -36,6 +36,7 @@
             --qb-question-gap: 8px;
             --qb-font-size: 14px;
             --qb-institution-size: 26px;
+            --qb-logo-size: 18mm;
             --qb-paper-width: 210mm;
             --qb-margin: 12mm 10mm;
 
@@ -56,6 +57,166 @@
             font-size: var(--qb-institution-size);
             font-weight: 700;
             line-height: 1.25;
+        }
+
+        /* The institution's logo beside its name (or above it). */
+        .qb-paper-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .qb-paper-brand[data-logo-position='above'] {
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .qb-paper-brand[data-logo-position='right'] {
+            flex-direction: row-reverse;
+        }
+
+        .qb-paper-logo {
+            height: var(--qb-logo-size);
+            width: auto;
+            max-width: 40mm;
+            object-fit: contain;
+        }
+
+        .qb-paper-student-fields {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 0.5rem;
+            text-align: start;
+        }
+
+        .qb-paper-student-fields span {
+            flex: 1;
+            border-bottom: 1px dotted #6b7280;
+        }
+
+        .qb-paper-student-fields span:first-child {
+            flex: 2.5;
+        }
+
+        /* Every page's running header/footer: printed by @page; a preview of it on screen. */
+        .qb-paper-running {
+            margin: -0.5rem 0 0.5rem;
+            border-bottom: 1px dashed #d1d5db;
+            color: #6b7280;
+            font-size: 10pt;
+            text-align: center;
+        }
+
+        .qb-paper-running[data-print-running='footer_text'] {
+            margin: 1rem 0 -0.5rem;
+            border-top: 1px dashed #d1d5db;
+            border-bottom: 0;
+            text-align: start;
+        }
+
+        /* The OMR answer sheet (teacher.partials.exam-omr-sheet). */
+        .qb-omr-top {
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-start;
+        }
+
+        .qb-omr-fields {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 0.9rem;
+            padding-top: 0.5rem;
+        }
+
+        .qb-omr-fields p {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .qb-omr-blank {
+            flex: 1;
+            border-bottom: 1px dotted #374151;
+        }
+
+        .qb-omr-roll {
+            padding: 0.4rem;
+            border: 1px solid #374151;
+            text-align: center;
+        }
+
+        .qb-omr-roll-title {
+            margin-bottom: 0.3rem;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .qb-omr-roll-grid {
+            display: flex;
+            gap: 0.2rem;
+        }
+
+        .qb-omr-roll-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.15rem;
+        }
+
+        .qb-omr-roll-box {
+            width: 1.5em;
+            height: 1.6em;
+            margin-bottom: 0.15rem;
+            border: 1px solid #374151;
+        }
+
+        .qb-omr-bubble {
+            display: inline-flex;
+            flex: none;
+            align-items: center;
+            justify-content: center;
+            width: 1.45em;
+            height: 1.45em;
+            border: 1px solid #374151;
+            border-radius: 9999px;
+            font-size: 0.75em;
+            line-height: 1;
+        }
+
+        .qb-omr-instructions {
+            margin: 0.75rem 0;
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #9ca3af;
+            font-size: 0.85em;
+        }
+
+        .qb-omr-answers {
+            display: grid;
+            grid-auto-flow: column;
+            grid-template-columns: repeat(var(--qb-omr-columns), minmax(0, 1fr));
+            grid-template-rows: repeat(var(--qb-omr-rows), auto);
+            column-gap: 1rem;
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #374151;
+        }
+
+        .qb-omr-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0;
+            break-inside: avoid;
+        }
+
+        .qb-omr-item--fifth {
+            border-bottom: 1px solid #9ca3af;
+        }
+
+        .qb-omr-number {
+            min-width: 2em;
+            font-weight: 600;
+            text-align: end;
         }
 
         [data-print-part='class']:not([hidden]) + [data-print-part='subject']:not([hidden])::before {
@@ -259,7 +420,7 @@
             font-weight: 500;
         }
 
-        .qb-print-field :is(select, textarea, input[type='number']) {
+        .qb-print-field :is(select, textarea, input[type='number'], input[type='text']) {
             width: 100%;
             padding: 0.375rem 0.5rem;
             border: 1px solid #d1d5db;
@@ -409,6 +570,11 @@
                 box-shadow: none !important;
             }
 
+            /* @page prints the running header/footer on every page. */
+            .qb-paper-running {
+                display: none !important;
+            }
+
             /* Printed in black; the tick alone marks the right answer. */
             .qb-question-option--correct {
                 color: #000 !important;
@@ -417,7 +583,7 @@
     </style>
 </head>
 <body class="qb-print-page font-bangla bg-gray-100 min-h-screen">
-    @include('teacher.partials.print-settings-panel', compact('printSettings', 'institutionNames', 'defaultInstructions', 'hasMcq', 'hasCq'))
+    @include('teacher.partials.print-settings-panel', compact('printSettings', 'institutionNames', 'defaultInstructions', 'hasMcq', 'hasCq', 'isOmrSheet', 'institutionLogos'))
 
     <div class="qb-print-main">
         <div class="qb-no-print sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-3">
@@ -433,11 +599,13 @@
                 </button>
 
                 {{-- The other forms of this paper: not the one on screen, and no
-                     answer key for a CQ-only paper (CQ has no answers to list). --}}
+                     answer key or OMR sheet for a CQ-only paper (CQ has no
+                     answers to list or fill in). --}}
                 @foreach ([
-                    ['answers' => null, 'label' => __('Questions only'), 'hidden' => ! $showAnswers && ! $isAnswerKey],
+                    ['answers' => null, 'label' => __('Questions only'), 'hidden' => ! $showAnswers && ! $isAnswerKey && ! $isOmrSheet],
                     ['answers' => 1, 'label' => __('With answers'), 'hidden' => $showAnswers],
                     ['answers' => 'key', 'label' => __('Answer key only'), 'hidden' => $isAnswerKey || ! $hasMcq],
+                    ['answers' => 'omr', 'label' => __('OMR sheet'), 'hidden' => $isOmrSheet || ! $hasMcq],
                 ] as $copy)
                     @unless ($copy['hidden'])
                         <a href="{{ CurrentPanel::route('exams.print', array_filter(['exam' => $exam, 'answers' => $copy['answers']])) }}"
@@ -465,8 +633,13 @@
         </div>
 
         <main class="qb-paper mx-auto my-6 bg-white shadow">
+            <p class="qb-paper-running" data-print-running="header_text" hidden></p>
+
             <header class="mb-4 border-b border-gray-300 pb-3 text-center">
-                <p class="qb-paper-institution" data-print-institution hidden></p>
+                <div class="qb-paper-brand" data-print-brand>
+                    <img class="qb-paper-logo" data-print-logo alt="" hidden>
+                    <p class="qb-paper-institution" data-print-institution hidden></p>
+                </div>
 
                 <h1 class="text-[1.25em] font-bold" data-print-part="exam_title" data-editable="title">{{ $exam->title }}</h1>
 
@@ -492,11 +665,22 @@
                     <p class="mt-2 text-[0.9em] font-semibold">{{ __('Answer copy — for the teacher') }}</p>
                 @elseif ($isAnswerKey)
                     <p class="mt-2 text-[0.9em] font-semibold">{{ __('Answer key') }}</p>
+                @elseif ($isOmrSheet)
+                    <p class="mt-2 text-[0.9em] font-semibold">{{ __('OMR answer sheet') }}</p>
+                @else
+                    {{-- Where the student writes who they are, on the question paper itself. --}}
+                    <p class="qb-paper-student-fields text-[0.9em]" data-print-part="student_fields">
+                        <span>{{ __('Name') }}:</span>
+                        <span>{{ __('Roll') }}:</span>
+                        <span>{{ __('Section') }}:</span>
+                    </p>
                 @endif
             </header>
 
             @if ($isAnswerKey)
                 @include('teacher.partials.exam-answer-key', ['mcqQuestions' => $mcqQuestions])
+            @elseif ($isOmrSheet)
+                @include('teacher.partials.exam-omr-sheet', ['mcqQuestions' => $mcqQuestions])
             @else
                 @if ($hasMcq)
                     <section class="mb-6">
@@ -547,6 +731,8 @@
                     </section>
                 @endif
             @endif
+
+            <p class="qb-paper-running" data-print-running="footer_text" hidden></p>
         </main>
     </div>
 
@@ -556,6 +742,7 @@
             'editsKey' => 'qb-print-edits:'.$exam->id,
             'saveUrl' => CurrentPanel::route('exams.print-settings'),
             'institutionNames' => $institutionNames,
+            'institutionLogos' => $institutionLogos,
             'defaultInstructions' => ['mcq_instructions' => $defaultInstructions['mcq'], 'cq_instructions' => $defaultInstructions['cq']],
             'fonts' => collect(PrintSettings::FONTS)->map(fn (array $font): string => $font['family']),
             'pageNumberStyle' => app()->getLocale() === 'bn' ? 'bengali' : 'decimal',

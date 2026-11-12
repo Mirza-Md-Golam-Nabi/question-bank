@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\QuestionType;
 use App\Models\BillingSetting;
 use App\Models\Exam;
+use App\Models\InstitutionName;
 use App\Models\Question;
 use App\Services\InstitutionNameService;
 use App\Support\PrintSettings;
@@ -17,12 +18,15 @@ use Illuminate\View\View;
 /**
  * The printable question paper for an offline exam (CLAUDE.md rule 10) —
  * a plain page the teacher turns into a PDF with the browser's own
- * Print → "Save as PDF", in three forms: "questions only", "with answers"
- * (`?answers=1`) and the answer key alone (`?answers=key` — a table of MCQ
- * numbers and the letters of their right options; CQ has no answers).
+ * Print → "Save as PDF", in four forms: "questions only", "with answers"
+ * (`?answers=1`), the answer key alone (`?answers=key` — a table of MCQ
+ * numbers and the letters of their right options; CQ has no answers) and
+ * an OMR answer sheet for the students (`?answers=omr` — a circle per
+ * option of every MCQ, and a roll number grid).
  * The same for an exam made of a past paper, whose questions are the
  * paper's. Laid out by the user's own print settings (PrintSettings), with
- * one of their usable institution names on top (InstitutionNameService).
+ * one of their usable institution names (and its logo) on top
+ * (InstitutionNameService).
  * Registered inside the Teacher and School panels' authenticated routes.
  */
 class TeacherExamPrintController extends Controller
@@ -39,10 +43,12 @@ class TeacherExamPrintController extends Controller
         $questionsByType = $questions->groupBy(fn (Model $question) => $question->question_type->value);
         $mcqQuestions = $questionsByType->get(QuestionType::Mcq->value, collect());
         $isAnswerKey = $request->query('answers') === 'key';
+        $isOmrSheet = $request->query('answers') === 'omr';
 
-        abort_if($isAnswerKey && $mcqQuestions->isEmpty(), 404);
+        abort_if(($isAnswerKey || $isOmrSheet) && $mcqQuestions->isEmpty(), 404);
 
         $settings = BillingSetting::current();
+        $usableNames = $institutionNames->usableNamesFor($request->user());
 
         return view('teacher.exam-print', [
             'exam' => $exam,
@@ -50,9 +56,11 @@ class TeacherExamPrintController extends Controller
             'cqQuestions' => $questionsByType->get(QuestionType::Cq->value, collect()),
             'totalMarks' => $exam->marksOf($questions),
             'isAnswerKey' => $isAnswerKey,
-            'showAnswers' => ! $isAnswerKey && $request->boolean('answers'),
+            'isOmrSheet' => $isOmrSheet,
+            'showAnswers' => ! $isAnswerKey && ! $isOmrSheet && $request->boolean('answers'),
             'printSettings' => PrintSettings::for($request->user()),
-            'institutionNames' => $institutionNames->usableNamesFor($request->user())->pluck('name', 'id'),
+            'institutionNames' => $usableNames->pluck('name', 'id'),
+            'institutionLogos' => $usableNames->filter->logo_path->mapWithKeys(fn (InstitutionName $name): array => [$name->id => $name->logoUrl()]),
             'defaultInstructions' => [
                 'mcq' => (string) $settings->print_mcq_instructions,
                 'cq' => (string) $settings->print_cq_instructions,

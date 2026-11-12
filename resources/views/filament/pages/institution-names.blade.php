@@ -44,7 +44,14 @@
                         $isWaiting = $institutionName->payments->contains(fn ($payment) => $payment->isPending());
                     @endphp
                     <tr>
-                        <td class="font-medium">{{ $institutionName->name }}</td>
+                        <td class="font-medium">
+                            <span class="flex items-center gap-3">
+                                @if ($institutionName->logo_path)
+                                    <img src="{{ $institutionName->logoUrl() }}" alt="" class="h-10 w-10 flex-none rounded object-contain ring-1 ring-gray-200">
+                                @endif
+                                {{ $institutionName->name }}
+                            </span>
+                        </td>
                         <td>
                             @if ($institutionName->is_free)
                                 <x-filament::badge color="success">{{ __('Free') }}</x-filament::badge>
@@ -67,7 +74,12 @@
                                 {{-- A button rendered with arguments doesn't check its own visibility. --}}
                                 @unless ($nextRenameAt)
                                     {{ ($this->renameAction)(['name' => $institutionName->id]) }}
+                                    {{ ($this->logoAction)(['name' => $institutionName->id]) }}
                                 @endunless
+
+                                @if ($institutionName->logo_path)
+                                    {{ ($this->removeLogoAction)(['name' => $institutionName->id]) }}
+                                @endif
 
                                 @if (! $institutionName->is_free && $this->isOnSale() && ! $pendingPayment)
                                     {{ ($this->renewAction)(['name' => $institutionName->id]) }}

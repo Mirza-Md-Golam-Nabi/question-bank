@@ -9,6 +9,9 @@
 const PAPER_WIDTHS_MM = { A4: 210, Letter: 215.9, Legal: 215.9, A5: 148 };
 const SAVE_DELAY_MS = 600;
 
+// A string as a CSS string literal, for the @page margin boxes' `content`.
+const cssString = (text) => `"${String(text).replace(/[\\"]/g, '\\$&').replace(/\s+/g, ' ').trim()}"`;
+
 const dataElement = document.getElementById('qb-print-settings-data');
 
 if (dataElement) {
@@ -60,7 +63,7 @@ if (dataElement) {
         }
 
         for (const output of document.querySelectorAll('[data-output]')) {
-            output.textContent = `${settings[output.dataset.output]}px`;
+            output.textContent = `${settings[output.dataset.output]}${output.dataset.unit ?? 'px'}`;
         }
 
         for (const field of document.querySelectorAll('[data-shown-with]')) {
@@ -78,6 +81,7 @@ if (dataElement) {
         style.setProperty('--qb-font-size', `${settings.font_size}px`);
         style.setProperty('--qb-font-family', data.fonts[settings.font] ?? 'inherit');
         style.setProperty('--qb-institution-size', `${settings.institution_font_size}px`);
+        style.setProperty('--qb-logo-size', `${settings.logo_size}mm`);
         style.setProperty('--qb-text-align', settings.text_align);
         style.setProperty('--qb-paper-width', `${PAPER_WIDTHS_MM[settings.paper_size] ?? 210}mm`);
         style.setProperty('--qb-margin', margin);
@@ -100,10 +104,33 @@ if (dataElement) {
         institution.textContent = name;
         institution.hidden = name === '';
 
-        const pageNumber = settings.page_numbers
-            ? ` @bottom-${settings.page_number_position} { content: counter(page, ${data.pageNumberStyle}); font-size: 10pt; }`
-            : '';
-        pageRule.textContent = `@page { size: ${settings.paper_size}; margin: ${margin};${pageNumber} }`;
+        // The logo goes with its name: never without it.
+        const logo = paper.querySelector('[data-print-logo]');
+        const logoUrl = name !== '' && settings.show_logo ? (data.institutionLogos?.[settings.institution_name_id] ?? '') : '';
+        if (logoUrl !== '' && logo.getAttribute('src') !== logoUrl) {
+            logo.src = logoUrl;
+        }
+        logo.hidden = logoUrl === '';
+        paper.querySelector('[data-print-brand]').dataset.logoPosition = settings.logo_position;
+
+        for (const running of paper.querySelectorAll('[data-print-running]')) {
+            running.textContent = settings[running.dataset.printRunning] ?? '';
+            running.hidden = running.textContent.trim() === '';
+        }
+
+        const roll = paper.querySelector('[data-omr-roll]');
+        if (roll) {
+            roll.hidden = settings.omr_roll_digits === 0;
+            for (const column of roll.querySelectorAll('[data-omr-roll-column]')) {
+                column.hidden = Number(column.dataset.omrRollColumn) >= settings.omr_roll_digits;
+            }
+        }
+
+        const marginBox = (position, content) => ` @${position} { content: ${content}; font-size: 9pt; color: #4b5563; font-family: ${data.fonts[settings.font] ?? 'inherit'}; }`;
+        const pageNumber = settings.page_numbers ? marginBox(`bottom-${settings.page_number_position}`, `counter(page, ${data.pageNumberStyle})`) : '';
+        const header = (settings.header_text ?? '').trim() !== '' ? marginBox('top-center', cssString(settings.header_text)) : '';
+        const footer = (settings.footer_text ?? '').trim() !== '' ? marginBox('bottom-left', cssString(settings.footer_text)) : '';
+        pageRule.textContent = `@page { size: ${settings.paper_size}; margin: ${margin};${pageNumber}${header}${footer} }`;
 
         fitToScreen();
     };
@@ -144,8 +171,14 @@ if (dataElement) {
 
     const change = (key, value) => {
         // An instruction left as the Admin's text stays "the Admin's", so a
-        // later change of it reaches this paper too.
-        settings[key] = key.endsWith('_instructions') && value === data.defaultInstructions[key] ? null : value;
+        // later change of it reaches this paper too; an emptied running line is none.
+        if (key.endsWith('_instructions')) {
+            settings[key] = value === data.defaultInstructions[key] ? null : value;
+        } else if (key === 'header_text' || key === 'footer_text') {
+            settings[key] = value === '' ? null : value;
+        } else {
+            settings[key] = value;
+        }
 
         showControls();
         applyToPaper();

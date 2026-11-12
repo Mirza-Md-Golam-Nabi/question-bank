@@ -10,14 +10,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * A school/coaching name a Teacher or School prints at the top of a
  * question paper. The first one is free and always usable; every other
- * one only while it is paid for (`paid_until`). Changed, added and paid
- * for only through InstitutionNameService.
+ * one only while it is paid for (`paid_until`). Its optional logo is
+ * printed beside it, so only while the name can be. Changed, added and
+ * paid for only through InstitutionNameService.
  */
-#[Fillable(['user_id', 'name', 'is_free', 'paid_until', 'renamed_at'])]
+#[Fillable(['user_id', 'name', 'logo_path', 'is_free', 'paid_until', 'renamed_at'])]
 class InstitutionName extends Model
 {
     /** @use HasFactory<InstitutionNameFactory> */
@@ -40,6 +42,11 @@ class InstitutionName extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null;
     }
 
     /**

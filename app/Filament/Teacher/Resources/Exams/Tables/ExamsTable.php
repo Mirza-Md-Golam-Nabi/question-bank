@@ -401,6 +401,14 @@ class ExamsTable
                         ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
                         ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', ['exam' => $record, 'answers' => 'key']))
                         ->openUrlInNewTab(),
+                    // A bubble sheet for the students to answer the MCQ on.
+                    Action::make('printOmrSheet')
+                        ->label(__('Print OMR sheet'))
+                        ->color('gray')
+                        ->icon('heroicon-o-table-cells')
+                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
+                        ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', ['exam' => $record, 'answers' => 'omr']))
+                        ->openUrlInNewTab(),
                     // Editing works like creating: the exam opens in the question
                     // picker with its questions already selected. Gone once a
                     // student has started it — the paper they sat must not change
