@@ -154,6 +154,29 @@ Self-practice-এ উত্তর সাথে সাথে দেখায়�
 
  PDF বানানো হয় ব্রাউজারের Print → "Save as PDF" দিয়ে; সার্ভারে PDF বানানো হয় না (বাংলা যুক্তাক্ষর ও সূত্র ভাঙে, সার্ভারে চাপ পড়ে)। শুধু পরীক্ষার মালিক দেখতে পারে।
 
+### প্রিন্টের সেটিংস
+
+পেজের পাশে "সেটিংস" প্যানেল (বড় স্ক্রিনে বাঁ পাশে সবসময়, ফোনে ⚙ বাটনে ড্রয়ার)। যা বদলানো হয় তা সাথে সাথে পাতায় দেখা যায় আর একটু পরে user-এর একাউন্টে সেভ হয় (`users.print_settings`, `POST …/exams/print-settings`), তাই পরের প্রতিটা পরীক্ষা ও যেকোনো ডিভাইসে একই রূপ। পাতা নিজের আসল মাপেই থাকে; ছোট স্ক্রিনে ছোট করে (zoom) দেখায়, যাতে কলাম কাগজের মতোই দেখা যায়।
+
+| ভাগ | সেটিং |
+|---|---|
+| প্রশ্নের হেডার | প্রতিষ্ঠানের নাম (user-এর ব্যবহারযোগ্য নামগুলো থেকে, বা "প্রিন্ট করবেন না"; আগে না বাছলে প্রথম নামটা) ও তার আকার; পরীক্ষা/শ্রেণি/বিষয়/অধ্যায়ের নাম ও নির্দেশনা অন/অফ; MCQ ও CQ অংশের নির্দেশনা — Admin-এর লেখা (`BillingSetting.print_mcq_instructions`/`print_cq_instructions`), user বদলাতে বা "ডিফল্ট লেখায়" ফেরাতে পারেন |
+| পৃষ্ঠা | পেপার সাইজ (A4/Letter/Legal/A5), চার দিকের মার্জিন (মিমি), পৃষ্ঠা নম্বর (মাঝে/ডানে, বাংলা পাতায় বাংলা অঙ্কে) — সব `@page` দিয়ে |
+| লেখা | ফন্ট (Hind Siliguri, Noto Sans/Serif Bengali, Tiro Bangla), ফন্ট সাইজ, সারিবদ্ধতা, অপশনের চিহ্ন ((ক) / ⓚ / ক. / ক)), এক সারিতে ১/২/৪টা অপশন |
+| কলাম | MCQ অংশ ১/২/৩ কলামে (ওপর থেকে নিচে পড়ে পরের কলামে), কলামের মাঝে দাগ, প্রশ্নের নিচের ও কলামের মাঝের ফাঁকা জায়গা। একটা প্রশ্ন দুই কলামে ভাগ হয় না। **CQ সবসময় এক কলামে।** |
+
+সেটিংগুলোর তালিকা, শুরুর মান আর সীমা শুধু `App\Support\PrintSettings`-এ (সীমার বাইরের পুরনো মান ডিফল্টে ফেরে); পাতায় লাগায় `resources/js/print-settings.js`। প্রশ্ন নম্বর, সময় ও পূর্ণমান পাতার ভাষার অঙ্কে।
+
+### প্রতিষ্ঠানের নাম (`InstitutionNameService`)
+
+Teacher ও School প্যানেলের "প্রতিষ্ঠানের নাম" পেজ (`Support\Pages\InstitutionNamesPage`):
+
+- **প্রথম নামটা ফ্রি**, সবসময় প্রিন্ট করা যায়। School-এর প্রথম নাম নিজে থেকেই প্রোফাইলের স্কুলের নাম; School চাইলে বদলাতে পারে।
+- **প্রতিটা নাম বদলানো যায় Admin-এর দিনে একবার** (`BillingSetting.institution_name_change_days`, ডিফল্ট ৩০) — নইলে ফ্রি নামটা বারবার বদলে অনেক প্রতিষ্ঠানের নাম চালানো যেত।
+- **অতিরিক্ত নাম টাকা দিয়ে, নির্দিষ্ট মেয়াদের জন্য:** দাম ও দিন Admin-এর (`institution_name_price`, `institution_name_days`; দাম ০ = বিক্রি বন্ধ), সবার জন্য একই। Subscription কেনার মতোই bKash/Nagad-এর transaction ID দিয়ে, Admin "পেমেন্ট" তালিকা থেকে approve করেন (Teacher wallet-এর টাকাও দিতে পারেন; wallet-এ পুরোটা হলে সাথে সাথে চালু)। পেমেন্ট `payments.type = institution_name`, কোন নাম `institution_name_id`, কত দিন `period_days` (চাওয়ার মুহূর্তের সংখ্যা)। refund, referral ছাড় বা কমিশন নেই; subscription-এর "প্রথম কেনা"/"পেইড গ্রাহক"-এ গোনা হয় না (`Payment::scopeForSubscriptions()`)।
+- মেয়াদ থাকতেই আবার টাকা দিলে নতুন দিন আগের মেয়াদের শেষে যোগ হয়। **মেয়াদ শেষ হলে নামটা প্রিন্টের তালিকা থেকে চলে যায়**, আবার টাকা না দেওয়া পর্যন্ত শুধু প্রথমটা — কোনো job ছাড়া, দেখানোর মুহূর্তে হিসাব (`InstitutionName::isUsable()`)। যে অতিরিক্ত নামের এখন মেয়াদ নেই ও কোনো পেমেন্ট অপেক্ষায় নেই, সেটা মোছা যায়।
+- একসাথে একটাই পেমেন্ট অপেক্ষায় থাকতে পারে (subscription-এর সাথে মিলিয়ে)।
+
 ## কোড ও টেস্ট
 
 | কী | কোথায় |
@@ -167,9 +190,10 @@ Self-practice-এ উত্তর সাথে সাথে দেখায়�
 | Guest | `app/Http/Controllers/GuestExamController.php`, `StudentSharedExamController.php` |
 | Student-এর পেজ | `app/Filament/Student/Pages/TakeExamPage.php`, `ExamResultPage.php`, `MyResults.php`, `JoinExam.php` |
 | ফলাফল | `app/Services/ExamResultSheet.php` |
-| প্রিন্ট | `app/Http/Controllers/TeacherExamPrintController.php`, `TeacherExamResultsPrintController.php` |
+| প্রিন্ট | `app/Http/Controllers/TeacherExamPrintController.php`, `TeacherExamResultsPrintController.php`; সেটিংস `app/Support/PrintSettings.php`, `PrintSettingsController.php`, `resources/views/teacher/partials/print-settings-panel.blade.php`, `resources/js/print-settings.js` |
+| প্রতিষ্ঠানের নাম | `app/Services/InstitutionNameService.php`, `app/Models/InstitutionName.php`, পেজ `app/Filament/Support/Pages/InstitutionNamesPage.php` |
 
-টেস্ট: `TeacherSelectQuestionsTest`, `TeacherExamResourceTest`, `TeacherOwnPendingQuestionsOnExamTest`, `TeacherQuestionStatsTest`, `ExamModelTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `GuestExamFlowTest`, `StudentExamFlowTest`, `TeacherExamResultsTest`, `TeacherExamPrintTest`, `ExamRepeatTest`, `QueryCountTest`, `SubscriptionPlanConditionsTest`।
+টেস্ট: `TeacherSelectQuestionsTest`, `TeacherExamResourceTest`, `TeacherOwnPendingQuestionsOnExamTest`, `TeacherQuestionStatsTest`, `ExamModelTest`, `ExamAttemptGradingTest`, `ExamAnswerReleaseTest`, `GuestExamFlowTest`, `StudentExamFlowTest`, `TeacherExamResultsTest`, `TeacherExamPrintTest`, `InstitutionNameTest`, `ExamRepeatTest`, `QueryCountTest`, `SubscriptionPlanConditionsTest`।
 
 ## জানা ফাঁক
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\MobileBankingProvider;
 use App\Enums\PaymentGateway;
 use App\Enums\PaymentStatus;
+use App\Enums\PaymentType;
 use App\Enums\PlanChangeRefundMethod;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
@@ -114,7 +115,60 @@ class SubscriptionPurchaseService
         $selections = $plan->planConditions()->resolveSelections($details);
 
         $payment = DB::transaction(function () use ($user, $plan, $details, $selections): Payment {
-            // Serialises this user's purchases: the pending check and the
+            $payment = $this->placeManual(
+                $user,
+                fn (bool $useWallet): array => $this->quote($user, $plan, $useWallet),
+                $details,
+                function () use ($user, $plan, $selections): array {
+                    // Who referred the buyer at this moment stays with the
+                    // payment: a student's referrer can change before it is
+                    // approved.
+                    $referral = $this->referrals->referralFor($user);
+
+                    return [
+                        'plan_id' => $plan->id,
+                        'referrer_id' => $referral['referrer']->id ?? null,
+                        'student_referral_id' => $referral['student_referral']->id ?? null,
+                        'selections' => $selections,
+                    ];
+                },
+            );
+
+            $user->followPickedClass($selections);
+
+            return $payment;
+        });
+
+        if ($payment->amount <= 0) {
+            $this->approve($payment);
+        }
+
+        $payment->refresh();
+        $this->notifications->placed($payment);
+
+        return $payment;
+    }
+
+    /**
+     * The part of asking for something that every paid item shares: one
+     * payment at a time per user, wallet credit taken straight away (so it
+     * can't be spent twice while the Admin is still checking), the
+     * bKash/Nagad details checked when anything is left to send, and the
+     * OTP for spending credit. What the payment is for comes from
+     * `$attributes` (a plan, an institution name…), read under the same
+     * lock. The caller approves it at once when nothing is left to pay,
+     * and says so to whoever should know.
+     *
+     * @param  Closure(bool): array{list_price: float, discount: float, wallet: float, payable: float}  $quote  What it costs, with or without wallet credit.
+     * @param  array{use_wallet?: bool, otp_code?: ?string, payer_provider?: MobileBankingProvider|string|null, payer_number?: ?string, transaction_id?: ?string}  $details
+     * @param  Closure(): array<string, mixed>  $attributes
+     *
+     * @throws ValidationException
+     */
+    public function placeManual(User $user, Closure $quote, array $details, Closure $attributes): Payment
+    {
+        return DB::transaction(function () use ($user, $quote, $details, $attributes): Payment {
+            // Serialises this user's payments: the pending check and the
             // wallet balance below are read under the lock.
             User::whereKey($user->id)->lockForUpdate()->first();
 
@@ -124,7 +178,7 @@ class SubscriptionPurchaseService
                 ]);
             }
 
-            $quote = $this->quote($user, $plan, (bool) ($details['use_wallet'] ?? false));
+            $quote = $quote((bool) ($details['use_wallet'] ?? false));
 
             $payerNumber = User::normalizePhone($details['payer_number'] ?? null);
             $transactionId = trim((string) ($details['transaction_id'] ?? ''));
@@ -141,16 +195,9 @@ class SubscriptionPurchaseService
                 ]);
             }
 
-            // Who referred the buyer at this moment stays with the payment:
-            // a student's referrer can change before it is approved.
-            $referral = $this->referrals->referralFor($user);
-
             $payment = Payment::create([
+                ...$attributes(),
                 'user_id' => $user->id,
-                'plan_id' => $plan->id,
-                'referrer_id' => $referral['referrer']->id ?? null,
-                'student_referral_id' => $referral['student_referral']->id ?? null,
-                'selections' => $selections,
                 'list_price' => $quote['list_price'],
                 'discount_amount' => $quote['discount'],
                 'wallet_amount' => $quote['wallet'],
@@ -166,26 +213,17 @@ class SubscriptionPurchaseService
                 $this->wallet->debit($user, $quote['wallet'], WalletTransactionType::Purchase, $payment);
             }
 
-            $user->followPickedClass($selections);
-
-            Log::info('Subscription purchase requested.', [
+            Log::info('Payment requested.', [
                 'payment_id' => $payment->id,
                 'user_id' => $user->id,
-                'plan_id' => $plan->id,
+                'type' => $payment->type->value,
+                'plan_id' => $payment->plan_id,
+                'institution_name_id' => $payment->institution_name_id,
                 ...$quote,
             ]);
 
             return $payment;
         });
-
-        if ($payment->amount <= 0) {
-            $this->approve($payment);
-        }
-
-        $payment->refresh();
-        $this->notifications->placed($payment);
-
-        return $payment;
     }
 
     /**
@@ -208,10 +246,14 @@ class SubscriptionPurchaseService
             return $this->changes->approve($payment, $reviewer, $refundMethod);
         }
 
+        if ($payment->isForInstitutionName()) {
+            return app(InstitutionNameService::class)->approve($payment, $reviewer);
+        }
+
         return $this->thenNotify($payment, fn (Payment $payment) => $this->notifications->approved($payment), DB::transaction(function () use ($payment, $reviewer): bool {
             $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
 
-            if (! $payment?->isPending() || ! $payment->plan || $payment->isPlanChange()) {
+            if (! $payment?->isPending() || ! $payment->plan || $payment->type !== PaymentType::Purchase) {
                 return false;
             }
 

@@ -37,6 +37,7 @@ boards ── board_question_papers ─┬─ board_mcq_questions
 | `referral_code` (unique, nullable) | নিজের কোড; প্রথমবার চাওয়ার সময় তৈরি হয় |
 | `referred_by_id` → `users` | Teacher-কে যে refer করেছে (স্থায়ী); student-এর referrer `student_referrals`-এ |
 | `academic_class_id` → `academic_classes` (nullable) | Student-এর শ্রেণি; self-practice ও কেনার শুরু এখান থেকে |
+| `print_settings` (JSON, nullable) | Teacher/School-এর প্রশ্নপত্র প্রিন্টের সেটিং (কলাম, পেপার সাইজ, ফন্ট…); ফাঁকা = ডিফল্ট — তালিকা `App\Support\PrintSettings` → [06-exams.md](06-exams.md#প্রিন্টের-সেটিংস) |
 
 Role-এর নাম `spatie/laravel-permission`-এর টেবিলেও (`roles`, `model_has_roles` ইত্যাদি) থাকে; `RoleSeeder` সেগুলো তৈরি করে।
 
@@ -207,6 +208,7 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | `referral_rewards` | `referrer_id`, `payment_id` (unique), `amount`, `percent` (দেওয়ার মুহূর্তের শতাংশ), `matures_at`, `expires_at` (আর বসানো হয় না), `cancelled_at`, `payout_id` |
 | `student_referrals` | `student_id`, `referrer_id`, `source` (`code`/`link`/`exam`), `exam_id`, `starts_at`, `changeable_until` (নিজে লেখা কোড এই পর্যন্ত বদলানো যায়), `ends_at` — একজন student একবারে একটা চালু; শেষ হলে মোছা হয় না |
 | `subscription_members` | `subscription_id`, `email` (সদস্যের Google email; একাউন্ট খোলার আগেও যোগ করা যায়), `removed_at` — group plan-এর অন্য সদস্যরা; মোছা হয় না, শুধু চিহ্নিত |
+| `institution_names` | `user_id` (Teacher বা School), `name`, `is_free` (প্রথম নাম — সবসময় ব্যবহারযোগ্য), `paid_until` (অতিরিক্ত নাম এই পর্যন্ত প্রিন্ট করা যায়), `renamed_at` (শেষ কবে বদলানো — এর পর Admin-এর দিন না গেলে আবার বদলানো যায় না) → [06-exams.md](06-exams.md#প্রতিষ্ঠানের-নাম-institutionnameservice) |
 | `withdrawals` | `user_id` (Teacher বা Student), `amount`, `provider`, `account_number` (`encrypted`), `number_used_by_referred_buyer` (জালিয়াতির সংকেত), `status` (`requested`/`paid`/`rejected`), `processed_by`, `processed_at`, `transaction_id`, `note` |
 
 ### `payments`
@@ -214,8 +216,9 @@ School প্রতিবার স্কুলের software-এর রেজ�
 | কলাম | টীকা |
 |---|---|
 | `user_id`, `plan_id`, `subscription_id` | |
-| `type` | `purchase` (কেনা/দেওয়া) বা `plan_change` (চালু subscription অন্য plan-এ — `subscription_id` সেই subscription) |
+| `type` | `purchase` (কেনা/দেওয়া), `plan_change` (চালু subscription অন্য plan-এ — `subscription_id` সেই subscription) বা `institution_name` (প্রশ্নপত্রে অতিরিক্ত প্রতিষ্ঠানের নাম) |
 | `previous_plan_id` | plan বদলে আগের plan |
+| `institution_name_id`, `period_days` | `institution_name` পেমেন্টে: কোন নাম, আর approve হলে কত দিন যোগ হবে (চাওয়ার মুহূর্তের Admin-এর সংখ্যা) |
 | `refund_amount`, `refund_method` | কম দামের plan-এ বদলে কত ফেরত (চার্জ কেটে), আর Admin কীভাবে দিলেন (`wallet` / `mobile_banking`) |
 | `referrer_id`, `student_referral_id` | কেনার মুহূর্তে ক্রেতার referrer (ও student হলে কোন referral-এর অধীনে) — reward ও রিপোর্ট এখান থেকে |
 | `selections` | কেনার সময় ক্রেতা যে শ্রেণি/বিষয় বেছেছে; approve হলে subscription-এ যায় |

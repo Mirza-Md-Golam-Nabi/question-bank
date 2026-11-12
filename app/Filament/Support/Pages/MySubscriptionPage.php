@@ -2,11 +2,12 @@
 
 namespace App\Filament\Support\Pages;
 
-use App\Enums\MobileBankingProvider;
 use App\Enums\UserRole;
 use App\Filament\Support\Concerns\NotifiesValidationFailures;
+use App\Filament\Support\Concerns\SendsCreditOtp;
 use App\Filament\Support\Concerns\ShowsPlanSummary;
 use App\Filament\Support\Concerns\TranslatesPageLabels;
+use App\Filament\Support\ManualPaymentFields;
 use App\Filament\Support\NavigationGroup;
 use App\Filament\Support\PlanPickFields;
 use App\Filament\Support\SubscriptionChangeActions;
@@ -15,25 +16,19 @@ use App\Models\Payment;
 use App\Models\Subscription;
 use App\Models\SubscriptionMember;
 use App\Models\SubscriptionPlan;
-use App\Services\OtpService;
 use App\Services\PlanConditions;
 use App\Services\SubscriptionChangeService;
 use App\Services\SubscriptionMemberService;
 use App\Services\SubscriptionPurchaseService;
 use App\Services\WalletService;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\HtmlString;
 
 /**
  * Shared by the Teacher and Student panels' "My Subscription" page — the
@@ -45,6 +40,7 @@ use Illuminate\Support\HtmlString;
 abstract class MySubscriptionPage extends Page
 {
     use NotifiesValidationFailures;
+    use SendsCreditOtp;
     use ShowsPlanSummary;
     use TranslatesPageLabels;
 
@@ -107,7 +103,7 @@ abstract class MySubscriptionPage extends Page
 
     public function pendingPayment(): ?Payment
     {
-        return Auth::user()->pendingPayment()?->load(['plan', 'previousPlan']);
+        return Auth::user()->pendingPayment()?->load(['plan', 'previousPlan', 'institutionName']);
     }
 
     /**
@@ -115,7 +111,7 @@ abstract class MySubscriptionPage extends Page
      */
     public function payments(): Collection
     {
-        return Auth::user()->payments()->with(['plan', 'previousPlan'])->latest('id')->limit(10)->get();
+        return Auth::user()->payments()->with(['plan', 'previousPlan', 'institutionName'])->latest('id')->limit(10)->get();
     }
 
     /**
@@ -197,13 +193,6 @@ abstract class MySubscriptionPage extends Page
      */
     private function purchaseForm(SubscriptionPlan $plan): array
     {
-        $settings = BillingSetting::current();
-        $balance = $this->walletBalance();
-        $hasToPay = fn (Get $get): bool => $this->quoteFor($plan, (bool) $get('use_wallet'))['payable'] > 0;
-        $needsOtp = fn (Get $get): bool => (bool) $get('use_wallet')
-            && $balance > 0
-            && app(OtpService::class)->isRequiredForCredit();
-
         $conditions = $plan->planConditions();
 
         return [
@@ -214,51 +203,12 @@ abstract class MySubscriptionPage extends Page
                 Auth::user()->role === UserRole::Student ? __('Your profile class changes to the one you choose.') : null,
             ),
 
-            Toggle::make('use_wallet')
-                ->label(__('Use my wallet credit (৳:amount)', ['amount' => number_format($balance, 2)]))
-                ->visible($balance > 0)
-                ->live(),
-
-            TextEntry::make('summary')
-                ->hiddenLabel()
-                ->state(fn (Get $get): HtmlString => new HtmlString(view('filament.pages.partials.purchase-summary', [
-                    'quote' => $this->quoteFor($plan, (bool) $get('use_wallet')),
-                    'receivingNumbers' => $settings->receivingNumbers(),
-                    'instructions' => $settings->payment_instructions,
-                ])->render())),
-
-            TextInput::make('otp_code')
-                ->label(__('Verification code'))
-                ->helperText(__('Spending wallet credit needs a code sent to your phone number.'))
-                ->visible($needsOtp)
-                ->required($needsOtp)
-                ->suffixAction(
-                    Action::make('sendOtp')
-                        ->label(__('Send code'))
-                        ->icon(Heroicon::OutlinedPaperAirplane)
-                        ->action(fn () => $this->sendOtp()),
-                ),
-
-            Radio::make('payer_provider')
-                ->label(__('Sent with'))
-                ->options(collect($settings->receivingNumbers())
-                    ->map(fn (string $number, string $provider): string => MobileBankingProvider::from($provider)->getLabel())
-                    ->all())
-                ->inline()
-                ->visible($hasToPay)
-                ->required($hasToPay),
-
-            TextInput::make('payer_number')
-                ->label(__('Number you sent the payment from'))
-                ->tel()
-                ->visible($hasToPay)
-                ->required($hasToPay),
-
-            TextInput::make('transaction_id')
-                ->label(__('Transaction ID'))
-                ->maxLength(100)
-                ->visible($hasToPay)
-                ->required($hasToPay),
+            ...ManualPaymentFields::components(
+                fn (bool $useWallet): array => $this->quoteFor($plan, $useWallet),
+                $this->walletBalance(),
+                fn () => $this->sendOtp(),
+                __('Plan price'),
+            ),
         ];
     }
 
@@ -368,20 +318,5 @@ abstract class MySubscriptionPage extends Page
     private function ownSubscription(array $arguments): Subscription
     {
         return Auth::user()->subscriptions()->findOrFail((int) ($arguments['subscription'] ?? 0));
-    }
-
-    public function sendOtp(): void
-    {
-        $sent = $this->rescueWithNotification(function (): bool {
-            app(OtpService::class)->send(Auth::user());
-
-            return true;
-        });
-
-        if (! $sent) {
-            return;
-        }
-
-        Notification::make()->title(__('A verification code has been sent to your phone.'))->success()->send();
     }
 }

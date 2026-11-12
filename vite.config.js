@@ -14,6 +14,7 @@ export default defineConfig({
                 'resources/js/katex-embed-renderer.js',
                 'resources/js/exam-timer.js',
                 'resources/js/result-sheet-image.js',
+                'resources/js/print-settings.js',
             ],
             refresh: true,
             fonts: [
@@ -22,6 +23,21 @@ export default defineConfig({
                 }),
                 bunny('Hind Siliguri', {
                     weights: [400, 500, 600, 700],
+                }),
+                // The other fonts a question paper can be printed in
+                // (App\Support\PrintSettings::FONTS) — downloaded only by a
+                // page that uses one.
+                bunny('Noto Sans Bengali', {
+                    weights: [400, 600, 700],
+                    preload: false,
+                }),
+                bunny('Noto Serif Bengali', {
+                    weights: [400, 600, 700],
+                    preload: false,
+                }),
+                bunny('Tiro Bangla', {
+                    weights: [400],
+                    preload: false,
                 }),
             ],
         }),

@@ -47,7 +47,7 @@ class PaymentResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['user', 'referrer', 'plan', 'previousPlan'])
+            ->with(['user', 'referrer', 'plan', 'previousPlan', 'institutionName'])
             // The "same number as referrer" flag for every row, in this
             // one query rather than a lookup per row.
             ->withExists(['itself as same_number_as_referrer' => fn (Builder $query) => $query->sharingPayerNumberWithReferrer()])
@@ -79,6 +79,7 @@ class PaymentResource extends Resource
                 TextColumn::make('user.name')->searchable(),
                 TextColumn::make('plan.name')
                     ->label(__('Plan'))
+                    ->state(fn (Payment $record): ?string => $record->itemLabel() ?: null)
                     ->placeholder('—')
                     ->description(fn (Payment $record): ?string => $record->isPlanChange()
                         ? __('Changed from :plan', ['plan' => $record->previousPlan?->name ?? '—'])
@@ -127,6 +128,7 @@ class PaymentResource extends Resource
                             'number' => $record->payer_number ?? '—',
                         ]),
                         $record->isPlanChange() => __('Only approve after checking that this transaction really arrived. The plan changes immediately.'),
+                        $record->isForInstitutionName() => __('Only approve after checking that this transaction really arrived. The name can be printed immediately.'),
                         default => __('Only approve after checking that this transaction really arrived. The subscription starts immediately.'),
                     })
                     ->schema(fn (Payment $record): array => (float) $record->refund_amount > 0 ? [
@@ -141,7 +143,11 @@ class PaymentResource extends Resource
                             auth()->user(),
                             PlanChangeRefundMethod::tryFrom((string) ($data['refund_method'] ?? '')),
                         ), $action),
-                        $record->isPlanChange() ? __('Payment approved — plan changed.') : __('Payment approved — subscription started.'),
+                        match (true) {
+                            $record->isPlanChange() => __('Payment approved — plan changed.'),
+                            $record->isForInstitutionName() => __('Payment approved — the name can be printed.'),
+                            default => __('Payment approved — subscription started.'),
+                        },
                     )),
                 Action::make('reject')
                     ->label(__('Reject'))

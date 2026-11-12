@@ -179,6 +179,7 @@ Subscription তালিকার **"সাবস্ক্রিপশন দ�
 | plan বদলের অনুরোধ | owner | "অনুরোধ পৌঁছেছে, … হলেই বদলাবে" |
 | plan বদল হলো (approve / Super Admin / টাকা ছাড়া) | owner | "… থেকে …-এ বদলানো হয়েছে", কত দিন পর্যন্ত, ফেরতের টাকা কোথায় গেল, Super Admin হলে তাঁর কারণ |
 | Super Admin শ্রেণি/বিষয় বদলালেন | owner | কোন plan-এর, ও কারণ |
+| অতিরিক্ত প্রতিষ্ঠানের নামের পেমেন্ট / approve / reject | Admin-রা / ক্রেতা | একই ধরনের লেখা, plan-এর বদলে নামসহ; ক্রেতার বোতামে "প্রতিষ্ঠানের নাম" পেজ ([06-exams.md](06-exams.md#প্রতিষ্ঠানের-নাম-institutionnameservice)) |
 
 - **কোন Admin-রা:** Admin সেটিংসের "Admin-দের নোটিফিকেশন" অংশে প্রতিটা ধরনের জন্য বাছা যায় (`admin_notification_recipients`); কাউকে না বাছলে সব সক্রিয় Admin ও Super Admin।
 - **ভাষা:** প্রতিটা নোটিফিকেশন প্রাপকের প্যানেলের ভাষায় লেখা হয় (Admin ইংরেজি, Teacher/Student বাংলা — `UserRole::defaultLocale()`), কারণ লেখাটা সেভ হয়ে থাকে। লিংক path হিসেবে সেভ, তাই ডোমেইন বদলালেও চলে।
@@ -186,7 +187,9 @@ Subscription তালিকার **"সাবস্ক্রিপশন দ�
 - বেল চার প্যানেলেই (`PanelDefaults`), প্রতি ৬০ সেকেন্ডে নতুনটা খোঁজে।
 - কোড: পাঠানোর একমাত্র পথ `App\Services\BellNotifier` (`toUser()`, `toAdmins()`); কেনার লেখাগুলো `App\Services\PurchaseNotifications`; Admin-এর ধরনের তালিকা `App\Enums\AdminNotificationTopic` (নতুন ধরন = একটা case)। টেস্ট: `PurchaseNotificationsTest`।
 
-Admin-এর পেজ: `PaymentResource` (approve — plan বদলে ফেরতের পথসহ, reject, refund; "ধরন" ও "ফেরত দিতে হবে" কলাম), `SubscriptionResource` ("সাবস্ক্রিপশন দিন", Super Admin-এর "Plan বদলান"/"শ্রেণি/বিষয় বদলান", বাতিল/মেয়াদ বদল), `SubscriptionPlanResource`।
+পেমেন্ট নেওয়ার অভিন্ন ধাপ (একসাথে একটাই অপেক্ষমাণ পেমেন্ট, wallet credit সাথে সাথে কাটা, bKash/Nagad-এর ঘর যাচাই, OTP) শুধু `SubscriptionPurchaseService::placeManual()`-এ — subscription কেনা ও প্রশ্নপত্রের অতিরিক্ত প্রতিষ্ঠানের নাম (`InstitutionNameService`) দুটোই এটা দিয়ে; ফর্মের ঘরগুলো `Support\ManualPaymentFields`। নামের পেমেন্ট (`payments.type = institution_name`) subscription-এর "পেইড গ্রাহক"/"প্রথম কেনা"-য় গোনা হয় না (`Payment::scopeForSubscriptions()`), refund-ও নেই।
+
+Admin-এর পেজ: `PaymentResource` (approve — plan বদলে ফেরতের পথসহ, reject, refund; "ধরন" ও "ফেরত দিতে হবে" কলাম; নামের পেমেন্টে "Plan" কলামে নামটা), `SubscriptionResource` ("সাবস্ক্রিপশন দিন", Super Admin-এর "Plan বদলান"/"শ্রেণি/বিষয় বদলান", বাতিল/মেয়াদ বদল), `SubscriptionPlanResource`।
 
 ## Referral
 

@@ -2,11 +2,14 @@
 
 use App\Enums\ExamDeliveryMode;
 use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
+use App\Models\BillingSetting;
 use App\Models\BoardMcqQuestion;
 use App\Models\Chapter;
 use App\Models\Exam;
+use App\Models\InstitutionName;
 use App\Models\Question;
 use App\Models\User;
+use App\Support\PrintSettings;
 use Database\Seeders\RoleSeeder;
 use Filament\Facades\Filament;
 
@@ -154,4 +157,66 @@ it('leaves cq questions out of the online attempt of an online + offline exam', 
 
     // Scored out of the MCQ marks only, since that is all a student sees.
     expect((float) $exam->fresh()->total_marks)->toBe(1.0);
+});
+
+describe('print settings', function () {
+    it('lays the paper out by the teacher\'s own saved settings', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        $this->teacher->forceFill(['print_settings' => ['columns' => 3, 'paper_size' => 'Legal']])->save();
+
+        $settings = $this->get(route('filament.teacher.exams.print', $exam))
+            ->assertOk()
+            ->viewData('printSettings');
+
+        expect($settings['columns'])->toBe(3)
+            ->and($settings['paper_size'])->toBe('Legal')
+            ->and($settings['font_size'])->toBe(PrintSettings::DEFAULTS['font_size']);
+    });
+
+    it('falls back to the default for a saved value that is no longer allowed', function () {
+        $this->teacher->forceFill(['print_settings' => ['columns' => 7, 'unknown' => 'x']])->save();
+
+        expect(PrintSettings::for($this->teacher->refresh()))->toBe(PrintSettings::DEFAULTS);
+    });
+
+    it('saves the settings the teacher changes', function () {
+        $this->postJson(route('filament.teacher.exams.print-settings'), ['columns' => 1, 'column_divider' => false, 'mcq_instructions' => 'Answer all.'])
+            ->assertNoContent();
+
+        $settings = PrintSettings::for($this->teacher->refresh());
+
+        expect($settings['columns'])->toBe(1)
+            ->and($settings['column_divider'])->toBeFalse()
+            ->and($settings['mcq_instructions'])->toBe('Answer all.')
+            ->and($settings['paper_size'])->toBe('A4');
+    });
+
+    it('refuses a setting out of its limits', function () {
+        $this->postJson(route('filament.teacher.exams.print-settings'), ['columns' => 5, 'paper_size' => 'B5'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['columns', 'paper_size']);
+    });
+
+    it('only offers the names that can be printed now', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        InstitutionName::factory()->free()->create(['user_id' => $this->teacher->id, 'name' => 'Free School']);
+        InstitutionName::factory()->paid()->create(['user_id' => $this->teacher->id, 'name' => 'Paid Coaching']);
+        InstitutionName::factory()->expired()->create(['user_id' => $this->teacher->id, 'name' => 'Old Academy']);
+
+        $this->get(route('filament.teacher.exams.print', $exam))
+            ->assertOk()
+            ->assertSee('Free School')
+            ->assertSee('Paid Coaching')
+            ->assertDontSee('Old Academy');
+    });
+
+    it('prints the admin\'s instructions and the chapters the questions come from', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        BillingSetting::create(['print_mcq_instructions' => 'Fill the right circle.']);
+
+        $response = $this->get(route('filament.teacher.exams.print', $exam))->assertOk();
+
+        expect($response->viewData('defaultInstructions')['mcq'])->toBe('Fill the right circle.')
+            ->and($response->viewData('chapterNames'))->toBe([$exam->questions->first()->chapter->name]);
+    });
 });

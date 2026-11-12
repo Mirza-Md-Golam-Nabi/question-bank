@@ -25,7 +25,9 @@ use Filament\Notifications\Notification;
  *    payment waits is told it arrived;
  *  - approved / rejected / refunded: the buyer is told, with why when it
  *    was turned down or given back;
- *  - granted: the user the Super Admin gave a plan to is told.
+ *  - granted: the user the Super Admin gave a plan to is told;
+ *  - institution name placed / approved: the same for an extra name on
+ *    printed question papers (InstitutionNameService).
  *
  * The free trial says nothing. Every text is written inside the closure
  * BellNotifier calls, so it comes out in its recipient's language; links
@@ -53,12 +55,7 @@ final class PurchaseNotifications
                 : __('Paid with wallet credit (:credit) — it is active already.', $this->details($payment)))
             ->icon($waiting ? 'heroicon-o-banknotes' : 'heroicon-o-check-badge')
             ->iconColor($waiting ? 'warning' : 'success')
-            ->actions([
-                Action::make('open')
-                    ->label(__('Open payments'))
-                    ->url(PaymentResource::getUrl('index', ['filters' => ['status' => ['value' => $payment->status->value]], 'search' => $payment->user->name], isAbsolute: false, panel: 'admin'))
-                    ->markAsRead(),
-            ]));
+            ->actions([$this->openPaymentsAction($payment)]));
 
         if ($waiting) {
             $this->toBuyer($payment, fn (): Notification => Notification::make()
@@ -112,12 +109,7 @@ final class PurchaseNotifications
                 : __(':amount by :provider from :number — transaction ID :transaction. Check it and approve.', $details))
             ->icon('heroicon-o-arrows-right-left')
             ->iconColor('warning')
-            ->actions([
-                Action::make('open')
-                    ->label(__('Open payments'))
-                    ->url(PaymentResource::getUrl('index', ['filters' => ['status' => ['value' => $payment->status->value]], 'search' => $payment->user->name], isAbsolute: false, panel: 'admin'))
-                    ->markAsRead(),
-            ]));
+            ->actions([$this->openPaymentsAction($payment)]));
 
         $this->toBuyer($payment, fn (): Notification => Notification::make()
             ->title(__('Your plan change was received'))
@@ -168,10 +160,51 @@ final class PurchaseNotifications
             ->actions([$this->mySubscriptionAction($owner)]));
     }
 
+    /**
+     * An extra institution name was asked for: the Admins chosen for
+     * purchases have money to check (or learn it was paid with credit),
+     * and the buyer learns it arrived.
+     */
+    public function institutionNamePlaced(Payment $payment): void
+    {
+        $waiting = $payment->status === PaymentStatus::Pending;
+        $details = $this->details($payment);
+
+        $this->bell->toAdmins(AdminNotificationTopic::Purchases, fn (): Notification => Notification::make()
+            ->title(__(':name (:role) pays for the institution name ":institution"', $details))
+            ->body($waiting
+                ? __(':amount by :provider from :number — transaction ID :transaction. Check it and approve.', $details)
+                : __('Paid with wallet credit (:credit) — it is active already.', $details))
+            ->icon($waiting ? 'heroicon-o-banknotes' : 'heroicon-o-check-badge')
+            ->iconColor($waiting ? 'warning' : 'success')
+            ->actions([$this->openPaymentsAction($payment)]));
+
+        if ($waiting) {
+            $this->toBuyer($payment, fn (): Notification => Notification::make()
+                ->title(__('Your payment was received'))
+                ->body(__('We are checking your :amount payment for ":institution"; you can print it as soon as it is confirmed.', $details))
+                ->icon('heroicon-o-clock')
+                ->iconColor('info'));
+        }
+    }
+
+    public function institutionNameApproved(Payment $payment): void
+    {
+        $paidUntil = $payment->institutionName?->paid_until;
+
+        $this->toBuyer($payment, fn (): Notification => Notification::make()
+            ->title(__('":institution" can be printed now', $this->details($payment)))
+            ->body($paidUntil ? __('It runs until :date.', ['date' => $paidUntil->translatedFormat('j F Y')]) : null)
+            ->icon('heroicon-o-check-badge')
+            ->iconColor('success'));
+    }
+
     public function rejected(Payment $payment): void
     {
         $this->toBuyer($payment, fn (): Notification => Notification::make()
-            ->title(__('Your payment for the :plan plan was not accepted', $this->details($payment)))
+            ->title($payment->isForInstitutionName()
+                ? __('Your payment for ":institution" was not accepted', $this->details($payment))
+                : __('Your payment for the :plan plan was not accepted', $this->details($payment)))
             ->body($this->withCreditReturned($payment, $payment->review_note ?: __('The payment could not be found. Check the transaction ID and ask again.')))
             ->icon('heroicon-o-x-circle')
             ->iconColor('danger'));
@@ -187,14 +220,26 @@ final class PurchaseNotifications
     }
 
     /**
-     * To the buyer, with the way to their subscription page.
+     * For the Admins: the payments list, on this payment.
+     */
+    private function openPaymentsAction(Payment $payment): Action
+    {
+        return Action::make('open')
+            ->label(__('Open payments'))
+            ->url(PaymentResource::getUrl('index', ['filters' => ['status' => ['value' => $payment->status->value]], 'search' => $payment->user->name], isAbsolute: false, panel: 'admin'))
+            ->markAsRead();
+    }
+
+    /**
+     * To the buyer, with the way to the page the payment was made from:
+     * their subscription, or their institution names.
      *
      * @param  Closure(): Notification  $notification  Writes it — called in the buyer's language.
      */
     private function toBuyer(Payment $payment, Closure $notification): void
     {
         $this->bell->toUser($payment->user, fn (User $buyer): Notification => $notification()->actions([
-            $this->mySubscriptionAction($buyer),
+            $payment->isForInstitutionName() ? $this->institutionNamesAction($buyer) : $this->mySubscriptionAction($buyer),
         ]));
     }
 
@@ -203,6 +248,14 @@ final class PurchaseNotifications
         return Action::make('open')
             ->label(__('My subscription'))
             ->url(route("filament.{$user->role->panelId()}.pages.my-subscription", absolute: false))
+            ->markAsRead();
+    }
+
+    private function institutionNamesAction(User $user): Action
+    {
+        return Action::make('open')
+            ->label(__('Institution names'))
+            ->url(route("filament.{$user->role->panelId()}.pages.institution-names", absolute: false))
             ->markAsRead();
     }
 
@@ -228,6 +281,7 @@ final class PurchaseNotifications
             'role' => (string) $payment->user->role->getLabel(),
             'plan' => (string) $payment->plan?->name,
             'from' => (string) $payment->previousPlan?->name,
+            'institution' => (string) $payment->institutionName?->name,
             'amount' => DashboardStat::money($payment->amount),
             'refund' => DashboardStat::money((float) $payment->refund_amount),
             'credit' => DashboardStat::money($payment->wallet_amount),

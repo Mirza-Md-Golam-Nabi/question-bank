@@ -8,6 +8,7 @@ use App\Filament\Support\QuestionEditorAssets;
 use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
+use App\Http\Controllers\PrintSettingsController;
 use App\Http\Controllers\TeacherExamPrintController;
 use App\Http\Controllers\TeacherExamResultsPrintController;
 use App\Http\Middleware\EnsureAccountIsApproved;
@@ -49,6 +50,7 @@ class SchoolPanelProvider extends PanelProvider
             ->authenticatedRoutes(function (): void {
                 Route::get('exams/{exam}/print', TeacherExamPrintController::class)->name('exams.print');
                 Route::get('exams/{exam}/results/print', TeacherExamResultsPrintController::class)->name('exams.results.print');
+                Route::post('exams/print-settings', PrintSettingsController::class)->name('exams.print-settings');
             }));
     }
 }

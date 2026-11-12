@@ -43,6 +43,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             'onboarding_dismissed_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
+            'print_settings' => 'array',
             'role' => UserRole::class,
             'status' => UserStatus::class,
         ];
@@ -140,6 +141,14 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->hasMany(Payment::class);
     }
 
+    /**
+     * The school/coaching names this user prints on question papers.
+     */
+    public function institutionNames(): HasMany
+    {
+        return $this->hasMany(InstitutionName::class);
+    }
+
     public function walletTransactions(): HasMany
     {
         return $this->hasMany(WalletTransaction::class);
@@ -221,7 +230,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
     public function hasSuccessfulPayment(): bool
     {
-        return $this->payments()->where('status', PaymentStatus::Success)->exists();
+        return $this->payments()->forSubscriptions()->where('status', PaymentStatus::Success)->exists();
     }
 
     public function pendingPayment(): ?Payment

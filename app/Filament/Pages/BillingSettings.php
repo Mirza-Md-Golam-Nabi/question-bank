@@ -166,6 +166,38 @@ class BillingSettings extends Page
                             ->columnSpanFull(),
                     ]),
 
+                Section::make(__('Institution names on question papers'))
+                    ->description(__('A Teacher or School prints one name free. Every other name is paid for by the period — the same price for everyone, with no refund, discount or commission.'))
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('institution_name_price')
+                            ->label(__('Price of an extra name'))
+                            ->helperText(__('0 = extra names are not on sale.'))
+                            ->prefix('৳')
+                            ->numeric()->minValue(0)->required(),
+                        TextInput::make('institution_name_days')
+                            ->label(__('Days one payment adds'))
+                            ->integer()->minValue(1)->maxValue(3650)->required(),
+                        TextInput::make('institution_name_change_days')
+                            ->label(__('Days between two changes of a name'))
+                            ->helperText(__('So the free name can not stand in for many.'))
+                            ->integer()->minValue(0)->maxValue(3650)->required(),
+                    ]),
+
+                Section::make(__('Printed question papers'))
+                    ->description(__('The instructions printed above each part of a paper. A Teacher or School can change them for their own papers.'))
+                    ->columns(2)
+                    ->schema([
+                        Textarea::make('print_mcq_instructions')
+                            ->label(__('Instructions above the MCQ part'))
+                            ->rows(3)
+                            ->maxLength(1000),
+                        Textarea::make('print_cq_instructions')
+                            ->label(__('Instructions above the CQ part'))
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ]),
+
                 Section::make(__('Phone number'))
                     ->columns(3)
                     ->schema([

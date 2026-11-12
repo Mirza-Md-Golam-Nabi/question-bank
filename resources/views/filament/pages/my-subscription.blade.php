@@ -84,12 +84,12 @@
             @else
             <p class="text-sm">
                 {{ __(':plan — ৳:amount (Transaction ID: :transaction)', [
-                    'plan' => $pendingPayment->plan?->name,
+                    'plan' => $pendingPayment->itemLabel(),
                     'amount' => number_format($pendingPayment->amount, 2),
                     'transaction' => $pendingPayment->gateway_transaction_id,
                 ]) }}
             </p>
-            <p class="mt-1 text-sm text-gray-500">{{ __('Your subscription starts as soon as the payment is approved.') }}</p>
+            <p class="mt-1 text-sm text-gray-500">{{ $pendingPayment->isForInstitutionName() ? __('The name can be printed as soon as the payment is approved.') : __('Your subscription starts as soon as the payment is approved.') }}</p>
             @endif
         </x-filament::section>
     @endif
@@ -143,7 +143,7 @@
                             <tr>
                                 <td>{{ $payment->created_at->format('M j, Y') }}</td>
                                 <td>
-                                    {{ $payment->plan?->name ?? '—' }}
+                                    {{ $payment->itemLabel() ?: '—' }}
                                     @if ($payment->isPlanChange())
                                         <span class="block text-xs text-gray-500">{{ __('Changed from :plan', ['plan' => $payment->previousPlan?->name ?? '—']) }}</span>
                                     @endif

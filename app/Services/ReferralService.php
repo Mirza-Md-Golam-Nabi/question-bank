@@ -331,6 +331,7 @@ class ReferralService
     {
         // A gift is not a purchase, so it doesn't use up "the first one".
         $earlierSuccessful = Payment::query()
+            ->forSubscriptions()
             ->where('status', PaymentStatus::Success)
             ->notGift()
             ->whereKeyNot($payment->id);

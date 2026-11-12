@@ -6,6 +6,7 @@ use App\Filament\Support\PanelDefaults;
 use App\Filament\Support\QuestionEditorAssets;
 use App\Filament\Teacher\Pages\Auth\Login;
 use App\Filament\Teacher\Pages\Dashboard;
+use App\Http\Controllers\PrintSettingsController;
 use App\Http\Controllers\TeacherExamPrintController;
 use App\Http\Controllers\TeacherExamResultsPrintController;
 use Filament\Panel;
@@ -34,6 +35,7 @@ class TeacherPanelProvider extends PanelProvider
             ->authenticatedRoutes(function (): void {
                 Route::get('exams/{exam}/print', TeacherExamPrintController::class)->name('exams.print');
                 Route::get('exams/{exam}/results/print', TeacherExamResultsPrintController::class)->name('exams.results.print');
+                Route::post('exams/print-settings', PrintSettingsController::class)->name('exams.print-settings');
             }));
     }
 }

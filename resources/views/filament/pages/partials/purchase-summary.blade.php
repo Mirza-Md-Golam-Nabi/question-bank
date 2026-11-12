@@ -1,8 +1,8 @@
-{{-- What a purchase costs and where to send the money (MySubscriptionPage's buy form). --}}
+{{-- What a purchase costs and where to send the money (ManualPaymentFields). --}}
 <div class="space-y-3 text-sm">
     <dl class="space-y-1">
         <div class="flex justify-between gap-4">
-            <dt>{{ __('Plan price') }}</dt>
+            <dt>{{ $priceLabel ?? __('Plan price') }}</dt>
             <dd>৳{{ number_format($quote['list_price'], 2) }}</dd>
         </div>
 

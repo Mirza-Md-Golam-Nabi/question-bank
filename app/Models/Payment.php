@@ -20,19 +20,30 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * One purchase of a subscription plan — or, when `type` is a plan change,
  * one change of a running subscription to another plan (`previous_plan_id`
  * → `plan_id`): `amount` is then the difference paid for an upgrade and
- * `refund_amount` what is owed back for a downgrade. `amount` is what was
+ * `refund_amount` what is owed back for a downgrade — or, when `type` is
+ * an institution name, `period_days` more for that name
+ * (`institution_name_id`). `amount` is what was
  * paid in cash; `list_price`, `discount_amount` and `wallet_amount` record
  * how the plan's price came down to it. A payment only ever changes state through
  * SubscriptionPurchaseService (approve / reject / refund).
  */
 #[Fillable([
-    'user_id', 'type', 'subscription_id', 'plan_id', 'previous_plan_id', 'refund_amount', 'refund_method', 'referrer_id', 'student_referral_id', 'selections', 'list_price', 'discount_amount', 'wallet_amount',
+    'user_id', 'type', 'subscription_id', 'plan_id', 'previous_plan_id', 'institution_name_id', 'period_days', 'refund_amount', 'refund_method', 'referrer_id', 'student_referral_id', 'selections', 'list_price', 'discount_amount', 'wallet_amount',
     'amount', 'gateway', 'gateway_transaction_id', 'payer_provider', 'payer_number', 'status',
     'paid_at', 'reviewed_by', 'reviewed_at', 'refundable_until', 'refunded_at', 'review_note',
 ])]
 class Payment extends Model
 {
     use HasFactory;
+
+    /**
+     * The column's own default, known before the row is read back.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'type' => 'purchase',
+    ];
 
     protected function casts(): array
     {
@@ -81,6 +92,37 @@ class Payment extends Model
     public function isPlanChange(): bool
     {
         return $this->type === PaymentType::PlanChange;
+    }
+
+    public function institutionName(): BelongsTo
+    {
+        return $this->belongsTo(InstitutionName::class);
+    }
+
+    public function isForInstitutionName(): bool
+    {
+        return $this->type === PaymentType::InstitutionName;
+    }
+
+    /**
+     * Payments to do with a subscription — buying one or changing its
+     * plan — and not an add-on such as an institution name: what "has
+     * paid", "the first purchase" and the like are about.
+     */
+    public function scopeForSubscriptions(Builder $query): Builder
+    {
+        return $query->where($query->qualifyColumn('type'), '!=', PaymentType::InstitutionName);
+    }
+
+    /**
+     * What the payment was for, in a word for lists: the plan, or the
+     * institution name.
+     */
+    public function itemLabel(): string
+    {
+        return $this->isForInstitutionName()
+            ? __('Institution name: :name', ['name' => (string) $this->institutionName?->name])
+            : (string) $this->plan?->name;
     }
 
     /**
@@ -160,7 +202,7 @@ class Payment extends Model
      */
     public function isGift(): bool
     {
-        return ! $this->isPlanChange() && $this->gateway === PaymentGateway::Admin && $this->amount <= 0;
+        return $this->type === PaymentType::Purchase && $this->gateway === PaymentGateway::Admin && $this->amount <= 0;
     }
 
     /**
@@ -169,7 +211,7 @@ class Payment extends Model
     public function scopeNotGift(Builder $query): Builder
     {
         return $query->where(fn (Builder $q) => $q
-            ->where('type', PaymentType::PlanChange)
+            ->where('type', '!=', PaymentType::Purchase)
             ->orWhere('gateway', '!=', PaymentGateway::Admin)
             ->orWhere('amount', '>', 0));
     }
@@ -204,7 +246,7 @@ class Payment extends Model
      */
     public function isRefundable(): bool
     {
-        return ! $this->isPlanChange()
+        return $this->type === PaymentType::Purchase
             && $this->isWithinRefundPeriod()
             && ! $this->subscription?->hasBeenUsed()
             && ! $this->subscription?->hasChangedPlan();
