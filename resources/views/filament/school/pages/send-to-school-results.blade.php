@@ -66,7 +66,7 @@
         <x-filament::section>
             <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
                 <p>
-                    {{ __('This exam: :ours marks · the school MCQ: :theirs marks.', ['ours' => (float) $this->exam->total_marks, 'theirs' => (float) $this->sheet['mcq_total']]) }}
+                    {{ __('This exam: :ours marks · the school MCQ: :theirs marks.', ['ours' => $this->exam->scoredMarks(), 'theirs' => (float) $this->sheet['mcq_total']]) }}
                     @if ($this->fullMarksDiffer() && $this->inProportion)
                         <x-filament::badge color="info" class="ms-1 inline-flex">{{ __('In proportion') }}</x-filament::badge>
                     @endif

@@ -24,7 +24,7 @@
                         </x-filament::badge>
 
                         <span class="font-semibold text-gray-950 dark:text-white">
-                            {{ $attempt->total_score }} / {{ $attempt->exam->total_marks }}
+                            {{ $attempt->total_score }} / {{ $attempt->exam->scoredMarks() }}
                         </span>
                     </div>
                 </a>

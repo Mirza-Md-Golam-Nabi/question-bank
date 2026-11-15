@@ -65,7 +65,7 @@
 - Guest বা Student যখন Teacher-এর শেয়ার-লিংকে পরীক্ষা দেয়, তার নিজের কোনো plan লাগে না — যেকোনো difficulty চলে।
 - **Student-এর শ্রেণি** (`users.academic_class_id`) প্রোফাইলে থাকে। Self-practice সবসময় নিজের শ্রেণি থেকে; শ্রেণি না দিলে পেজ প্রোফাইলে পাঠায়। শ্রেণি বাছতে হয় এমন plan কিনলে শ্রেণির ঘরে প্রোফাইলের শ্রেণি আগে থেকে বসানো থাকে, বদলালে প্রোফাইলও বদলায়।
 
-লোকালে শুরু করার দামের তালিকা: `SubscriptionPlanSeeder` (শুধু `APP_ENV=local`)। Group plan (coaching, কয়েকজন student) Admin "আসন" শর্ত দিয়ে বানান।
+শুরুর দামের তালিকা: `SubscriptionPlanSeeder` — লোকালে `db:seed`-এ, লাইভে deploy-এর migration (`seed_starting_subscription_plans`) একবার চালায়। একই নাম + role-এর plan থাকলে বদলায় না (Admin-এর বদলানো plan অক্ষত), role-এর ফ্রি plan বা ট্রায়াল আগে থেকে থাকলে আরেকটা বানায় না, আর যে plan-এর নির্দিষ্ট শ্রেণি ("Class 6", "Class 9 / Class 10" …) সাইটে নামে নামে না মেলে সেটা বাদ দেয় — খালি শ্রেণি মানে সব শ্রেণি, তাই ভুল করে বেশি খুলে না যায়; বাদ পড়লে `storage/logs`-এ সতর্কতা। Group plan (coaching, কয়েকজন student) Admin "আসন" শর্ত দিয়ে বানান।
 
 ## ডিভাইস সীমা
 

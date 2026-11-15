@@ -84,6 +84,9 @@
                 {{ __('Not answered') }} — {{ __(':marks marks', ['marks' => 0]) }}
             @else
                 {{ $answer->is_correct ? __('Correct') : __('Incorrect') }} — {{ __(':marks marks', ['marks' => QuestionDisplay::marks($answer->obtained_marks)]) }}
+                @if ($answer->student_answer === \App\Support\OmrSheet::SEVERAL_FILLED)
+                    ({{ __('more than one circle filled on the OMR sheet') }})
+                @endif
             @endif
         </p>
         @endif

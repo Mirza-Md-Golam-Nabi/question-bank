@@ -20,7 +20,7 @@
 @endphp
 
 <p class="qb-result-score">
-    {{ __('Score') }}: <strong>{{ $attempt->total_score }}</strong> / {{ $attempt->exam->total_marks }}
+    {{ __('Score') }}: <strong>{{ $attempt->total_score }}</strong> / {{ $attempt->exam->scoredMarks() }}
 </p>
 
 @if ($showsAnswers)

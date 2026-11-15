@@ -267,10 +267,13 @@ describe('the OMR sheet', function () {
             ->assertDontSee('What is a cell?')
             ->getContent();
 
-        preg_match_all('/<div class="qb-omr-item[^"]*">\s*<span class="qb-omr-number">(\d+)<\/span>(.*?)<\/div>/s', $html, $items, PREG_SET_ORDER);
+        preg_match_all('/class="qb-omr-number"[^>]*>(\d+)<\/span>(.*?)(?=class="qb-omr-number"|<\/div>)/s', $html, $items, PREG_SET_ORDER);
 
-        expect(collect($items)->mapWithKeys(fn (array $item): array => [$item[1] => substr_count($item[2], 'qb-omr-bubble')])->all())
-            ->toBe([1 => 2, 2 => 3]);
+        expect(collect($items)->mapWithKeys(fn (array $item): array => [$item[1] => substr_count($item[2], 'class="qb-omr-bubble"')])->all())
+            ->toBe([1 => 2, 2 => 3])
+            // The scanner's way in: a link to it, and the frame's corner squares.
+            ->and($html)->toContain(route('filament.teacher.exams.omr-scan', $exam))
+            ->and(substr_count($html, 'class="qb-omr-solid"'))->toBeGreaterThan(4);
     });
 
     it('is not offered for a paper with no mcq', function () {

@@ -79,6 +79,14 @@
 
 প্রথমবার deploy-এর পরে একবার আগে থেকে থাকা প্রশ্নে খোঁজা: পেজের "আগে থেকে থাকা প্রশ্নে ডুপ্লিকেট খুঁজুন", অথবা SSH থাকলে `php artisan questions:screen-duplicates`।
 
+### শুরুর দামের তালিকা (subscription plan)
+
+লোকালের `SubscriptionPlanSeeder`-এর plan-গুলো লাইভে আলাদা কিছু না করেই আসে: migration `seed_starting_subscription_plans` deploy-এর `migrate --force`-এ একবার seeder চালায়। তখন ডেটাবেজে কোনো শ্রেণি না থাকলে কিছু করে না, আর কোনো plan-এর শ্রেণির নাম না মিললে শুধু সেই plan বাদ যায় (`storage/logs/laravel.log`-এ সতর্কতা)। সেই ক্ষেত্রে শ্রেণি ঠিক করার পর SSH থেকে আবার চালানো যায় — আগের plan বদলায় বা দুবার হয় না:
+
+```bash
+php artisan db:seed --class=SubscriptionPlanSeeder --force
+```
+
 ### যা `deploy.sh` করে না
 
 **Frontend build।** `public/build` Git-এ যায় না, আর স্ক্রিপ্ট `npm run build` চালায় না। তাই `resources/css` বা `resources/js`-এ কিছু বদলালে:

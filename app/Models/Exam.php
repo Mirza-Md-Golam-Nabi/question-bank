@@ -29,13 +29,18 @@ use Illuminate\Validation\ValidationException;
 
 #[Fillable([
     'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id', 'board_question_paper_id',
-    'duration_minutes', 'start_time', 'end_time', 'total_marks', 'negative_marks', 'no_answer_marking', 'max_participants', 'status',
+    'duration_minutes', 'start_time', 'end_time', 'total_marks', 'mcq_marks', 'negative_marks', 'no_answer_marking', 'max_participants', 'status',
     'share_token', 'link_expires_at', 'is_link_active', 'answers_released_at', 'answers_release_at',
 ])]
 class Exam extends Model
 {
     use FiltersByMonth;
     use HasFactory;
+
+    /**
+     * What an attempt is scored out of, in SQL over `exams` — scoredMarks().
+     */
+    public const SCORED_MARKS_SQL = 'coalesce(exams.mcq_marks, exams.total_marks)';
 
     /**
      * Mirrors the column defaults, so a freshly created (not yet reloaded)
@@ -65,6 +70,7 @@ class Exam extends Model
             'negative_marks' => 'float',
             'no_answer_marking' => NoAnswerMarking::class,
             'max_participants' => 'integer',
+            'omr_questions' => 'integer',
         ];
     }
 
@@ -523,12 +529,40 @@ class Exam extends Model
     /**
      * total_marks is what an online attempt is scored out of, so an exam
      * that is also taken online only counts the questions shown there; a
-     * print-only exam counts everything on the paper.
+     * print-only exam counts everything on the paper — and keeps its MCQ
+     * marks apart (mcq_marks), what its scanned OMR sheets are scored out of.
      */
     public function recalculateTotalMarks(): void
     {
-        $questions = $this->delivery_mode === ExamDeliveryMode::Offline ? $this->printedItems() : $this->onlineItems();
+        $isPrintOnly = $this->delivery_mode === ExamDeliveryMode::Offline;
+        $questions = $isPrintOnly ? $this->printedItems() : $this->onlineItems();
 
-        $this->newQuery()->whereKey($this->id)->update(['total_marks' => $this->marksOf($questions)]);
+        $marks = [
+            'total_marks' => $this->marksOf($questions),
+            'mcq_marks' => $isPrintOnly ? $this->marksOf($questions->where('question_type', QuestionType::Mcq)) : null,
+        ];
+
+        $this->newQuery()->whereKey($this->id)->update($marks);
+        $this->forceFill($marks)->syncOriginalAttributes(array_keys($marks));
+    }
+
+    /**
+     * What an attempt is scored out of: only ever MCQ is marked here, so a
+     * print-only paper's MCQ marks (its OMR sheets'), otherwise the exam's
+     * total — which is then the MCQ shown online. SCORED_MARKS_SQL in SQL.
+     */
+    public function scoredMarks(): float
+    {
+        return (float) ($this->mcq_marks ?? $this->total_marks);
+    }
+
+    /**
+     * Whether the teacher can scan students' filled-in OMR sheets for this
+     * exam: a printed paper with MCQ on it (CLAUDE.md rule 10.11).
+     */
+    public function takesOmrSheets(): bool
+    {
+        return $this->delivery_mode->includesOffline()
+            && $this->printedItems()->contains(fn (Model $question): bool => $question->question_type === QuestionType::Mcq);
     }
 }

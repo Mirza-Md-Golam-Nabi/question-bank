@@ -8,6 +8,7 @@ use App\Enums\QuestionType;
 use App\Models\BillingSetting;
 use App\Models\Chapter;
 use App\Models\ClassSubject;
+use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Question;
 use Carbon\CarbonInterface;
@@ -228,7 +229,7 @@ class StudentPerformance
      */
     private function scoredAttempts(PerformanceScope $scope): Builder
     {
-        return $this->submittedAttempts($scope)->where('exams.total_marks', '>', 0);
+        return $this->submittedAttempts($scope)->whereRaw(Exam::SCORED_MARKS_SQL.' > 0');
     }
 
     /**

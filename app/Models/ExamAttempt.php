@@ -27,7 +27,7 @@ use Random\Engine\Mt19937;
 use Random\Randomizer;
 
 #[Fillable([
-    'exam_id', 'student_id', 'is_guest', 'guest_name', 'guest_contact',
+    'exam_id', 'student_id', 'is_guest', 'is_omr', 'guest_name', 'guest_contact',
     'school_class_id', 'school_class_name', 'school_section_id', 'school_section_name', 'school_roll',
     'started_at', 'submitted_at', 'status', 'total_score',
 ])]
@@ -46,7 +46,7 @@ class ExamAttempt extends Model
      * SQL over `exam_attempts as attempt` joined to `exams` (whose total
      * marks must be above 0) — how every performance figure reads a score.
      */
-    public const SCORE_PERCENT_SQL = '100.0 * attempt.total_score / exams.total_marks';
+    public const SCORE_PERCENT_SQL = '100.0 * attempt.total_score / '.Exam::SCORED_MARKS_SQL;
 
     /**
      * SUBMITTED_STATUSES as stored, for queries over the raw table.
@@ -77,6 +77,7 @@ class ExamAttempt extends Model
     {
         return [
             'is_guest' => 'boolean',
+            'is_omr' => 'boolean',
             'started_at' => 'datetime',
             'submitted_at' => 'datetime',
             'status' => ExamAttemptStatus::class,
@@ -352,6 +353,10 @@ class ExamAttempt extends Model
             return collect([$this->school_class_name, $this->school_section_name, __('Roll :roll', ['roll' => $this->school_roll])])->filter()->join(' · ');
         }
 
+        if ($this->is_omr) {
+            return __('Roll :roll', ['roll' => $this->school_roll]).' · '.__('OMR');
+        }
+
         return $this->is_guest ? $this->guest_contact : $this->student?->email;
     }
 
@@ -360,7 +365,11 @@ class ExamAttempt extends Model
      */
     public function participantContactLabel(): string
     {
-        return $this->isSchoolAttempt() ? __('Class / Roll') : __('Phone/Email');
+        return match (true) {
+            $this->isSchoolAttempt() => __('Class / Roll'),
+            $this->is_omr => __('Roll'),
+            default => __('Phone/Email'),
+        };
     }
 
     public function student(): BelongsTo

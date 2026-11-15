@@ -132,6 +132,8 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | `board_question_paper_id` (nullable) → `board_question_papers` | পুরো একটা বিগত সালের প্রশ্নপত্র — তখন প্রশ্ন `exam_questions`-এ না, পেপারের নিজের; পেপার মোছা যায় না (restrict) |
 | `duration_minutes`, `start_time`, `end_time` | |
 | `total_marks` | অনলাইনে নেওয়া পরীক্ষায় শুধু অনলাইনের প্রশ্নগুলোর; `recalculateTotalMarks()` বসায় |
+| `mcq_marks` (nullable) | শুধু-প্রিন্ট পরীক্ষার MCQ-র নম্বর — স্ক্যান করা OMR খাতা যার মধ্যে নম্বর পায় (`total_marks`-এ CQ-ও থাকে); অন্য পরীক্ষায় ফাঁকা = `total_marks`। পড়া `Exam::scoredMarks()` / `SCORED_MARKS_SQL` |
+| `omr_questions` (nullable) | OMR শীটে কয়টা প্রশ্নের ঘর (Teacher-এর বাছা; ১ থেকে যেকোনো সংখ্যা — MCQ-র কম হলে শেষের প্রশ্নগুলো শীটে থাকে না, বাড়তি ঘর ফাঁকা ও পড়া হয় না); ফাঁকা = প্রশ্নপত্রের MCQ যত। `App\Support\OmrSheet::questionCount()` / `saveQuestionCount()` |
 | `status` | `draft` / `published` / … |
 | `share_token` (unique) | publish-এর সময় তৈরি, ৩২ অক্ষর |
 | `link_expires_at`, `is_link_active` | শেয়ার-লিংক কখন বন্ধ |
@@ -147,6 +149,7 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 |---|---|
 | `exam_id` | |
 | `student_id` (nullable), `is_guest`, `guest_name`, `guest_contact` | Guest-এ `student_id` ফাঁকা; `guest_contact` normalize করে রাখা |
+| `is_omr` | Teacher/School-এর স্ক্যান করা OMR শীট ([06-exams.md](06-exams.md#omr-স্ক্যান-করে-ফলাফল)) — রোল `school_roll`-এ, ঐচ্ছিক নাম `guest_name`-এ, `is_guest` সত্য; School-এর হলে শ্রেণি-সেকশনও |
 | `started_at`, `submitted_at`, `status`, `total_score` | |
 | `difficulty_counted_at` | difficulty-র গণনায় তোলা হয়েছে (শুধু Teacher-এর পরীক্ষা) |
 | `statistics_recorded_at` | ভুলের তালিকা ও Teacher-এর পরিসংখ্যানে তোলা হয়েছে |

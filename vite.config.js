@@ -16,6 +16,7 @@ export default defineConfig({
                 'resources/js/result-sheet-image.js',
                 'resources/js/print-settings.js',
                 'resources/js/print-editing.js',
+                'resources/js/omr-scan.js',
             ],
             refresh: true,
             fonts: [

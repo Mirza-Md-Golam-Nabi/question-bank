@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\SchoolProfile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 /**
@@ -72,6 +73,25 @@ class SchoolRoster
             'class' => ['id' => (int) $class['id'], 'name' => (string) $class['name']],
             'section' => $section ? ['id' => (int) $section['id'], 'name' => (string) $section['name']] : null,
         ];
+    }
+
+    /**
+     * pick(), as a form error under `$errorKey` when the list can't be had
+     * or what was picked isn't on it.
+     *
+     * @return array{class: array{id: int, name: string}, section: array{id: int, name: string}|null}
+     *
+     * @throws ValidationException
+     */
+    public function pickOrFail(SchoolProfile $profile, mixed $classId, mixed $sectionId, string $errorKey, string $notPicked): array
+    {
+        try {
+            $picked = $this->pick($profile, $classId, $sectionId);
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages([$errorKey => $exception->getMessage()]);
+        }
+
+        return $picked ?? throw ValidationException::withMessages([$errorKey => $notPicked]);
     }
 
     /**

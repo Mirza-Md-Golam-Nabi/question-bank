@@ -1,69 +1,121 @@
 {{--
-    The OMR answer sheet a student fills in by hand: their name, class and
-    roll number (written, and its digits filled in on a grid), then every
-    MCQ's number — numbered exactly as on the question paper
-    (QuestionBlocks) — with a circle per option, in a few columns read top
-    to bottom. It is for marking by hand or with the answer key laid over
-    it; no machine reads it. The roll grid has ten columns and the print
-    settings (`omr_roll_digits`, print-settings.js) show as many as asked.
+    The OMR answer sheet a student fills in by hand — and the teacher's phone
+    reads (CLAUDE.md rule 10.11). Everything inside the frame sits exactly
+    where App\Support\OmrSheet says, in millimetres: the four corner squares
+    and the row of code cells between the top two are what the scanner finds
+    the sheet and tells the exam and page by. Below the heading, every MCQ
+    (numbered as on the question paper) in columns with a circle per option,
+    then blank rows up to the number of questions the teacher chose;
+    on the right the number grids — only the roll number's is read, and it
+    shows as many columns as the print settings' `omr_roll_digits`
+    (print-settings.js) — and the boxes written in by hand. Circles, their
+    letters and the stripes are red/pink, which the reader does not see.
+    A paper too long for one sheet goes on to the next. On A5 the whole
+    frame is printed smaller (OmrSheet::A5_SCALE, print-settings.js), its
+    words not as much (--qb-omr-text).
 
+    @var \App\Models\Exam $exam
     @var \Illuminate\Support\Collection $mcqQuestions
 --}}
 @php
     use App\Enums\Locale;
-    use App\Filament\Support\QuestionBlocks;
     use App\Filament\Support\QuestionDisplay;
+    use App\Support\OmrSheet;
 
     $digits = fn (string $text): string => Locale::current()->writeDigits($text);
-
-    $entries = QuestionBlocks::blocks($mcqQuestions)
-        ->flatMap(fn (array $block): array => $block['questions'])
-        ->map(fn (array $entry): array => [
-            'number' => $digits((string) $entry['number']),
-            'letters' => collect($entry['question']->options ?? [])->keys()->map(fn (int $index): string => QuestionDisplay::letter($index))->all(),
-        ])
-        ->values();
-
-    // A short paper in one column; a long one in up to five, about 25 a column.
-    $columnCount = $entries->count() <= 10 ? 1 : min(5, max(2, (int) ceil($entries->count() / 25)));
-    $rowCount = (int) ceil($entries->count() / $columnCount);
+    $mm = fn (float $value): string => round($value, 2).'mm';
+    $pages = (new OmrSheet($exam, $mcqQuestions))->pages();
+    $half = OmrSheet::MARKER_SIZE / 2;
+    $gridLabel = fn (array $grid, int $row): string => $grid['labels'] === 'letters' ? QuestionDisplay::letter($row) : $digits((string) $row);
 @endphp
 
-<section class="qb-omr">
-    <div class="qb-omr-top">
-        <div class="qb-omr-fields">
-            @foreach ([__('Name'), __('Class'), __('Section'), __('Roll'), __('Signature')] as $field)
-                <p><span>{{ $field }}:</span><span class="qb-omr-blank"></span></p>
+@foreach ($pages as $page)
+    <section class="qb-omr" data-omr-sheet>
+        <div class="qb-omr-frame" style="width: {{ $mm(OmrSheet::WIDTH) }}; height: {{ $mm(OmrSheet::HEIGHT) }}">
+            @foreach (OmrSheet::markers() as [$x, $y])
+                <span class="qb-omr-solid" style="left: {{ $mm($x - $half) }}; top: {{ $mm($y - $half) }}; border-width: {{ $mm($half) }}"></span>
+            @endforeach
+
+            @foreach (OmrSheet::codeCells() as $bit => [$x, $y])
+                @if ($page['code'][$bit] === '1')
+                    <span class="qb-omr-solid" style="left: {{ $mm($x - OmrSheet::CODE_CELL / 2) }}; top: {{ $mm($y - OmrSheet::CODE_CELL / 2) }}; border-width: {{ $mm(OmrSheet::CODE_CELL / 2) }}"></span>
+                @endif
+            @endforeach
+
+            <header class="qb-omr-heading" style="left: 10mm; top: {{ $mm(OmrSheet::HEADING_TOP) }}; width: {{ $mm(OmrSheet::WIDTH - 20) }}; height: {{ $mm(OmrSheet::HEADING_HEIGHT) }}">
+                <div class="qb-paper-brand" data-print-brand>
+                    <img class="qb-paper-logo" data-print-logo alt="" hidden>
+                    <p class="qb-paper-institution" data-print-institution hidden></p>
+                </div>
+
+                <p class="qb-omr-exam">
+                    <span data-print-part="exam_title">{{ $exam->title }}</span>
+                    @if ($exam->classSubject)
+                        <span data-print-part="class">{{ $exam->classSubject->academicClass->name }}</span>
+                    @endif
+                    @if ($exam->subject)
+                        <span data-print-part="subject">{{ $exam->subject->name }}</span>
+                    @endif
+                </p>
+
+                <p class="qb-omr-title">
+                    {{ __('Answer sheet of the objective test') }}
+                    @if (count($pages) > 1)
+                        <span class="qb-omr-page">({{ __('Sheet :page of :pages', ['page' => $digits((string) ($page['index'] + 1)), 'pages' => $digits((string) count($pages))]) }})</span>
+                    @endif
+                </p>
+
+                <p class="qb-omr-warning">{{ __('Do not make any mark or write anything on the answer sheet except in the places given for it') }}</p>
+                <p class="qb-omr-pen">{{ __('Must be filled in with a ball-point pen') }}</p>
+            </header>
+
+            {{-- The question columns: a head row, then a row per question. --}}
+            @foreach ($page['columns'] as $column)
+                <div class="qb-omr-column" style="left: {{ $mm($column['x']) }}; top: {{ $mm(OmrSheet::BODY_TOP) }}; width: {{ $mm($column['width']) }}; height: {{ $mm(OmrSheet::COLUMN_HEAD + $column['rows'] * $page['rowPitch'] + 0.6) }}; --qb-omr-number-width: {{ $mm(OmrSheet::NUMBER_WIDTH) }}; --qb-omr-head: {{ $mm(OmrSheet::COLUMN_HEAD) }}">
+                    <span class="qb-omr-column-head">{{ __('Q. no.') }}</span>
+                    <span class="qb-omr-column-head">{{ __('Answer list') }}</span>
+                </div>
+            @endforeach
+
+            @foreach ($page['questions'] as $question)
+                @php
+                    $column = $page['columns'][intdiv($loop->index, $page['columns'][0]['rows'])];
+                    $stripe = min($page['rowPitch'] - 1, $page['bubble'] + 1.4);
+                @endphp
+                <span class="qb-omr-stripe" style="left: {{ $mm($column['x'] + OmrSheet::NUMBER_WIDTH + 0.6) }}; top: {{ $mm($question['y'] - $stripe / 2) }}; width: {{ $mm($column['width'] - OmrSheet::NUMBER_WIDTH - 1.2) }}; height: {{ $mm($stripe) }}"></span>
+                <span class="qb-omr-number" style="left: {{ $mm($question['x']) }}; top: {{ $mm($question['y'] - $page['rowPitch'] / 2) }}; width: {{ $mm(OmrSheet::NUMBER_WIDTH) }}; height: {{ $mm($page['rowPitch']) }}; font-size: calc({{ $mm(min(3.6, $page['rowPitch'] * 0.55)) }} * var(--qb-omr-text))">{{ $digits((string) $question['number']) }}</span>
+                @foreach ($question['options'] as $option => [$x, $y])
+                    <span class="qb-omr-bubble"
+                          style="left: {{ $mm($x - $page['bubble'] / 2) }}; top: {{ $mm($y - $page['bubble'] / 2) }}; width: {{ $mm($page['bubble']) }}; height: {{ $mm($page['bubble']) }}; font-size: calc({{ $mm($page['bubble'] * 0.55) }} * var(--qb-omr-text))">{{ QuestionDisplay::letter($option) }}</span>
+                @endforeach
+            @endforeach
+
+            {{-- The number grids: a column per digit, a box on top to write it in. --}}
+            @foreach (OmrSheet::grids() as $key => $grid)
+                <div class="qb-omr-grid" data-omr-grid="{{ $key }}" @if ($key === 'roll') data-omr-roll @endif>
+                    <span class="qb-omr-grid-title @if ($key === 'roll') qb-omr-grid-title--roll @endif"
+                          style="left: {{ $mm($grid['x']) }}; top: {{ $mm($grid['y']) }}; width: {{ $mm($grid['columns'] * $grid['pitch'] + 0.3) }}; height: {{ $mm(OmrSheet::GRID_TITLE + 0.3) }}; --qb-omr-pitch: {{ $mm($grid['pitch']) }}">{{ __($grid['title']) }}</span>
+
+                    @foreach (OmrSheet::gridColumns($grid) as $index => $circles)
+                        <div @if ($key === 'roll') data-omr-roll-column="{{ $index }}" @endif>
+                            <span class="qb-omr-grid-strip" style="left: {{ $mm($grid['x'] + $index * $grid['pitch']) }}; top: {{ $mm($grid['y'] + OmrSheet::GRID_TITLE) }}; width: {{ $mm($grid['pitch'] + 0.3) }}; height: {{ $mm(OmrSheet::gridHeight($grid) - OmrSheet::GRID_TITLE) }}; --qb-omr-write: {{ $mm(OmrSheet::GRID_WRITE_ROW) }}"></span>
+                            @foreach ($circles as $row => [$x, $y])
+                                <span class="qb-omr-bubble qb-omr-bubble--grid"
+                                      style="left: {{ $mm($x - OmrSheet::GRID_BUBBLE / 2) }}; top: {{ $mm($y - OmrSheet::GRID_BUBBLE / 2) }}; width: {{ $mm(OmrSheet::GRID_BUBBLE) }}; height: {{ $mm(OmrSheet::GRID_BUBBLE) }}">{{ $gridLabel($grid, $row) }}</span>
+                            @endforeach
+                        </div>
+                    @endforeach
+                </div>
+            @endforeach
+
+            @foreach (OmrSheet::boxes() as $box)
+                <span class="qb-omr-box" style="left: {{ $mm($box['x']) }}; top: {{ $mm($box['y']) }}; width: {{ $mm($box['width']) }}; height: {{ $mm($box['height']) }}"></span>
+                @if ($box['labelBefore'])
+                    <span class="qb-omr-box-label qb-omr-box-label--before" style="right: {{ $mm(OmrSheet::WIDTH - $box['x'] + 1.5) }}; top: {{ $mm($box['y']) }}; height: {{ $mm($box['height']) }}">{{ __($box['label']) }} :</span>
+                @else
+                    <span class="qb-omr-box-label" style="left: {{ $mm($box['x']) }}; top: {{ $mm($box['y'] + $box['height'] + 0.8) }}; width: {{ $mm($box['width']) }}">{{ __($box['label']) }}</span>
+                @endif
             @endforeach
         </div>
-
-        <div class="qb-omr-roll" data-omr-roll>
-            <p class="qb-omr-roll-title">{{ __('Roll number') }}</p>
-            <div class="qb-omr-roll-grid">
-                @for ($column = 0; $column < 10; $column++)
-                    <div class="qb-omr-roll-column" data-omr-roll-column="{{ $column }}">
-                        <span class="qb-omr-roll-box"></span>
-                        @for ($digit = 0; $digit <= 9; $digit++)
-                            <span class="qb-omr-bubble">{{ $digits((string) $digit) }}</span>
-                        @endfor
-                    </div>
-                @endfor
-            </div>
-        </div>
-    </div>
-
-    <p class="qb-omr-instructions">{{ __('Fill the circle of the right answer completely with a ball-point pen. Fill only one circle for a question; do not cut or rub it out.') }}</p>
-
-    <div class="qb-omr-answers" style="--qb-omr-columns: {{ $columnCount }}; --qb-omr-rows: {{ $rowCount }}">
-        @foreach ($entries as $entry)
-            {{-- A line under every fifth row of a column, to keep the place. --}}
-            @php($row = $loop->index % $rowCount + 1)
-            <div @class(['qb-omr-item', 'qb-omr-item--fifth' => $row % 5 === 0 && $row !== $rowCount])>
-                <span class="qb-omr-number">{{ $entry['number'] }}</span>
-                @foreach ($entry['letters'] as $letter)
-                    <span class="qb-omr-bubble">{{ $letter }}</span>
-                @endforeach
-            </div>
-        @endforeach
-    </div>
-</section>
+    </section>
+@endforeach

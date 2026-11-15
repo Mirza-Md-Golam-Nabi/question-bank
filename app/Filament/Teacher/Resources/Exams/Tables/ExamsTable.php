@@ -56,7 +56,7 @@ class ExamsTable
      */
     private static function hasAttempts(Exam $exam): bool
     {
-        return (bool) ($exam->attempts_exists ?? $exam->attempts()->exists());
+        return (bool) ($exam->attempts_exists ?? (isset($exam->attempts_count) ? $exam->attempts_count > 0 : $exam->attempts()->exists()));
     }
 
     /**
@@ -85,8 +85,17 @@ class ExamsTable
             ->icon('heroicon-o-trophy')
             ->iconButton()
             ->color('warning')
-            ->visible(fn (Exam $record) => $record->status !== ExamStatus::Draft && $record->delivery_mode->includesOnline())
+            ->visible(fn (Exam $record) => self::hasResults($record))
             ->url(fn (Exam $record): string => ExamResults::getUrl(['record' => $record]));
+    }
+
+    /**
+     * Whether the exam has results to look at: it is out online, or papers
+     * came in some other way (scanned OMR sheets).
+     */
+    private static function hasResults(Exam $exam): bool
+    {
+        return ($exam->status !== ExamStatus::Draft && $exam->delivery_mode->includesOnline()) || self::hasAttempts($exam);
     }
 
     /**
@@ -256,15 +265,14 @@ class ExamsTable
 
                             Notification::make()->title(__('Exam published'))->success()->send();
                         }),
-                    // A School's exam: its online MCQ marks into the school
-                    // management software's results (CLAUDE.md rule 12).
+                    // A School's exam: its MCQ marks — online or from scanned
+                    // OMR sheets — into the school management software's
+                    // results (CLAUDE.md rule 12).
                     Action::make('sendToSchoolResults')
                         ->label(__('Send to school results'))
                         ->icon('heroicon-o-paper-airplane')
                         ->color('success')
-                        ->visible(fn (Exam $record): bool => CurrentPanel::id() === 'school'
-                            && $record->status !== ExamStatus::Draft
-                            && $record->delivery_mode->includesOnline())
+                        ->visible(fn (Exam $record): bool => CurrentPanel::id() === 'school' && self::hasResults($record))
                         ->url(fn (Exam $record): string => SendToSchoolResults::getUrl(['exam' => $record->id])),
                     // The last moment a student can start the exam; after it the
                     // share link stops taking new attempts on its own.
@@ -409,6 +417,14 @@ class ExamsTable
                         ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
                         ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', ['exam' => $record, 'answers' => 'omr']))
                         ->openUrlInNewTab(),
+                    // The students' filled-in sheets, read by the phone's
+                    // camera and marked (CLAUDE.md rule 10.11).
+                    Action::make('scanOmrSheets')
+                        ->label(__('Scan OMR sheets'))
+                        ->color('gray')
+                        ->icon('heroicon-o-camera')
+                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
+                        ->url(fn (Exam $record): string => CurrentPanel::route('exams.omr-scan', $record)),
                     // Editing works like creating: the exam opens in the question
                     // picker with its questions already selected. Gone once a
                     // student has started it — the paper they sat must not change

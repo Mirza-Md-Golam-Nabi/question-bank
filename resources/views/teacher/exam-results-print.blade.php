@@ -68,7 +68,7 @@
 
         <p class="mb-4 flex flex-wrap justify-between gap-x-6 gap-y-1 border-y border-gray-300 py-2 text-sm" data-qb-result-sheet-summary>
             <span>{{ __('Total participants') }}: <strong>{{ $rows->count() }}</strong></span>
-            <span>{{ __('Total marks') }}: <strong>{{ QuestionDisplay::marks($exam->total_marks) }}</strong></span>
+            <span>{{ __('Total marks') }}: <strong>{{ QuestionDisplay::marks($exam->scoredMarks()) }}</strong></span>
         </p>
 
         @if ($rows->isEmpty())

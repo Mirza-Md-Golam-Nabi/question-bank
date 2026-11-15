@@ -77,7 +77,8 @@ class SendToSchoolResults extends Page
     {
         $record = Exam::query()->where('created_by', Auth::id())->findOrFail($exam);
 
-        abort_unless($record->delivery_mode->includesOnline(), 404);
+        // Online papers, or OMR sheets the School scanned.
+        abort_unless($record->delivery_mode->includesOnline() || $record->attempts()->where('is_omr', true)->exists(), 404);
 
         $this->examId = $record->id;
     }
@@ -221,7 +222,7 @@ class SendToSchoolResults extends Page
 
     public function fullMarksDiffer(): bool
     {
-        return $this->sheet !== null && abs((float) $this->sheet['mcq_total'] - (float) $this->exam->total_marks) > 0.001;
+        return $this->sheet !== null && abs((float) $this->sheet['mcq_total'] - $this->exam->scoredMarks()) > 0.001;
     }
 
     /**
@@ -267,7 +268,7 @@ class SendToSchoolResults extends Page
         return Action::make('fullMarks')
             ->modalHeading(__('The full marks are not the same'))
             ->modalDescription(fn (): string => __('This exam is out of :ours marks; the MCQ of this subject in the school software is out of :theirs.', [
-                'ours' => (float) $this->exam->total_marks,
+                'ours' => $this->exam->scoredMarks(),
                 'theirs' => (float) ($this->sheet['mcq_total'] ?? 0),
             ]))
             // One of the two answers has to be given: no closing it away.

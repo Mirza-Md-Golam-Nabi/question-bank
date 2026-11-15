@@ -8,6 +8,7 @@ use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\BillingSetting;
 use App\Models\Chapter;
+use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -43,7 +44,7 @@ class TeacherClassPerformance
     public function classTrend(User $teacher, ?int $classSubjectId = null): Collection
     {
         return $this->attempts($teacher, $classSubjectId)
-            ->where('exams.total_marks', '>', 0)
+            ->whereRaw(Exam::SCORED_MARKS_SQL.' > 0')
             ->groupBy('exams.id', 'exams.title', 'exams.created_at')
             ->orderByDesc('exams.created_at')
             ->orderByDesc('exams.id')
@@ -113,7 +114,7 @@ class TeacherClassPerformance
             ->whereExists($theirs())
             ->select('users.*')
             ->selectSub($theirs()->selectRaw('count(*)'), 'exams_count')
-            ->selectSub($theirs()->where('exams.total_marks', '>', 0)->selectRaw('avg('.ExamAttempt::SCORE_PERCENT_SQL.')'), 'average_score')
+            ->selectSub($theirs()->whereRaw(Exam::SCORED_MARKS_SQL.' > 0')->selectRaw('avg('.ExamAttempt::SCORE_PERCENT_SQL.')'), 'average_score')
             ->selectSub($theirs()->selectRaw('max(attempt.submitted_at)'), 'last_sat_at');
     }
 
@@ -218,7 +219,7 @@ class TeacherClassPerformance
     private function latestScores(User $teacher, ?int $classSubjectId, int $count, ?array $studentIds = null): Collection
     {
         $ranked = $this->attempts($teacher, $classSubjectId)
-            ->where('exams.total_marks', '>', 0)
+            ->whereRaw(Exam::SCORED_MARKS_SQL.' > 0')
             ->whereNotNull('attempt.student_id')
             ->when($studentIds !== null, fn (Builder $attempts) => $attempts->whereIn('attempt.student_id', $studentIds))
             ->selectRaw('attempt.student_id, '.ExamAttempt::SCORE_PERCENT_SQL.' as percent')

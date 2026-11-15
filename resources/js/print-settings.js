@@ -71,9 +71,29 @@ if (dataElement) {
         }
     };
 
+    // The OMR sheet (App\Support\OmrSheet) fills an A4 page with its own
+    // frame, or an A5 one with the same frame smaller; margins are what is
+    // left around it, so no print setting can move what the scanner reads.
+    const omrFrame = data.omrFrame;
+    const PAPER_HEIGHTS_MM = { A4: 297, A5: 210 };
+
+    const pageOf = () => {
+        if (!omrFrame) {
+            return { size: settings.paper_size, top: settings.margin_top, right: settings.margin_right, bottom: settings.margin_bottom, left: settings.margin_left };
+        }
+
+        const size = settings.omr_paper_size;
+        const scale = size === 'A5' ? omrFrame.a5Scale : 1;
+        const side = Math.floor(((PAPER_WIDTHS_MM[size] - omrFrame.width * scale) / 2) * 2) / 2;
+        const top = Math.floor(((PAPER_HEIGHTS_MM[size] - omrFrame.height * scale) / 2) * 2) / 2 - 0.5;
+
+        return { size, scale, top, right: side, bottom: top, left: side };
+    };
+
     const applyToPaper = () => {
         const style = paper.style;
-        const margin = `${settings.margin_top}mm ${settings.margin_right}mm ${settings.margin_bottom}mm ${settings.margin_left}mm`;
+        const page = pageOf();
+        const margin = `${page.top}mm ${page.right}mm ${page.bottom}mm ${page.left}mm`;
 
         style.setProperty('--qb-columns', settings.columns);
         style.setProperty('--qb-column-gap', `${settings.column_gap}px`);
@@ -83,7 +103,7 @@ if (dataElement) {
         style.setProperty('--qb-institution-size', `${settings.institution_font_size}px`);
         style.setProperty('--qb-logo-size', `${settings.logo_size}mm`);
         style.setProperty('--qb-text-align', settings.text_align);
-        style.setProperty('--qb-paper-width', `${PAPER_WIDTHS_MM[settings.paper_size] ?? 210}mm`);
+        style.setProperty('--qb-paper-width', `${PAPER_WIDTHS_MM[page.size] ?? 210}mm`);
         style.setProperty('--qb-margin', margin);
 
         paper.dataset.optionStyle = settings.option_style;
@@ -99,27 +119,38 @@ if (dataElement) {
             block.hidden = block.hidden || block.textContent.trim() === '';
         }
 
-        const institution = paper.querySelector('[data-print-institution]');
+        // The name and its logo — on every sheet of an OMR paper.
         const name = data.institutionNames?.[settings.institution_name_id] ?? '';
-        institution.textContent = name;
-        institution.hidden = name === '';
-
         // The logo goes with its name: never without it.
-        const logo = paper.querySelector('[data-print-logo]');
         const logoUrl = name !== '' && settings.show_logo ? (data.institutionLogos?.[settings.institution_name_id] ?? '') : '';
-        if (logoUrl !== '' && logo.getAttribute('src') !== logoUrl) {
-            logo.src = logoUrl;
+        for (const brand of paper.querySelectorAll('[data-print-brand]')) {
+            const institution = brand.querySelector('[data-print-institution]');
+            institution.textContent = name;
+            institution.hidden = name === '';
+
+            const logo = brand.querySelector('[data-print-logo]');
+            if (logoUrl !== '' && logo.getAttribute('src') !== logoUrl) {
+                logo.src = logoUrl;
+            }
+            logo.hidden = logoUrl === '';
+            brand.dataset.logoPosition = settings.logo_position;
         }
-        logo.hidden = logoUrl === '';
-        paper.querySelector('[data-print-brand]').dataset.logoPosition = settings.logo_position;
 
         for (const running of paper.querySelectorAll('[data-print-running]')) {
             running.textContent = settings[running.dataset.printRunning] ?? '';
             running.hidden = running.textContent.trim() === '';
         }
 
-        const roll = paper.querySelector('[data-omr-roll]');
-        if (roll) {
+        if (omrFrame) {
+            paper.toggleAttribute('data-omr-scale', page.scale !== 1);
+            style.setProperty('--qb-omr-scale', String(page.scale));
+            style.setProperty('--qb-omr-roll-digits', String(settings.omr_roll_digits));
+            // Only the sheet's heading follows the "Text" settings (its size relative to the default 14px).
+            style.setProperty('--qb-omr-font', String(settings.font_size / 14));
+            style.setProperty('--qb-omr-align', { left: 'flex-start', right: 'flex-end' }[settings.text_align] ?? 'center');
+        }
+
+        for (const roll of paper.querySelectorAll('[data-omr-roll]')) {
             roll.hidden = settings.omr_roll_digits === 0;
             for (const column of roll.querySelectorAll('[data-omr-roll-column]')) {
                 column.hidden = Number(column.dataset.omrRollColumn) >= settings.omr_roll_digits;
@@ -127,10 +158,11 @@ if (dataElement) {
         }
 
         const marginBox = (position, content) => ` @${position} { content: ${content}; font-size: 9pt; color: #4b5563; font-family: ${data.fonts[settings.font] ?? 'inherit'}; }`;
-        const pageNumber = settings.page_numbers ? marginBox(`bottom-${settings.page_number_position}`, `counter(page, ${data.pageNumberStyle})`) : '';
-        const header = (settings.header_text ?? '').trim() !== '' ? marginBox('top-center', cssString(settings.header_text)) : '';
-        const footer = (settings.footer_text ?? '').trim() !== '' ? marginBox('bottom-left', cssString(settings.footer_text)) : '';
-        pageRule.textContent = `@page { size: ${settings.paper_size}; margin: ${margin};${pageNumber}${header}${footer} }`;
+        // The OMR sheet's margins are too narrow for these, and it numbers its own sheets.
+        const pageNumber = settings.page_numbers && !omrFrame ? marginBox(`bottom-${settings.page_number_position}`, `counter(page, ${data.pageNumberStyle})`) : '';
+        const header = !omrFrame && (settings.header_text ?? '').trim() !== '' ? marginBox('top-center', cssString(settings.header_text)) : '';
+        const footer = !omrFrame && (settings.footer_text ?? '').trim() !== '' ? marginBox('bottom-left', cssString(settings.footer_text)) : '';
+        pageRule.textContent = `@page { size: ${page.size}; margin: ${margin};${pageNumber}${header}${footer} }`;
 
         fitToScreen();
     };

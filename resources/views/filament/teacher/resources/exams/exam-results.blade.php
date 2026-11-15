@@ -14,7 +14,7 @@
 
         <x-filament::section>
             <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Total marks') }}</p>
-            <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ QuestionDisplay::marks($exam->total_marks) }}</p>
+            <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ QuestionDisplay::marks($exam->scoredMarks()) }}</p>
         </x-filament::section>
 
         <x-filament::section>

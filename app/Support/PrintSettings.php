@@ -20,11 +20,15 @@ use Illuminate\Validation\ValidationException;
  * wish — the page prints it (and its logo) only while that name is usable.
  * `header_text` / `footer_text` are printed small at the top / bottom of
  * every page; `omr_roll_digits` is how many digits the OMR sheet's roll
- * number has (0 = no roll grid).
+ * number has (0 = no roll grid), `omr_paper_size` the paper it is printed
+ * on (the question paper's own size and margins don't apply to it).
  */
 final class PrintSettings
 {
     public const PAPER_SIZES = ['A4', 'Letter', 'Legal', 'A5'];
+
+    /** The OMR sheet's own paper: A4, or A5 with the same sheet smaller (OmrSheet::A5_SCALE). */
+    public const OMR_PAPER_SIZES = ['A4', 'A5'];
 
     public const OPTION_STYLES = ['paren', 'circle', 'dot', 'bracket'];
 
@@ -69,6 +73,7 @@ final class PrintSettings
         'header_text' => null,
         'footer_text' => null,
         'omr_roll_digits' => 4,
+        'omr_paper_size' => 'A4',
         'mcq_instructions' => null,
         'cq_instructions' => null,
         'paper_size' => 'A4',
@@ -143,7 +148,8 @@ final class PrintSettings
             'show_student_fields' => ['boolean'],
             'header_text' => ['nullable', 'string', 'max:'.self::RUNNING_TEXT_MAX],
             'footer_text' => ['nullable', 'string', 'max:'.self::RUNNING_TEXT_MAX],
-            'omr_roll_digits' => ['integer', 'between:0,10'],
+            'omr_roll_digits' => ['integer', 'between:0,'.OmrSheet::ROLL_DIGITS],
+            'omr_paper_size' => [Rule::in(self::OMR_PAPER_SIZES)],
             'mcq_instructions' => ['nullable', 'string', 'max:1000'],
             'cq_instructions' => ['nullable', 'string', 'max:1000'],
             'paper_size' => [Rule::in(self::PAPER_SIZES)],

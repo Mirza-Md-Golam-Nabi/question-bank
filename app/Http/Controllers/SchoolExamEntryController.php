@@ -125,13 +125,7 @@ class SchoolExamEntryController extends Controller
      */
     private function pick(Exam $exam, array $data, string $errorBag = 'class_id'): array
     {
-        try {
-            $picked = $this->roster->pick($this->schoolOf($exam), $data['class_id'], $data['section_id'] ?? null);
-        } catch (RuntimeException $exception) {
-            throw ValidationException::withMessages([$errorBag => $exception->getMessage()]);
-        }
-
-        return $picked ?? throw ValidationException::withMessages([$errorBag => __('Choose your class and section.')]);
+        return $this->roster->pickOrFail($this->schoolOf($exam), $data['class_id'], $data['section_id'] ?? null, $errorBag, __('Choose your class and section.'));
     }
 
     private function schoolOf(Exam $exam): SchoolProfile

@@ -11,11 +11,14 @@
     @var bool $hasMcq
     @var bool $hasCq
     @var bool $isOmrSheet
+    @var \App\Models\Exam $exam
+    @var \Illuminate\Support\Collection $mcqQuestions  The paper's MCQ (the OMR sheet's questions).
 --}}
 @php
     use App\Enums\Locale;
     use App\Filament\Support\CurrentPanel;
     use App\Filament\Support\QuestionDisplay;
+    use App\Support\OmrSheet;
     use App\Support\PrintSettings;
 
     $choice = fn (string $setting, mixed $value): array => [
@@ -95,21 +98,22 @@
             </label>
         @endif
 
-        @foreach ([
+        {{-- The OMR sheet's heading has no chapters, instructions or lines for the name. --}}
+        @foreach (array_filter([
             'show_exam_title' => __('Exam name'),
             'show_class' => __('Class name'),
             'show_subject' => __('Subject name'),
-            'show_chapters' => __('Chapter names'),
-            'show_instructions' => __('Instructions'),
-            'show_student_fields' => __('Lines for name and roll'),
-        ] as $setting => $label)
+            'show_chapters' => $isOmrSheet ? null : __('Chapter names'),
+            'show_instructions' => $isOmrSheet ? null : __('Instructions'),
+            'show_student_fields' => $isOmrSheet ? null : __('Lines for name and roll'),
+        ]) as $setting => $label)
             <label class="qb-print-switch">
                 <span>{{ $label }}</span>
                 <input type="checkbox" role="switch" data-setting="{{ $setting }}" data-type="bool">
             </label>
         @endforeach
 
-        @foreach (array_filter(['mcq' => $hasMcq ? __('MCQ instructions') : null, 'cq' => $hasCq ? __('CQ instructions') : null]) as $type => $label)
+        @foreach ($isOmrSheet ? [] : array_filter(['mcq' => $hasMcq ? __('MCQ instructions') : null, 'cq' => $hasCq ? __('CQ instructions') : null]) as $type => $label)
             <label class="qb-print-field" data-shown-with="show_instructions">
                 <span>{{ $label }}</span>
                 <textarea rows="3" maxlength="1000" data-setting="{{ $type }}_instructions" data-type="text" data-default="{{ $defaultInstructions[$type] }}"></textarea>
@@ -120,20 +124,51 @@
         @endforeach
     </section>
 
-    {{-- The OMR sheet's own setting --}}
+    {{-- The OMR sheet's own settings: how many questions (saved on the exam), its paper, and the roll number's digits. --}}
     @if ($isOmrSheet)
+        @php
+            $omrSheet = new OmrSheet($exam, $mcqQuestions);
+            $omrMcqCount = $omrSheet->entries()->count();
+            $omrQuestionsError = session('errors')?->first('questions');
+        @endphp
         <section class="qb-print-settings-group">
             <h3>{{ __('OMR sheet') }}</h3>
 
+            <form method="POST" action="{{ CurrentPanel::route('exams.omr-questions', $exam) }}" class="qb-print-field">
+                @csrf
+                <label for="qb-omr-questions">{{ __('Questions on the sheet') }}</label>
+                <div class="flex gap-2">
+                    <input id="qb-omr-questions" type="number" name="questions" required
+                           min="1" max="{{ max($omrMcqCount, OmrSheet::MAX_QUESTIONS) }}"
+                           value="{{ $omrSheet->questionCount() }}" class="min-w-0 flex-1">
+                    <button type="submit" class="qb-btn qb-btn--outline text-sm">{{ __('Apply') }}</button>
+                </div>
+                @if ($omrQuestionsError)
+                    <span class="text-xs text-red-600">{{ $omrQuestionsError }}</span>
+                @endif
+            </form>
+            <p class="text-xs text-gray-500">{{ __('The paper has :count MCQ. Fewer rows leave the last questions off the sheet (they count as unanswered); more rows stay blank and are not read. A sheet printed before the change can no longer be scanned.', ['count' => Locale::current()->writeDigits((string) $omrMcqCount)]) }}</p>
+
+            <div class="qb-print-field">
+                <span>{{ __('Paper size') }}</span>
+                <div class="qb-print-choices">
+                    @foreach (PrintSettings::OMR_PAPER_SIZES as $size)
+                        <button type="button" @foreach ($choice('omr_paper_size', $size) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>{{ $size }}</button>
+                    @endforeach
+                </div>
+            </div>
+            <p class="text-xs text-gray-500">{{ __('On A5 the same sheet is printed smaller. To get a PDF, use the print button above.') }}</p>
+
             <label class="qb-print-field">
                 <span>{{ __('Digits in the roll number') }} <output data-output="omr_roll_digits" data-unit=""></output></span>
-                <input type="range" min="0" max="10" data-setting="omr_roll_digits" data-type="int">
+                <input type="range" min="0" max="{{ OmrSheet::ROLL_DIGITS }}" data-setting="omr_roll_digits" data-type="int">
             </label>
-            <p class="text-xs text-gray-500">{{ __('0 = no roll number circles.') }}</p>
+            <p class="text-xs text-gray-500">{{ __('0 = no roll number circles — then the roll is typed in when the sheet is scanned.') }}</p>
         </section>
     @endif
 
-    {{-- The page --}}
+    {{-- The page (the OMR sheet keeps its own: above) --}}
+    @unless ($isOmrSheet)
     <section class="qb-print-settings-group">
         <h3>{{ __('Page') }}</h3>
 
@@ -178,6 +213,7 @@
             </div>
         </div>
     </section>
+    @endunless
 
     {{-- The text --}}
     <section class="qb-print-settings-group">
@@ -206,7 +242,7 @@
             </div>
         </div>
 
-        @if ($hasMcq)
+        @if ($hasMcq && ! $isOmrSheet)
             <div class="qb-print-field">
                 <span>{{ __('Option style') }}</span>
                 <div class="qb-print-choices">
@@ -231,7 +267,7 @@
     </section>
 
     {{-- The MCQ columns --}}
-    @if ($hasMcq)
+    @if ($hasMcq && ! $isOmrSheet)
         <section class="qb-print-settings-group">
             <h3>{{ __('Columns') }}</h3>
             @if ($hasCq)

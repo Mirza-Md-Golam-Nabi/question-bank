@@ -55,7 +55,8 @@ class ExamResultSheet
                 'contact' => $attempt->participantContact(),
                 'is_guest' => $attempt->is_guest,
                 'score' => (float) $attempt->total_score,
-                'duration_seconds' => $attempt->submitted_at && $attempt->started_at
+                // A scanned OMR sheet has no clock to time it by.
+                'duration_seconds' => ! $attempt->is_omr && $attempt->submitted_at && $attempt->started_at
                     ? max(0, (int) $attempt->started_at->diffInSeconds($attempt->submitted_at))
                     : null,
             ])
@@ -237,13 +238,18 @@ class ExamResultSheet
 
     /**
      * What makes two attempts "the same person": a logged-in student's
-     * account, a School student's class + section + roll + name, or a
-     * guest's name + phone/email.
+     * account, a scanned OMR sheet's (class + section +) roll, a School
+     * student's class + section + roll + name, or a guest's name +
+     * phone/email.
      */
     private function participantKey(ExamAttempt $attempt): string
     {
         if (! $attempt->is_guest) {
             return 'student:'.$attempt->student_id;
+        }
+
+        if ($attempt->is_omr) {
+            return "omr:{$attempt->school_class_id}|{$attempt->school_section_id}|{$attempt->school_roll}";
         }
 
         if ($attempt->isSchoolAttempt()) {

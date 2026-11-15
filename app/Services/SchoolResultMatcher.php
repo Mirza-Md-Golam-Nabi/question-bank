@@ -79,8 +79,8 @@ class SchoolResultMatcher
     {
         $score = (float) $paper->total_score;
 
-        if ($inProportion && (float) $exam->total_marks > 0) {
-            $score = $score / (float) $exam->total_marks * $schoolFullMarks;
+        if ($inProportion && $exam->scoredMarks() > 0) {
+            $score = $score / $exam->scoredMarks() * $schoolFullMarks;
         }
 
         return round(min($score, $schoolFullMarks), 2);
