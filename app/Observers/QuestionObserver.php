@@ -26,8 +26,11 @@ class QuestionObserver
         $question->is_private ??= $this->creatorOf($question)?->role === UserRole::School;
 
         // Checked for duplicates in the background before it can be used
-        // (QuestionDuplicateScreening) — but a School's own, never.
-        $question->duplicate_status ??= $question->is_private ? DuplicateCheckStatus::Clear : DuplicateCheckStatus::Checking;
+        // (QuestionDuplicateScreening) — but a School's own, never, nor one
+        // brought from the live server, checked there already.
+        $question->duplicate_status ??= $question->is_private || QuestionDuplicateScreening::isPaused()
+            ? DuplicateCheckStatus::Clear
+            : DuplicateCheckStatus::Checking;
 
         if ($question->status === QuestionStatus::Approved && ! $question->approved_by) {
             $question->approved_by = auth()->id();

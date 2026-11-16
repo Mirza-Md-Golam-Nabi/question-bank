@@ -6,8 +6,8 @@ namespace App\Support;
  * Signs and checks the requests exchanged with a school's installation of
  * the school management software. Both sides hold the School's secret
  * (SchoolProfile::connection_secret) and sign "{timestamp}.{body}" with
- * HMAC-SHA256 — the secret itself never travels. The school management
- * software signs the same way (its QuestionBankSignature).
+ * HMAC-SHA256 (RequestSignature) — the secret itself never travels. The
+ * school management software signs the same way (its QuestionBankSignature).
  */
 class SchoolConnectionSignature
 {
@@ -15,7 +15,7 @@ class SchoolConnectionSignature
      * How old a signed request may be before it is refused, in seconds — so
      * a captured request can't be replayed later. A technical limit.
      */
-    public const TOLERANCE_SECONDS = 300;
+    public const TOLERANCE_SECONDS = RequestSignature::TOLERANCE_SECONDS;
 
     public const CODE_HEADER = 'X-School-Code';
 
@@ -25,7 +25,7 @@ class SchoolConnectionSignature
 
     public static function sign(string $secret, string $timestamp, string $body): string
     {
-        return hash_hmac('sha256', "{$timestamp}.{$body}", $secret);
+        return RequestSignature::sign($secret, $timestamp, $body);
     }
 
     /**
@@ -33,15 +33,7 @@ class SchoolConnectionSignature
      */
     public static function verify(string $secret, ?string $timestamp, string $body, ?string $signature): bool
     {
-        if (blank($timestamp) || blank($signature) || ! ctype_digit($timestamp)) {
-            return false;
-        }
-
-        if (abs(now()->timestamp - (int) $timestamp) > self::TOLERANCE_SECONDS) {
-            return false;
-        }
-
-        return hash_equals(self::sign($secret, $timestamp, $body), $signature);
+        return RequestSignature::verify($secret, $timestamp, $body, $signature);
     }
 
     /**

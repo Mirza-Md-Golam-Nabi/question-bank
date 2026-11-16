@@ -163,11 +163,24 @@ Chapter-এর প্রশ্নের তালিকায় "JSON দিয
 - **ফল:** কিছু না মিললে `clear`; মিললে (হুবহু বা ≥ %) `suspected`, আর সবচেয়ে বেশি মিলের ৫টা `question_duplicate_matches`-এ।
 - **`checking` ও `suspected` প্রশ্ন:** pool-এ যায় না (`scopeApprovedPool()`), কোনো পরীক্ষায় যায় না — লেখক Teacher-এর নিজেরটাও না (`scopeUsableInExamBy()`), approve হয় না (`QuestionPolicy::approve()`, `Question::approve()`; গ্রুপ approve হলে এমন সদস্য বাদ থাকে, একসাথে অনেক approve-এ "বাদ" গোনা হয়)। লেখক তালিকায় শুধু badge দেখেন ("ডুপ্লিকেট যাচাই চলছে" / "সম্ভাব্য ডুপ্লিকেট — Admin যাচাই করছেন") — কার সাথে মিলেছে তা কখনো না।
 - **Admin-এর "সম্ভাব্য ডুপ্লিকেট" পেজ** (`Filament\Pages\DuplicateQuestions`; মেনুতে অপেক্ষমাণ প্রশ্নের সংখ্যা সবসময় badge-এ — কিছু থাকলে লাল ব্যাকগ্রাউন্ডে, না থাকলে ধূসর "0" — স্টাইল admin `theme.css`-এ): শুরুতে কার্ড আকারে — প্রতিটা কার্ডে শ্রেণি · বিষয় · অধ্যায়, প্রশ্নটা পুরো (উত্তরসহ), আর নিচে যে প্রশ্নগুলোর সাথে মিলেছে সেগুলো %-সহ; "টেবিল আকারে" বাটনে কলামের টেবিল (`?view=table`; টগল `Support\Concerns\SwitchesCardAndTableView`, অধ্যায়ের প্রশ্ন-তালিকার সাথে একই)। "মিলিয়ে দেখুন" জানালায় নতুন প্রশ্ন ও মিলে যাওয়া প্রশ্নগুলো উত্তরসহ পাশাপাশি; **রাখুন** (আলাদা প্রশ্ন → `clear`, তারপর সাধারণ approve) বা **মুছুন** — একটা একটা বা একসাথে অনেক। মুছলে স্থায়ীভাবে (`forceDelete`); নতুন সংস্করণ হলে আগের সংস্করণ আবার চলতি হয়; **কোনো পরীক্ষায় আগে থেকে থাকলে মোছে না, reject করে** (পরীক্ষা অক্ষত)। প্রতিটা সিদ্ধান্ত log হয়। "যাচাই চলছে" ফিল্টারে আটকে থাকা প্রশ্নে "আবার যাচাই করুন"।
-- **আগে থেকে থাকা প্রশ্ন:** পেজের "আগে থেকে থাকা প্রশ্নে ডুপ্লিকেট খুঁজুন" প্রতিটা অধ্যায়ের জন্য একটা job দেয় (`ScreenChapterForDuplicates`) — অথবা সার্ভারে `php artisan questions:screen-duplicates [--chapter=ID]` (queue ছাড়া, সাথে সাথে)। প্রথমে fingerprint বসায়, তারপর নতুন প্রশ্ন আগে যাচাই করে — দুটো একই হলে পরে যোগ হওয়াটা `suspected` হয়, পুরনোটা pool-এ থাকে।
+- **আগে থেকে থাকা প্রশ্ন:** পেজের "আগে থেকে থাকা প্রশ্নে ডুপ্লিকেট খুঁজুন" প্রতিটা অধ্যায়ের জন্য একটা job দেয় (`ScreenChapterForDuplicates`) — অথবা সার্ভারে `php artisan questions:screen-duplicates [--chapter=ID]` (queue ছাড়া, সাথে সাথে)। প্রথমে fingerprint বসায়, তারপর নতুন প্রশ্ন আগে যাচাই করে — দুটো একই হলে পরে যোগ হওয়াটা `suspected` হয়, পুরনোটা pool-এ থাকে। **Approved প্রশ্ন এখানে যাচাই হয় না** (নইলে pool থেকে হঠাৎ সরে যেত) — সেগুলো নিচের "Approved প্রশ্নে ডুপ্লিকেট"-এ।
 - **বাদ:** বিগত সালের প্রশ্নপত্র (একই প্রশ্ন বিভিন্ন বছরে আসা স্বাভাবিক) আর School-এর নিজের প্রশ্ন।
 - **চালানো:** সার্ভারের cron-এ `flock` দিয়ে একটা `queue:work` (সাইটপ্রতি একটা, প্রায় সবসময় চালু) — তাই ফল প্রায় সাথে সাথে আসে। → [10-testing-and-deploy.md](10-testing-and-deploy.md)
 
 টেস্ট: `QuestionDuplicateScreeningTest`।
+
+### Approved প্রশ্নে ডুপ্লিকেট (সেট)
+
+আগে approve হয়ে যাওয়া প্রশ্নের মধ্যে ডুপ্লিকেট থেকে গেলে (যেমন যাচাই চালু হওয়ার আগে, বা Admin ভুলে "রাখুন" দিলে) সেগুলো আবার খুঁজে একসাথে বাদ দেওয়ার জায়গা। নিয়মের একমাত্র জায়গা `App\Services\ApprovedDuplicateSweep`; মিলের বিচার একই `DuplicateQuestionFinder`, একই Admin %, একই index।
+
+- **শুরু:** Admin-এর "Approved প্রশ্নে ডুপ্লিকেট" পেজের **"ডুপ্লিকেট খুঁজুন"** — শ্রেণি ফাঁকা রাখলে পুরো প্রশ্নভাণ্ডার, নইলে শ্রেণি → বিষয় → (ঐচ্ছিক) অধ্যায়। যে অধ্যায়ে যাচাই-না-হওয়া approved প্রশ্ন আছে তার প্রতিটার জন্য একটা job (`ScreenApprovedChapterForDuplicates`), সব মিলে একটা Laravel batch — পেজের ওপরে "… অধ্যায়ের … শেষ" অগ্রগতি (৫ সেকেন্ড পরপর), পাওয়া সেট সাথে সাথে তালিকায়। Queue আগের মতোই cron-এর `queue:work`।
+- **কাদের মধ্যে:** একই অধ্যায় ও ধরনের (MCQ ও CQ দুটোই) চলতি approved প্রশ্ন, পেছনের যাচাইয়ে `clear`; School-এর নিজের প্রশ্ন ও প্রশ্নপত্র বাদ, নিজের উদ্দীপকের গ্রুপের প্রশ্ন একে অপরের সাথে মেলে না। Admin আগে যেগুলো রেখেছেন (`duplicate_verified_at`) সেগুলো নিজে যাচাই হয় না, কিন্তু অন্যটার সাথে মিললে সেটে আসে; রাখা দুটো একে অপরের বিপরীতে কখনো আসে না।
+- **সেট:** মিলে যাওয়া জোড়াগুলো জুড়ে এক সেট — A–B আর B–C মিললে A, B, C এক সেটে। প্রতিটা প্রশ্নের পাশে সেটের যেটার সাথে সবচেয়ে বেশি মিল তার % (হুবহু হলে "হুবহু একই")। একই অধ্যায় আবার যাচাই করলে তার অপেক্ষমাণ সেটগুলো নতুন ফলে বদলে যায়। যাচাই ও অপেক্ষার সময় প্রশ্নগুলো pool-এ থাকে।
+- **পেজ** (`Filament\Pages\ApprovedDuplicates`; মেনুতে অপেক্ষমাণ সেটের সংখ্যা badge-এ): প্রতিটা সেট একটা কার্ড — শ্রেণি · বিষয় · অধ্যায়, কয়টা একই রকম প্রশ্ন, আর প্রতিটা প্রশ্ন উত্তর ও **ব্যাখ্যাসহ**, কে লিখেছেন, কয়টা পরীক্ষায় আছে, কতজন উত্তর দিয়েছে, কবে যোগ হয়েছে। শ্রেণি দিয়ে ফিল্টার।
+- **সিদ্ধান্ত:** "Approve করুন ও বাকিগুলো মুছুন" — জানালায় টিক দিয়ে কোনগুলো থাকবে (শুরুতে টিক সবচেয়ে বেশি পরীক্ষায় থাকা, সমান হলে সবচেয়ে পুরনোটায়; অন্তত একটা লাগে)। অথবা "এগুলো ডুপ্লিকেট না" — সবগুলো থাকে। রাখা প্রশ্নে `duplicate_verified_at` বসে, আর কখনো যাচাই হয় না; এডিট করলে নতুন সংস্করণে সেটা থাকে না, তাই আবার যাচাই হয়।
+- **মোছা** (`QuestionDuplicateScreening::removeApproved()`): সব সংস্করণসহ স্থায়ীভাবে। প্রশ্নটার কোনো সংস্করণ কোনো পরীক্ষায় বা Staff-এর পারিশ্রমিকে (`staff_earnings`) থাকলে মোছে না, reject করে — পরীক্ষা, খাতা ও পারিশ্রমিক অক্ষত, pool থেকে সরে যায়; উদ্দীপকের গ্রুপের শুধু সেই প্রশ্নটা, বাকিরা থাকে। পারিশ্রমিক ফেরত কাটা হয় না। প্রতিটা সিদ্ধান্ত log হয়।
+
+টেস্ট: `ApprovedDuplicateSweepTest`।
 
 ## Dynamic difficulty
 
@@ -225,6 +238,45 @@ MCQ-র `difficulty` শুরুতে লেখকের বাছাই; য�
 - সবার জন্য একই সংখ্যা, তাই মিনিটে একবার হিসাব হয়ে cache-এ থাকে; খোলা ড্যাশবোর্ড মিনিটে একবার নতুন করে দেখায়। ল্যাপটপে চার্ট ও শ্রেণি পাশাপাশি, মোবাইলে একটার নিচে আরেকটা।
 - হিসাব `App\Services\QuestionBankGrowth` (প্রশ্নভাণ্ডারের অংশ `Question::scopeAddedToBank()`), কার্ড `Support\Widgets\QuestionBankGrowthWidget` — সব প্যানেলে `PanelDefaults` দিয়ে। টেস্ট: `QuestionBankGrowthTest`।
 
+## লাইভ সার্ভার থেকে টেস্ট সার্ভারে প্রশ্ন আনা
+
+টেস্ট সার্ভারে আসল প্রশ্ন দিয়ে কাজ করার জন্য Super Admin লাইভ সার্ভারের approved প্রশ্ন ও প্রশ্নপত্র টেনে আনেন (CLAUDE.md নিয়ম ১৬)। শুধু এক দিকে: লাইভ → টেস্ট।
+
+**সেটআপ (`.env`):**
+
+| | লাইভ | টেস্ট |
+|---|---|---|
+| `QUESTION_SYNC_ROLE` | `source` | `consumer` |
+| `QUESTION_SYNC_SECRET` | একটা লম্বা random স্ট্রিং | লাইভেরটাই |
+| `QUESTION_SYNC_SOURCE_URL` | — | লাইভের ঠিকানা (যেমন `https://qbank.nextfusion.top`) |
+
+Role ঠিক করে কোন পেজ ও API থাকে: লাইভে শুধু "টেস্ট সার্ভারে প্রশ্ন শেয়ার" পেজ ও API (`/api/question-sync/...`), টেস্টে শুধু "লাইভ সার্ভার থেকে প্রশ্ন আনুন" পেজ — অন্য সার্ভারে API-র অস্তিত্বই নেই (404)। দুই পেজই শুধু Super Admin দেখেন।
+
+**চালু/বন্ধ (লাইভ):** "শেয়ার চালু করুন" — কত ঘণ্টা (১–৭২, শেষবারেরটা মনে থাকে); সময় পার হলে নিজে থেকে বন্ধ, কোনো job ছাড়া (`QuestionSyncSource::openUntil()`)। বন্ধ থাকলে প্রতিটা অনুরোধ 403। প্রতিটা অনুরোধ HMAC-SHA256-এ সই (method + পথ + সাজানো query, ৫ মিনিট — `QuestionSync`, `RequestSignature`), ভুল secret 401; লাইভে প্রতিটা অনুরোধ log।
+
+**কী দেয় (`QuestionSyncSource`):** শ্রেণি → বিষয় → অধ্যায় (প্রতিটায় কয়টা প্রশ্ন আনা যায়), অধ্যায়ের প্রশ্ন পাতায় পাতায় (একা প্রশ্ন ১০০টা, উদ্দীপক তার প্রশ্নসহ ২৫টা), প্রশ্নপত্রের উৎস ও পেপার, পুরো পেপার, আর public disk-এর ছবি (শুধু ছবির ফাইল)। প্রশ্ন শুধু `approvedPool()`-এর; প্রতিটায় লাইভের প্রথম সংস্করণের ID ও সংস্করণ, ধরন, লেখা, অপশন (সঠিকটা চিহ্নিত), ব্যাখ্যা, নম্বর, CQ-র অংশ, উদ্দীপক, টপিকের নাম, difficulty।
+
+**আনা (টেস্ট, `QuestionSyncImporter`):** পেজে বামে টেস্টের শ্রেণি → বিষয় → অধ্যায়, ডানে লাইভের; "আনুন" চাপলে queue-তে job `FetchFromLiveServer` (একই অধ্যায়/পেপার চলার মধ্যে আবার শুরু হয় না)। নিচের তালিকায় প্রতিটা আনা (`question_sync_runs`) — নতুন / হালনাগাদ / অপরিবর্তিত / বাদ, নতুন টপিক, ছবি — চলার সময় ৫ সেকেন্ড পরপর হালনাগাদ। কোনো ইউনিটে সমস্যা হলে আনা থামে ("ব্যর্থ", কারণসহ); তার আগে যা সেভ হয়েছে থাকে, আবার আনলে বাকিটা আসে।
+
+- প্রশ্ন `approved`, লেখক ও approver যে Super Admin আনলেন — তাই কোনো Staff-এর পারিশ্রমিক হয় না। ডুপ্লিকেট যাচাই চলে না (`QuestionDuplicateScreening::whilePaused()`; প্রশ্ন সরাসরি `clear`), শেষে শুধু অধ্যায়ের fingerprint বসে, যাতে পরে লেখা প্রশ্ন এগুলোর সাথে মেলে।
+- টপিক: লাইভের টপিকের নাম টেস্টের অধ্যায়ে খোঁজা (ফাঁকা স্পেস ও ছোট-বড় হাতের অক্ষর বাদে); না পেলে অধ্যায়ের শেষে নতুন টপিক; লাইভে টপিক না থাকলে টপিক ছাড়া।
+- ছবি একই পথে টেস্টের public disk-এ নামে (আগে থাকলে আবার না); লাইভে না পেলে "পাওয়া যায়নি" গোনা হয়, প্রশ্ন তবুও আসে।
+- **আবার আনলে** — চেনা হয় `remote_origin_id` দিয়ে (যেকোনো টেস্ট অধ্যায়ে থাকুক):
+
+| অবস্থা | কী হয় |
+|---|---|
+| টেস্টে নেই | নতুন প্রশ্ন |
+| আছে, লাইভে একই সংস্করণ | অপরিবর্তিত — টেস্টে এডিট করা থাকলে সেটাই থাকে; শুধু difficulty-র মান আসে (টেস্টে এডিট না হয়ে থাকলে) |
+| লাইভে নতুন সংস্করণ | টেস্টে নতুন সংস্করণ (`createRevisionWith()` + approve), পুরনোটা তার পরীক্ষায় থাকে — টেস্টে এডিট থাকলেও লাইভেরটা জেতে |
+| লাইভে মুছে গেছে/reject | টেস্টে যেমন আছে থাকে (লাইভ সেটা আর পাঠায় না) |
+| টেস্টে মোছা | আর ফেরে না ("বাদ") |
+
+- উদ্দীপকের গ্রুপ এক ইউনিট: কোনো প্রশ্ন নতুন সংস্করণ হলে পুরো গ্রুপের নতুন সংস্করণ — নতুন উদ্দীপক (`question_stimuli.remote_id`), প্রতিটা প্রশ্নের নতুন সংস্করণ; কিছু নতুন না হলে গ্রুপ যেমন আছে, লাইভে গ্রুপে নতুন যোগ হওয়া প্রশ্ন টেস্টের গ্রুপে যোগ হয়।
+- **প্রশ্নপত্র:** ডানে ধরন → উৎস → পেপার, বামে (শিক্ষা বোর্ড/স্কুলের পেপারে) টেস্টের শ্রেণি-বিষয়। পুরো পেপার approved (উদ্দীপক, MCQ — একাধিক সঠিক বা "উত্তর নেই" যেমন আছে, ব্যাখ্যা, CQ-র অংশ ও উত্তর)। উৎস একই ধরন + ইংরেজি (না মিললে বাংলা) নাম দিয়ে খোঁজা, না পেলে তৈরি। আবার আনলে (`board_question_papers.remote_id`) প্রশ্নগুলো মুছে লাইভ অনুযায়ী নতুন করে — টেস্টে কেউ পরীক্ষা দিয়ে থাকলে (`hasBeenSat()`) কিছু বদলায় না; টেস্টে বানানো একই উৎস + সাল + ইউনিট (+ শ্রেণি-বিষয়)-এর পেপার থাকলে (`isTaken()`) আনা হয় না — দুটোতেই কারণ তালিকায়।
+- Queue-এর worker চালু থাকতে হবে ([10-testing-and-deploy.md](10-testing-and-deploy.md#cron-queue-চালানোর-জন্য-একবার-বসাতে-হয়))। Job নিজে ৩০ মিনিট পর্যন্ত চলতে পারে।
+
+টেস্ট: `QuestionSyncTest` (দুই সার্ভারই একই অ্যাপ — টেস্ট সার্ভারের HTTP অনুরোধ অ্যাপ নিজেই লাইভ হিসেবে উত্তর দেয়)।
+
 ## কোড ও টেস্ট
 
 | কী | কোথায় |
@@ -233,6 +285,7 @@ MCQ-র `difficulty` শুরুতে লেখকের বাছাই; য�
 | অনুমতি | `app/Policies/QuestionPolicy.php` |
 | ফর্ম, টেবিল | `app/Filament/Support/QuestionFormSchema.php`, `QuestionsTable.php`, `McqOptionsSchema.php` |
 | প্যানেলের resource | `app/Filament/Resources/Questions`, `Teacher/Resources/Questions`, `Staff/Resources/Questions` |
+| লাইভ থেকে টেস্টে আনা | `app/Support/QuestionSync.php`, `RequestSignature.php`, `app/Services/QuestionSyncSource.php`, `QuestionSyncClient.php`, `QuestionSyncImporter.php`, `app/Http/Controllers/Api/QuestionSyncController.php`, `app/Http/Middleware/AuthenticateQuestionSyncRequest.php`, `app/Jobs/FetchFromLiveServer.php`, `app/Filament/Pages/QuestionSharing.php`, `FetchQuestionsFromLive.php` |
 | বিগত সালের প্রশ্নপত্র | `app/Models/Board*.php`, `app/Services/PastPaperExamService.php`, `PastPaperAccess.php`, `app/Filament/Support/Resources/BoardQuestionPaperResourceBase.php`, `Support/RelationManagers/Paper*`, `Support/PaperQuestionForms.php`, `Support/Pages/PastPapersPage.php`, `app/Filament/Resources/BoardQuestionPapers`, `Staff/Resources/BoardQuestionPapers`, `Boards` |
 
-টেস্ট: `QuestionModelTest`, `AdminQuestionResourceTest`, `TeacherStaffQuestionVisibilityTest`, `QuestionSoftDeleteTest`, `CqMarksSyncTest`, `QuestionBankCardBrowserTest`, `TeacherQuestionBankCardBrowserTest`, `StaffQuestionBankCardBrowserTest`, `TopicTest`, `TopicResourceTest`, `ChapterResourceTest`, `AcademicHierarchyResourcesTest`, `QuestionJsonImportTest`, `QuestionDynamicDifficultyTest`, `TeacherOwnPendingQuestionsOnExamTest`, `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest`, `PaperSourceTest`, `PastPaperExamTest`, `PastPaperJsonImportTest`, `StimulusGroupTest`, `QuestionExplanationTest`।
+টেস্ট: `QuestionModelTest`, `AdminQuestionResourceTest`, `TeacherStaffQuestionVisibilityTest`, `QuestionSoftDeleteTest`, `CqMarksSyncTest`, `QuestionBankCardBrowserTest`, `TeacherQuestionBankCardBrowserTest`, `StaffQuestionBankCardBrowserTest`, `TopicTest`, `TopicResourceTest`, `ChapterResourceTest`, `AcademicHierarchyResourcesTest`, `QuestionJsonImportTest`, `QuestionDynamicDifficultyTest`, `TeacherOwnPendingQuestionsOnExamTest`, `BoardQuestionPaperModelTest`, `BoardQuestionPaperResourceTest`, `PaperSourceTest`, `PastPaperExamTest`, `PastPaperJsonImportTest`, `StimulusGroupTest`, `QuestionExplanationTest`, `QuestionSyncTest`।

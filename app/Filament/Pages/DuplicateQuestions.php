@@ -281,7 +281,7 @@ class DuplicateQuestions extends Page implements HasTable
             ->icon('heroicon-o-magnifying-glass')
             ->color('gray')
             ->requiresConfirmation()
-            ->modalDescription(__('Every chapter is looked through in the background, newest question first: of two alike, the later one is held here. It can take a while; the questions it finds show up here as they are found.'))
+            ->modalDescription(__('The questions of every chapter not approved yet are looked through in the background, newest first: of two alike, the later one is held here. Approved questions are looked through on :page. It can take a while; the questions it finds show up here as they are found.', ['page' => __('Duplicates among approved questions')]))
             ->action(function (): void {
                 $chapters = QuestionDuplicateScreening::queueEveryChapter(Auth::user());
 

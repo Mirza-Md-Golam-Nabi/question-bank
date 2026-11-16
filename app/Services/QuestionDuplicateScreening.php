@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Enums\DuplicateCheckStatus;
+use App\Enums\QuestionStatus;
 use App\Enums\UserRole;
 use App\Jobs\ScreenChapterForDuplicates;
 use App\Jobs\ScreenQuestionForDuplicates;
 use App\Models\Question;
 use App\Models\QuestionStimulus;
+use App\Models\StaffEarning;
 use App\Models\User;
+use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -33,6 +37,13 @@ final class QuestionDuplicateScreening
      */
     public const MAX_MATCHES = 5;
 
+    /**
+     * Whether what is being saved now comes already checked — questions
+     * brought from the live server, checked and approved there (CLAUDE.md
+     * rule 16): they are neither checked nor held, only fingerprinted after.
+     */
+    private static bool $paused = false;
+
     public function __construct(private readonly DuplicateQuestionFinder $finder) {}
 
     /**
@@ -41,6 +52,32 @@ final class QuestionDuplicateScreening
     public static function make(): self
     {
         return new self(DuplicateQuestionFinder::make());
+    }
+
+    /**
+     * Saves what `$callback` saves without checking it — the one way round
+     * the check, for questions brought from the live server.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public static function whilePaused(Closure $callback): mixed
+    {
+        $wasPaused = self::$paused;
+        self::$paused = true;
+
+        try {
+            return $callback();
+        } finally {
+            self::$paused = $wasPaused;
+        }
+    }
+
+    public static function isPaused(): bool
+    {
+        return self::$paused;
     }
 
     /**
@@ -74,11 +111,12 @@ final class QuestionDuplicateScreening
 
     /**
      * Whether a question goes through the check at all: the current
-     * version of a question bank question, never a School's own.
+     * version of a question bank question, never a School's own — nor one
+     * saved while the check is paused.
      */
     public static function isChecked(Question $question): bool
     {
-        return $question->is_latest && ! $question->is_private;
+        return ! self::$paused && $question->is_latest && ! $question->is_private;
     }
 
     /**
@@ -126,24 +164,43 @@ final class QuestionDuplicateScreening
      */
     public function screenChapter(int $chapterId): void
     {
-        $current = fn () => Question::query()
-            ->where('chapter_id', $chapterId)
-            ->where('is_latest', true)
-            ->where('is_private', false);
+        self::fingerprintChapter($this->finder, $chapterId);
 
-        $current()->whereNull('duplicate_guard')->with(['cqParts', 'stimulus'])->chunkById(200, function ($questions): void {
-            foreach ($questions as $question) {
-                $question->newQuery()->whereKey($question->id)->update(array_combine(
-                    ['duplicate_guard', 'duplicate_size'],
-                    array_values($this->finder->fingerprint($question)),
-                ));
-            }
-        });
-
-        $current()->where('duplicate_status', DuplicateCheckStatus::Clear)
+        // An approved question is looked through with the other approved
+        // ones, as sets, staying in the pool meanwhile (ApprovedDuplicateSweep).
+        self::currentInChapter($chapterId)
+            ->where('duplicate_status', DuplicateCheckStatus::Clear)
+            ->where('status', '!=', QuestionStatus::Approved)
             ->orderByDesc('id')
             ->pluck('id')
             ->each(fn (int $id) => $this->screen($id));
+    }
+
+    /**
+     * Gives each of a chapter's current questions written before the check
+     * existed its fingerprint, so that the index can find it.
+     */
+    public static function fingerprintChapter(DuplicateQuestionFinder $finder, int $chapterId): void
+    {
+        self::currentInChapter($chapterId)->whereNull('duplicate_guard')->with(['cqParts', 'stimulus'])->chunkById(200, function ($questions) use ($finder): void {
+            foreach ($questions as $question) {
+                $question->newQuery()->whereKey($question->id)->update(array_combine(
+                    ['duplicate_guard', 'duplicate_size'],
+                    array_values($finder->fingerprint($question)),
+                ));
+            }
+        });
+    }
+
+    /**
+     * @return Builder<Question>
+     */
+    private static function currentInChapter(int $chapterId): Builder
+    {
+        return Question::query()
+            ->where('chapter_id', $chapterId)
+            ->where('is_latest', true)
+            ->where('is_private', false);
     }
 
     /**
@@ -157,6 +214,7 @@ final class QuestionDuplicateScreening
         $chapterIds = Question::query()
             ->where('is_latest', true)
             ->where('is_private', false)
+            ->where('status', '!=', QuestionStatus::Approved)
             ->distinct()
             ->pluck('chapter_id');
 
@@ -220,10 +278,7 @@ final class QuestionDuplicateScreening
             }
 
             $question->forceDelete();
-
-            if ($question->stimulus_id !== null && ! Question::withTrashed()->where('stimulus_id', $question->stimulus_id)->exists()) {
-                QuestionStimulus::query()->whereKey($question->stimulus_id)->delete();
-            }
+            self::forgetEmptyStimulus($question->stimulus_id);
         });
 
         Log::info('Duplicate question deleted for good.', [
@@ -234,5 +289,60 @@ final class QuestionDuplicateScreening
         ]);
 
         return true;
+    }
+
+    /**
+     * The Admin finds an approved question to be a duplicate of another
+     * approved one (ApprovedDuplicateSweep). It is removed for good, every
+     * version of it — unless one of its versions is on an exam or earned a
+     * Staff member's pay: then it is rejected instead, leaving the pool
+     * while those exams and that ledger stay as they are.
+     *
+     * @return bool Whether it was removed for good (rather than rejected).
+     */
+    public static function removeApproved(Question $question, User $admin): bool
+    {
+        $versionIds = Question::withTrashed()
+            ->where(fn (Builder $versions) => $versions
+                ->whereKey($question->parent_id ?? $question->id)
+                ->orWhere('parent_id', $question->parent_id ?? $question->id))
+            ->pluck('id');
+
+        $isKept = DB::table('exam_questions')->whereIn('question_id', $versionIds)->exists()
+            || StaffEarning::query()->whereIn('question_id', $versionIds)->exists();
+
+        if ($isKept) {
+            $question->reject($admin, __('A duplicate of a question already in the chapter.'), withItsGroup: false);
+
+            Log::info('Duplicate approved question rejected (an exam or a pay has it).', ['question_id' => $question->id, 'by' => $admin->id]);
+
+            return false;
+        }
+
+        DB::transaction(function () use ($question, $versionIds): void {
+            // The newest first, as each points at the first one.
+            Question::withTrashed()->whereKey($versionIds)->orderByDesc('version')->get()->each->forceDelete();
+            self::forgetEmptyStimulus($question->stimulus_id);
+        });
+
+        Log::info('Duplicate approved question deleted for good.', [
+            'question_id' => $question->id,
+            'versions' => $versionIds->all(),
+            'chapter_id' => $question->chapter_id,
+            'created_by' => $question->created_by,
+            'by' => $admin->id,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * A stimulus none of whose questions is left goes with them.
+     */
+    private static function forgetEmptyStimulus(?int $stimulusId): void
+    {
+        if ($stimulusId !== null && ! Question::withTrashed()->where('stimulus_id', $stimulusId)->exists()) {
+            QuestionStimulus::query()->whereKey($stimulusId)->delete();
+        }
     }
 }

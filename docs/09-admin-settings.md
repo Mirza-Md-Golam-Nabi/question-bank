@@ -171,6 +171,7 @@ Request দেখা ও পরিশোধ: `WithdrawalResource` (Admin → Pay
 | বিষয়ভিত্তিক ও ডিফল্ট প্রশ্নের rate | `QuestionRateResource` |
 | Class, subject, chapter, topic | প্রশ্নের কার্ড পেজ, `SubjectResource` |
 | Board | `BoardResource` |
+| লাইভ সার্ভারে প্রশ্ন শেয়ার চালু/বন্ধ ও কত ঘণ্টা (`question_sync_open_until`, `question_sync_open_hours`, ডিফল্ট ২, সর্বোচ্চ ৭২) — শুধু Super Admin, শুধু লাইভ সার্ভারে — [05-question-bank.md](05-question-bank.md#লাইভ-সার্ভার-থেকে-টেস্ট-সার্ভারে-প্রশ্ন-আনা) | "টেস্ট সার্ভারে প্রশ্ন শেয়ার" পেজ (`QuestionSharing`) |
 
 ## নতুন সেটিং যোগ করতে
 

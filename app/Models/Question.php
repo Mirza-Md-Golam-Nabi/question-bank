@@ -63,6 +63,7 @@ class Question extends Model
             'status' => QuestionStatus::class,
             'approved_at' => 'datetime',
             'duplicate_status' => DuplicateCheckStatus::class,
+            'duplicate_verified_at' => 'datetime',
             'options' => 'array',
             'is_latest' => 'boolean',
             'is_private' => 'boolean',
@@ -521,14 +522,15 @@ class Question extends Model
 
     /**
      * Rejects this question — with the rest of its stimulus group, as
-     * approve() does.
+     * approve() does, unless only this one is a duplicate of an approved
+     * question (ApprovedDuplicateSweep): the rest of its group stays.
      */
-    public function reject(User $rejecter, string $reason): void
+    public function reject(User $rejecter, string $reason, bool $withItsGroup = true): void
     {
         $this->ensureNotPrivate();
 
-        DB::transaction(function () use ($rejecter, $reason) {
-            foreach ($this->groupToReview(QuestionStatus::Rejected) as $question) {
+        DB::transaction(function () use ($rejecter, $reason, $withItsGroup) {
+            foreach ($withItsGroup ? $this->groupToReview(QuestionStatus::Rejected) : [$this] as $question) {
                 $question->markRejected($reason);
 
                 $question->approvalLogs()->create([

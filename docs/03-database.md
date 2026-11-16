@@ -85,12 +85,17 @@ Chapter সরাসরি `class_subjects`-এর সাথে যুক্ত,
 | `deleted_at` | soft delete |
 | `duplicate_status` | পেছনের ডুপ্লিকেট যাচাই: `checking` / `clear` / `suspected` (ডিফল্ট `clear`; নতুন বা বদলানো প্রশ্ন `checking`, School-এর নিজেরটা সবসময় `clear`)। শুধু `clear` pool-এ, পরীক্ষায় ও approve-এ যায় — [05-question-bank.md](05-question-bank.md#পেছনের-ডুপ্লিকেট-যাচাই-queue) |
 | `duplicate_guard` (nullable), `duplicate_size` (nullable) | যাচাইয়ের "fingerprint": সংখ্যা/সূত্র/না-বাচক শব্দের sha1, আর প্রশ্নের তিন-অক্ষরের টুকরোর সংখ্যা — শুধু এই দুটো মেলা প্রশ্নই পড়া হয়। যাচাই হলে বসে; ফাঁকা থাকলে সবসময় পড়া হয় |
+| `remote_origin_id` (nullable, index), `remote_version` (nullable) | শুধু টেস্ট সার্ভারে, লাইভ থেকে আনা প্রশ্নে: লাইভে প্রশ্নটার প্রথম সংস্করণের ID আর আনা সংস্করণ — আবার আনলে এ দিয়ে চেনা হয় (টেস্টে এডিট করা সংস্করণে ফাঁকা) — [05-question-bank.md](05-question-bank.md#লাইভ-সার্ভার-থেকে-টেস্ট-সার্ভারে-প্রশ্ন-আনা) |
 
 Index: `(status, is_latest)`, `(chapter_id, status, is_latest)`, `(created_by)`, `(created_by, is_private, is_latest)`, `(duplicate_status)`, `(chapter_id, question_type, duplicate_guard, duplicate_size)`।
 
 ### `question_duplicate_matches`
 
 পেছনের যাচাইয়ে একটা প্রশ্ন অধ্যায়ের কোন প্রশ্নগুলোর মতো দেখতে (সবচেয়ে বেশি মিলের ৫টা): `question_id`, `matched_question_id`, `percent`, `is_exact`। Admin "রাখুন" বললে মুছে যায়; দুই প্রশ্নের যেকোনোটা স্থায়ীভাবে মুছলে সাথে মুছে যায়।
+
+### `approved_duplicate_sets` / `approved_duplicate_set_members`
+
+Approved প্রশ্নে ডুপ্লিকেট (`ApprovedDuplicateSweep`)। সেট: `chapter_id`, `resolved_by`, `resolved_at` (ফাঁকা = Admin-এর অপেক্ষায়; একই অধ্যায় আবার যাচাই করলে অপেক্ষমাণগুলো বদলে যায়, মীমাংসিতগুলো থাকে)। সদস্য: `approved_duplicate_set_id`, `question_id`, `percent` (সেটের যেটার সাথে সবচেয়ে বেশি মিল), `is_exact`; unique(set, question)। প্রশ্ন মুছলে সদস্যও মোছে; rejected বা আর-চলতি-নয় এমন প্রশ্ন সেটে দেখায় না, দুটোর কম বাকি থাকলে সেট আর দেখায় না। `questions.duplicate_verified_at` — Admin এখানে রাখলে বসে, তারপর প্রশ্নটা আর যাচাই হয় না।
 
 ### `question_cq_parts`
 
@@ -105,8 +110,8 @@ CQ-র চার অংশ: `question_id`, `part_type`, `part_order`, `part_text
 | টেবিল | কলাম |
 |---|---|
 | `boards` | `name`, `name_bn`, `short_name`, `short_name_bn` (ইংরেজি ও বাংলা, পূর্ণ ও সংক্ষিপ্ত), `type` (`board`/`medical`/`university`/`job`/`school_test` — প্রশ্নপত্রের উৎসের ধরন) |
-| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `approved_at` (কবে approve — ড্যাশবোর্ডের গণনা), `rejection_reason`; index(year), index(status, year); unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
-| `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by` — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
+| `board_question_papers` | `board_id`, `class_subject_id` (nullable — ভর্তি/চাকরির পেপারে নেই), `year`, `unit` ('' = নেই), `duration_minutes`, `negative_marks` (nullable), `status`, `created_by`, `approved_by`, `approved_at` (কবে approve — ড্যাশবোর্ডের গণনা), `rejection_reason`, `remote_id` (nullable — টেস্ট সার্ভারে লাইভ থেকে আনা পেপারের লাইভের ID); index(year), index(status, year); unique(board, class_subject, year, unit) — class_subject ফাঁকা পেপারের ডুপ্লিকেট `BoardQuestionPaper::isTaken()` ধরে |
+| `question_stimuli` | `chapter_id`, `text`, `editor_mode`, `image`, `created_by`, `remote_id` (nullable — লাইভ থেকে আনা হলে লাইভের ID) — একাধিক MCQ-র অভিন্ন উদ্দীপক; নিজের status নেই, প্রশ্নের সাথেই দেখা যায় |
 | `board_mcq_stimuli` | `board_question_paper_id`, `text`, `editor_mode`, `image` — প্রশ্নপত্রের উদ্দীপক; মুছলে তার প্রশ্নও মোছে |
 | `board_mcq_questions` | `board_question_paper_id`, `stimulus_id` (nullable), `stimulus_order`, `question_text`, `editor_mode`, `question_image`, `options`, `has_correct_answer` (অপশন থেকে নিজে ঠিক হয় — SQL-এ পড়ার জন্য; ফর্ম/JSON-এ লেখা হয় না), `explanation` (nullable), `explanation_editor_mode`, `marks`, `order_index` |
 | `board_cq_questions` | `board_question_paper_id`, `question_text`, `editor_mode`, `question_image`, `marks`, `order_index` |
@@ -248,6 +253,12 @@ School প্রতিবার স্কুলের software-এর রেজ�
 একটাই সারি; `BillingSetting::current()` দিয়ে পড়া হয়। প্রতিটা কলামের অর্থ ও ডিফল্ট: [09-admin-settings.md](09-admin-settings.md)।
 
 `login_stay_days` (লগইন কত দিন থাকে; ০ = লাইফটাইম) → [04-authentication.md](04-authentication.md)।
+
+`question_sync_open_until` (nullable — লাইভ সার্ভারে প্রশ্ন শেয়ার কতক্ষণ চালু; ফাঁকা বা পার হয়ে গেলে বন্ধ), `question_sync_open_hours` (শেষবার কত ঘণ্টার জন্য চালু হয়েছিল, ডিফল্ট ২) → [05-question-bank.md](05-question-bank.md#লাইভ-সার্ভার-থেকে-টেস্ট-সার্ভারে-প্রশ্ন-আনা)।
+
+### `question_sync_runs`
+
+টেস্ট সার্ভারে লাইভ থেকে প্রতিটা আনা (`QuestionSyncImporter`): `kind` (`chapter`/`paper`), `remote_id` (লাইভের অধ্যায় বা পেপার), `remote_label`, কোথায় — `chapter_id` / `class_subject_id` / `board_question_paper_id` (nullable), `status` (`queued`/`running`/`done`/`failed`), `counts` (JSON: added, updated, unchanged, skipped, new_topics, images, missing_images — চলার সময়ই বাড়ে), `message` (ব্যর্থ হলে কেন, বা পেপার কেন বদলায়নি), `started_by`, `finished_at`।
 
 ## নোটিফিকেশন
 

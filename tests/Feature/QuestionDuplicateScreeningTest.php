@@ -208,16 +208,28 @@ it('checks a stimulus group\'s questions again when the stimulus changes, withou
 it('finds duplicates among the questions already there, holding the later of two alike', function () {
     // Written before the check existed: both clear, neither fingerprinted.
     Queue::fake();
-    $earlier = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, attributes: ['status' => QuestionStatus::Approved]);
-    $later = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, $this->otherTeacher, ['status' => QuestionStatus::Approved]);
+    $earlier = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions);
+    $later = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, $this->otherTeacher);
     Question::query()->update(['duplicate_status' => DuplicateCheckStatus::Clear, 'duplicate_guard' => null, 'duplicate_size' => null]);
 
     QuestionDuplicateScreening::make()->screenChapter($this->chapter->id);
 
     expect($earlier->refresh()->duplicate_status)->toBe(DuplicateCheckStatus::Clear)
         ->and($earlier->duplicate_guard)->not->toBeNull()
-        ->and($later->refresh()->duplicate_status)->toBe(DuplicateCheckStatus::Suspected)
-        ->and(Question::query()->approvedPool()->pluck('id')->all())->toBe([$earlier->id]);
+        ->and($later->refresh()->duplicate_status)->toBe(DuplicateCheckStatus::Suspected);
+});
+
+it('leaves approved questions in the pool when looking through the questions already there', function () {
+    Queue::fake();
+    $earlier = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, attributes: ['status' => QuestionStatus::Approved]);
+    $later = ($this->stored)('নিচের কোনটি মৌলিক রাশি?', $this->siOptions, $this->otherTeacher, ['status' => QuestionStatus::Approved]);
+    Question::query()->update(['duplicate_status' => DuplicateCheckStatus::Clear, 'duplicate_guard' => null, 'duplicate_size' => null]);
+
+    QuestionDuplicateScreening::make()->screenChapter($this->chapter->id);
+
+    // They are looked through as a set instead (ApprovedDuplicateSweep).
+    expect($later->refresh()->duplicate_status)->toBe(DuplicateCheckStatus::Clear)
+        ->and(Question::query()->approvedPool()->pluck('id')->sort()->values()->all())->toBe([$earlier->id, $later->id]);
 });
 
 it('never narrows away a question alike enough to be a duplicate', function () {
