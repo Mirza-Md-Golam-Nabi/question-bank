@@ -134,6 +134,8 @@
         <section class="qb-print-settings-group">
             <h3>{{ __('OMR sheet') }}</h3>
 
+            {{-- An OMR check's sheet has a row per question of its answer key. --}}
+            @unless ($exam->isOmrCheck())
             <form method="POST" action="{{ CurrentPanel::route('exams.omr-questions', $exam) }}" class="qb-print-field">
                 @csrf
                 <label for="qb-omr-questions">{{ __('Questions on the sheet') }}</label>
@@ -148,6 +150,7 @@
                 @endif
             </form>
             <p class="text-xs text-gray-500">{{ __('The paper has :count MCQ. Fewer rows leave the last questions off the sheet (they count as unanswered); more rows stay blank and are not read. A sheet printed before the change can no longer be scanned.', ['count' => Locale::current()->writeDigits((string) $omrMcqCount)]) }}</p>
+            @endunless
 
             <div class="qb-print-field">
                 <span>{{ __('Paper size') }}</span>
@@ -158,6 +161,19 @@
                 </div>
             </div>
             <p class="text-xs text-gray-500">{{ __('On A5 the same sheet is printed smaller. To get a PDF, use the print button above.') }}</p>
+
+            <h4 class="text-sm font-semibold">{{ __('Language of the sheet') }}</h4>
+            @foreach (PrintSettings::OMR_LANGUAGES as $part => $setting)
+                <div class="qb-print-field">
+                    <span>{{ $part === 'sheet' ? __('Answer list and the rest') : __(OmrSheet::grids()[$part]['title']) }}</span>
+                    <div class="qb-print-choices">
+                        @foreach (Locale::cases() as $sheetLanguage)
+                            <button type="button" data-reload @foreach ($choice($setting, $sheetLanguage->value) as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>{{ $sheetLanguage->getLabel() }}</button>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+            <p class="text-xs text-gray-500">{{ __('The words, letters (ক খ গ ঘ or A B C D) and numbers of each part.') }}</p>
 
             <label class="qb-print-field">
                 <span>{{ __('Digits in the roll number') }} <output data-output="omr_roll_digits" data-unit=""></output></span>

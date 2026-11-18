@@ -12,25 +12,35 @@
     letters and the stripes are red/pink, which the reader does not see.
     A paper too long for one sheet goes on to the next. On A5 the whole
     frame is printed smaller (OmrSheet::A5_SCALE, print-settings.js), its
-    words not as much (--qb-omr-text).
+    words not as much (--qb-omr-text). Each part — the answer list with
+    every other word, and each number grid — is printed in its own language
+    from the print settings (PrintSettings::OMR_LANGUAGES): words, letters
+    and numbers, whatever language the panel is in.
 
     @var \App\Models\Exam $exam
     @var \Illuminate\Support\Collection $mcqQuestions
+    @var array<string, string> $languages  part => 'bn' or 'en' (PrintSettings::omrLanguages())
 --}}
 @php
     use App\Enums\Locale;
     use App\Filament\Support\QuestionDisplay;
     use App\Support\OmrSheet;
 
+    $panelLocale = app()->getLocale();
+    $language = $languages['sheet'];
+    app()->setLocale($language);
+
     $digits = fn (string $text): string => Locale::current()->writeDigits($text);
     $mm = fn (float $value): string => round($value, 2).'mm';
     $pages = (new OmrSheet($exam, $mcqQuestions))->pages();
     $half = OmrSheet::MARKER_SIZE / 2;
-    $gridLabel = fn (array $grid, int $row): string => $grid['labels'] === 'letters' ? QuestionDisplay::letter($row) : $digits((string) $row);
+    $gridLabel = fn (array $grid, string $gridLanguage, int $row): string => $grid['labels'] === 'letters'
+        ? QuestionDisplay::letter($row, $gridLanguage)
+        : Locale::from($gridLanguage)->writeDigits((string) $row);
 @endphp
 
 @foreach ($pages as $page)
-    <section class="qb-omr" data-omr-sheet>
+    <section class="qb-omr" data-omr-sheet lang="{{ $language }}">
         <div class="qb-omr-frame" style="width: {{ $mm(OmrSheet::WIDTH) }}; height: {{ $mm(OmrSheet::HEIGHT) }}">
             @foreach (OmrSheet::markers() as [$x, $y])
                 <span class="qb-omr-solid" style="left: {{ $mm($x - $half) }}; top: {{ $mm($y - $half) }}; border-width: {{ $mm($half) }}"></span>
@@ -54,7 +64,7 @@
                         <span data-print-part="class">{{ $exam->classSubject->academicClass->name }}</span>
                     @endif
                     @if ($exam->subject)
-                        <span data-print-part="subject">{{ $exam->subject->name }}</span>
+                        <span data-print-part="subject">{{ $exam->subject->display_name }}</span>
                     @endif
                 </p>
 
@@ -92,16 +102,17 @@
 
             {{-- The number grids: a column per digit, a box on top to write it in. --}}
             @foreach (OmrSheet::grids() as $key => $grid)
-                <div class="qb-omr-grid" data-omr-grid="{{ $key }}" @if ($key === 'roll') data-omr-roll @endif>
+                @php $gridLanguage = $languages[$key]; @endphp
+                <div class="qb-omr-grid" data-omr-grid="{{ $key }}" lang="{{ $gridLanguage }}" @if ($key === 'roll') data-omr-roll @endif>
                     <span class="qb-omr-grid-title @if ($key === 'roll') qb-omr-grid-title--roll @endif"
-                          style="left: {{ $mm($grid['x']) }}; top: {{ $mm($grid['y']) }}; width: {{ $mm($grid['columns'] * $grid['pitch'] + 0.3) }}; height: {{ $mm(OmrSheet::GRID_TITLE + 0.3) }}; --qb-omr-pitch: {{ $mm($grid['pitch']) }}">{{ __($grid['title']) }}</span>
+                          style="left: {{ $mm($grid['x']) }}; top: {{ $mm($grid['y']) }}; width: {{ $mm($grid['columns'] * $grid['pitch'] + 0.3) }}; height: {{ $mm(OmrSheet::GRID_TITLE + 0.3) }}; --qb-omr-pitch: {{ $mm($grid['pitch']) }}">{{ __($grid['title'], [], $gridLanguage) }}</span>
 
                     @foreach (OmrSheet::gridColumns($grid) as $index => $circles)
                         <div @if ($key === 'roll') data-omr-roll-column="{{ $index }}" @endif>
                             <span class="qb-omr-grid-strip" style="left: {{ $mm($grid['x'] + $index * $grid['pitch']) }}; top: {{ $mm($grid['y'] + OmrSheet::GRID_TITLE) }}; width: {{ $mm($grid['pitch'] + 0.3) }}; height: {{ $mm(OmrSheet::gridHeight($grid) - OmrSheet::GRID_TITLE) }}; --qb-omr-write: {{ $mm(OmrSheet::GRID_WRITE_ROW) }}"></span>
                             @foreach ($circles as $row => [$x, $y])
                                 <span class="qb-omr-bubble qb-omr-bubble--grid"
-                                      style="left: {{ $mm($x - OmrSheet::GRID_BUBBLE / 2) }}; top: {{ $mm($y - OmrSheet::GRID_BUBBLE / 2) }}; width: {{ $mm(OmrSheet::GRID_BUBBLE) }}; height: {{ $mm(OmrSheet::GRID_BUBBLE) }}">{{ $gridLabel($grid, $row) }}</span>
+                                      style="left: {{ $mm($x - OmrSheet::GRID_BUBBLE / 2) }}; top: {{ $mm($y - OmrSheet::GRID_BUBBLE / 2) }}; width: {{ $mm(OmrSheet::GRID_BUBBLE) }}; height: {{ $mm(OmrSheet::GRID_BUBBLE) }}">{{ $gridLabel($grid, $gridLanguage, $row) }}</span>
                             @endforeach
                         </div>
                     @endforeach
@@ -119,3 +130,5 @@
         </div>
     </section>
 @endforeach
+
+@php app()->setLocale($panelLocale); @endphp

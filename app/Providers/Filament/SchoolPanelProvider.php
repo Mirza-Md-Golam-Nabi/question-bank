@@ -7,6 +7,7 @@ use App\Filament\Support\PanelDefaults;
 use App\Filament\Support\QuestionEditorAssets;
 use App\Filament\Teacher\Pages\SelectQuestions;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Filament\Teacher\Resources\OmrChecks\OmrCheckResource;
 use App\Filament\Teacher\Resources\Questions\QuestionResource;
 use App\Http\Middleware\EnsureAccountIsApproved;
 use Filament\Panel;
@@ -34,6 +35,7 @@ class SchoolPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/School/Pages'), for: 'App\Filament\School\Pages')
             ->resources([
                 ExamResource::class,
+                OmrCheckResource::class,
                 QuestionResource::class,
             ])
             ->pages([

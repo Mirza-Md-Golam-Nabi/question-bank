@@ -4,6 +4,7 @@ namespace App\Filament\Teacher\Resources\Exams\Pages;
 
 use App\Filament\Support\CurrentPanel;
 use App\Filament\Teacher\Resources\Exams\ExamResource;
+use App\Filament\Teacher\Resources\OmrChecks\OmrCheckResource;
 use App\Models\Exam;
 use App\Services\ExamResultSheet;
 use Filament\Actions\Action;
@@ -17,8 +18,9 @@ use Livewire\Attributes\Computed;
 use Livewire\WithPagination;
 
 /**
- * Who sat one of the teacher's exams and how they did, ranked by marks —
- * with a button to the printable sheet (PDF / image). The exam is resolved
+ * Who sat one of the teacher's exams (or OMR checks) and how they did,
+ * ranked by marks — with buttons to the printable sheet (PDF / image) and
+ * a CSV file of it. The exam is resolved
  * through ExamResource's own query, so a teacher can only ever open the
  * results of an exam they created.
  *
@@ -51,7 +53,7 @@ class ExamResults extends Page
     public function getBreadcrumbs(): array
     {
         return [
-            ExamResource::getUrl('index') => ExamResource::getPluralModelLabel(),
+            ExamResource::listUrlFor($this->getRecord()) => $this->getRecord()->isOmrCheck() ? OmrCheckResource::getPluralModelLabel() : ExamResource::getPluralModelLabel(),
             __('Results'),
         ];
     }
@@ -60,15 +62,24 @@ class ExamResults extends Page
     {
         return [
             Action::make('back')
-                ->label(__('Back to exams'))
+                ->label(__('Back to the list'))
                 ->icon(Heroicon::OutlinedArrowLeft)
                 ->color('gray')
-                ->url(fn (): string => ExamResource::getUrl('index')),
+                ->url(fn (): string => ExamResource::listUrlFor($this->getRecord())),
+            // An OMR check's "questions" are only numbers.
             Action::make('questionAnalysis')
                 ->label(__('Question analysis'))
                 ->icon(Heroicon::OutlinedChartBar)
                 ->color('gray')
+                ->visible(fn (): bool => ! $this->getRecord()->isOmrCheck())
                 ->url(fn (): string => ExamQuestionAnalysis::getUrl(['record' => $this->getRecord()]))
+                ->disabled(fn (): bool => $this->rows->isEmpty()),
+            // For a program of the teacher's own (Excel…).
+            Action::make('downloadCsv')
+                ->label(__('Download CSV'))
+                ->icon(Heroicon::OutlinedArrowDownTray)
+                ->color('gray')
+                ->url(fn (): string => CurrentPanel::route('exams.results.csv', $this->getRecord()))
                 ->disabled(fn (): bool => $this->rows->isEmpty()),
             Action::make('print')
                 ->label(__('Print / PDF / Image'))

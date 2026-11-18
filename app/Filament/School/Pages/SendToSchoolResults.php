@@ -243,7 +243,9 @@ class SendToSchoolResults extends Page
     public function marksToSend(): array
     {
         return collect($this->rows)
-            // A roll used more than once goes once the School picks a paper.
+            // A roll used more than once goes once the School picks a paper; a
+            // student without the registration number the exam goes by, never.
+            ->reject(fn (array $row): bool => $row['status'] === SchoolResultMatcher::NO_REGISTRATION)
             ->filter(fn (array $row): bool => $row['status'] === SchoolResultMatcher::DUPLICATE
                 ? filled($this->choices[$row['student']['id']]['attempt'] ?? null)
                 : (bool) ($this->choices[$row['student']['id']]['send'] ?? false))

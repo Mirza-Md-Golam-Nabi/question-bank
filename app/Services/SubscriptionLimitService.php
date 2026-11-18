@@ -313,6 +313,12 @@ class SubscriptionLimitService
      */
     public function allowsExam(User $user, Exam $exam, array $features = []): bool
     {
+        // An OMR check has no class, subject or paper: its sheet and its
+        // scanning come with the plan's "OMR check" itself (rule 10.12).
+        if ($exam->isOmrCheck()) {
+            return $this->allows($user, null, [PlanFeature::OmrCheck]);
+        }
+
         return $exam->isPastPaper()
             ? self::grantsAllowPastPaper($this->grantsFor($user), $exam->boardQuestionPaper, $features)
             : $this->allows($user, $exam->classSubject, $features);

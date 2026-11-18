@@ -7,6 +7,7 @@ use App\Enums\ExamStatus;
 use App\Enums\ExamType;
 use App\Enums\GenerationMode;
 use App\Enums\NoAnswerMarking;
+use App\Enums\OmrIdentity;
 use App\Enums\QuestionType;
 use App\Enums\UserRole;
 use App\Models\Concerns\FiltersByMonth;
@@ -31,6 +32,7 @@ use Illuminate\Validation\ValidationException;
     'title', 'created_by', 'subscription_id', 'exam_type', 'generation_mode', 'delivery_mode', 'subject_id', 'class_subject_id', 'board_question_paper_id',
     'duration_minutes', 'start_time', 'end_time', 'total_marks', 'mcq_marks', 'negative_marks', 'no_answer_marking', 'max_participants', 'status',
     'share_token', 'link_expires_at', 'is_link_active', 'answers_released_at', 'answers_release_at',
+    'answer_key', 'omr_identity',
 ])]
 class Exam extends Model
 {
@@ -52,6 +54,7 @@ class Exam extends Model
         'delivery_mode' => ExamDeliveryMode::Online->value,
         'is_link_active' => true,
         'no_answer_marking' => NoAnswerMarking::Excluded->value,
+        'omr_identity' => OmrIdentity::Roll->value,
     ];
 
     protected function casts(): array
@@ -71,6 +74,8 @@ class Exam extends Model
             'no_answer_marking' => NoAnswerMarking::class,
             'max_participants' => 'integer',
             'omr_questions' => 'integer',
+            'answer_key' => 'array',
+            'omr_identity' => OmrIdentity::class,
         ];
     }
 
@@ -202,6 +207,10 @@ class Exam extends Model
      */
     public function onlineItems(): EloquentCollection
     {
+        if ($this->isOmrCheck()) {
+            return $this->answerKeyQuestions();
+        }
+
         if ($this->holdsPaperQuestions()) {
             return $this->onlineQuestions
                 ->concat($this->boardMcqQuestions)
@@ -225,6 +234,10 @@ class Exam extends Model
      */
     public function printedItems(): EloquentCollection
     {
+        if ($this->isOmrCheck()) {
+            return $this->answerKeyQuestions();
+        }
+
         if (! $this->isPastPaper()) {
             return $this->questions->loadMissing('cqParts');
         }
@@ -235,6 +248,51 @@ class Exam extends Model
         return $this->onlineItems()->concat(
             $paper->cqQuestions->each->setRelation('boardQuestionPaper', $paper),
         );
+    }
+
+    /**
+     * Whether this is an OMR check (CLAUDE.md rule 10.12): no questions,
+     * only an answer key the teacher typed in, to check students' OMR
+     * sheets of a paper made outside the system.
+     */
+    public function isOmrCheck(): bool
+    {
+        return $this->exam_type === ExamType::OmrCheck;
+    }
+
+    /**
+     * An OMR check's answer key: how many options each question has, the
+     * marks of a right answer, and each question's right option (0 = the
+     * first), question 1 first.
+     *
+     * @return array{options: int, marks: float, answers: list<int>}
+     */
+    public function answerKey(): array
+    {
+        $key = (array) $this->answer_key;
+
+        return [
+            'options' => (int) ($key['options'] ?? 4),
+            'marks' => (float) ($key['marks'] ?? 1),
+            'answers' => array_map('intval', array_values((array) ($key['answers'] ?? []))),
+        ];
+    }
+
+    /**
+     * An OMR check's questions, made from its answer key — what its sheet,
+     * the answers kept and the grading go by, as any exam's MCQ.
+     *
+     * @return EloquentCollection<int, AnswerKeyQuestion>
+     */
+    public function answerKeyQuestions(): EloquentCollection
+    {
+        $key = $this->answerKey();
+
+        return new EloquentCollection(array_map(
+            fn (int $correct, int $index): AnswerKeyQuestion => AnswerKeyQuestion::numbered($index + 1, $key['options'], $correct, $key['marks']),
+            $key['answers'],
+            array_keys($key['answers']),
+        ));
     }
 
     /**

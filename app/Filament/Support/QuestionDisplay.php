@@ -15,11 +15,11 @@ class QuestionDisplay
 
     /**
      * The letter in front of an MCQ option or CQ sub-question: ক, খ, গ… in
-     * Bangla, A, B, C… otherwise.
+     * Bangla, A, B, C… otherwise — in the active language, or in $locale.
      */
-    public static function letter(int $index): string
+    public static function letter(int $index, ?string $locale = null): string
     {
-        if (app()->getLocale() === 'bn') {
+        if (($locale ?? app()->getLocale()) === 'bn') {
             return self::BANGLA_LETTERS[$index] ?? (string) ($index + 1);
         }
 

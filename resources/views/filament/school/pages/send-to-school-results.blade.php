@@ -6,7 +6,9 @@
         SchoolResultMatcher::NAME_MISMATCH => [__('Name does not match'), 'warning'],
         SchoolResultMatcher::DUPLICATE => [__('Roll used more than once'), 'danger'],
         SchoolResultMatcher::ABSENT => [__('Absent'), 'gray'],
+        SchoolResultMatcher::NO_REGISTRATION => [__('No registration number in the school software'), 'danger'],
     ];
+    $byRegistration = $this->exam->omr_identity === \App\Enums\OmrIdentity::Registration;
     $push = $this->push;
 @endphp
 
@@ -85,7 +87,7 @@
                 <table class="qb-data-table w-full">
                     <thead>
                         <tr>
-                            <th>{{ __('Roll') }}</th>
+                            <th>{{ __('Roll') }}@if ($byRegistration) / {{ __('Registration number') }}@endif</th>
                             <th>{{ __('Name in school') }}</th>
                             <th>{{ __('Paper') }}</th>
                             <th>{{ __('Marks to send') }}</th>
@@ -101,7 +103,12 @@
                                 [$label, $color] = $statusLabel[$row['status']];
                             @endphp
                             <tr wire:key="row-{{ $id }}">
-                                <td>{{ $student['roll'] }}@if ($student['section_name']) <span class="text-gray-500">· {{ $student['section_name'] }}</span>@endif</td>
+                                <td>
+                                    {{ $student['roll'] }}@if ($student['section_name']) <span class="text-gray-500">· {{ $student['section_name'] }}</span>@endif
+                                    @if ($byRegistration)
+                                        <div class="text-xs text-gray-500">{{ $student['registration'] ?? '—' }}</div>
+                                    @endif
+                                </td>
                                 <td>{{ $student['name'] }}</td>
                                 <td>
                                     <x-filament::badge :color="$color">{{ $label }}</x-filament::badge>
@@ -114,13 +121,15 @@
                                                 </label>
                                             @endforeach
                                         </div>
-                                    @elseif ($row['status'] !== SchoolResultMatcher::ABSENT)
+                                    @elseif ($row['attempts']->isNotEmpty() && filled($row['attempts']->first()->guest_name))
                                         <div class="mt-1 text-xs text-gray-500">{{ __('Wrote: :name', ['name' => $row['attempts']->first()->guest_name]) }}</div>
                                     @endif
                                 </td>
                                 <td>
                                     @if ($row['status'] === SchoolResultMatcher::ABSENT)
                                         {{ __('Absent') }}
+                                    @elseif ($row['status'] === SchoolResultMatcher::NO_REGISTRATION)
+                                        —
                                     @else
                                         {{ $this->marksOf($choices[$id]['attempt'] ?? null) ?? '—' }}
                                     @endif
@@ -136,7 +145,7 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if ($row['status'] !== SchoolResultMatcher::DUPLICATE)
+                                    @if (! in_array($row['status'], [SchoolResultMatcher::DUPLICATE, SchoolResultMatcher::NO_REGISTRATION], true))
                                         <label class="flex items-center gap-2">
                                             <x-filament::input.checkbox wire:model.live="choices.{{ $id }}.send" />
                                             <span class="text-xs">{{ $row['status'] === SchoolResultMatcher::NAME_MISMATCH ? __('Approve') : __('Send') }}</span>
@@ -150,11 +159,12 @@
             </div>
 
             @if ($this->match['unmatched']->isNotEmpty())
-                <div class="mt-4 rounded-lg bg-warning-50 p-3 text-sm text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">
-                    <p class="font-medium">{{ __('Papers whose roll is not on the school list (not sent):') }}</p>
+                {{-- Failed: nothing of theirs goes to the school's result. --}}
+                <div class="mt-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-800 dark:bg-danger-500/10 dark:text-danger-300">
+                    <p class="font-medium">{{ $byRegistration ? __('Not sent — these registration numbers are not in the school software:') : __('Papers whose roll is not on the school list (not sent):') }}</p>
                     <ul class="mt-1 list-disc ps-5">
                         @foreach ($this->match['unmatched'] as $paper)
-                            <li>{{ $paper->participantContact() }} — {{ $paper->guest_name }} ({{ (float) $paper->total_score }})</li>
+                            <li>{{ $paper->participantContact() }}@if (filled($paper->guest_name)) — {{ $paper->guest_name }}@endif ({{ (float) $paper->total_score }})</li>
                         @endforeach
                     </ul>
                 </div>

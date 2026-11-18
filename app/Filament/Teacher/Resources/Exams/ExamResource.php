@@ -8,6 +8,7 @@ use App\Filament\Teacher\Resources\Exams\Pages\ExamQuestionAnalysis;
 use App\Filament\Teacher\Resources\Exams\Pages\ExamResults;
 use App\Filament\Teacher\Resources\Exams\Pages\ListExams;
 use App\Filament\Teacher\Resources\Exams\Tables\ExamsTable;
+use App\Filament\Teacher\Resources\OmrChecks\OmrCheckResource;
 use App\Models\Exam;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -33,6 +34,15 @@ class ExamResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->where('created_by', auth()->id());
+    }
+
+    /**
+     * The list an exam's own pages (results, printed paper, OMR page) go
+     * back to: the exams, or the OMR checks for one of those.
+     */
+    public static function listUrlFor(Exam $exam): string
+    {
+        return $exam->isOmrCheck() ? OmrCheckResource::getUrl('index') : static::getUrl('index');
     }
 
     public static function table(Table $table): Table

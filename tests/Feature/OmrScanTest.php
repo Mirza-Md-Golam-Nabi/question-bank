@@ -88,8 +88,8 @@ describe('the sheet', function () {
 
         $onFirst = count($pages[0]['questions']);
 
-        expect($pages)->toHaveCount(2)
-            ->and($onFirst)->toBe(3 * OmrSheet::MAX_ROWS)
+        expect($pages)->toHaveCount(3)
+            ->and($onFirst)->toBe(OmrSheet::COLUMNS * OmrSheet::MAX_ROWS)
             ->and($pages[1]['questions'][0]['number'])->toBe($onFirst + 1)
             ->and($pages[0]['code'])->not->toBe($pages[1]['code']);
 
@@ -118,6 +118,31 @@ describe('the sheet', function () {
             ->and($page['bubble'])->toBe(OmrSheet::MAX_BUBBLE)
             ->and($page['rowPitch'])->toEqual(OmrSheet::MAX_ROW_PITCH);
     });
+
+    it('always puts the answers in two columns — the first half on the left — spaced around like flex items', function (int $count, array $rows) {
+        $questions = collect(range(1, $count))->map(fn (int $id): Question => (new Question)->forceFill([
+            'id' => $id,
+            'question_type' => 'mcq',
+            'options' => array_fill(0, 4, ['option' => 'a', 'image' => null, 'is_correct' => false]),
+        ]));
+
+        $page = (new OmrSheet($this->exam, $questions))->pages()[0];
+        [$left, $right] = $page['columns'];
+        $before = $left['x'] - OmrSheet::QUESTIONS_LEFT;
+        $after = OmrSheet::QUESTIONS_LEFT + OmrSheet::QUESTIONS_WIDTH - ($right['x'] + $right['width']);
+
+        expect(array_column($page['columns'], 'rows'))->toBe($rows)
+            ->and($before)->toBeGreaterThan(0.0)
+            ->and($after)->toEqualWithDelta($before, 0.05)
+            // "space-around": twice the white between the columns as at either edge.
+            ->and($right['x'] - ($left['x'] + $left['width']))->toEqualWithDelta(2 * $before, 0.05)
+            ->and($page['questions'][$rows[0]]['x'])->toEqual($right['x'])
+            ->and(OmrSheet::GRIDS_LEFT - (OmrSheet::QUESTIONS_LEFT + OmrSheet::QUESTIONS_WIDTH))->toBeLessThanOrEqual(3.0);
+    })->with([
+        'twenty' => [20, [10, 10]],
+        'twenty-one' => [21, [11, 10]],
+        'four' => [4, [2, 2]],
+    ]);
 
     it('keeps the number grids and boxes inside the frame, clear of each other and of the corner squares', function () {
         $areas = collect(OmrSheet::grids())
@@ -190,7 +215,7 @@ describe('the sheet', function () {
         $this->get(route('filament.teacher.exams.print', ['exam' => $this->exam, 'answers' => 'omr']))
             ->assertOk()
             ->assertSee('data-omr-roll-column="'.(OmrSheet::ROLL_DIGITS - 1).'"', escape: false)
-            ->assertSee(__('Answer sheet of the objective test'));
+            ->assertSee(__('Answer sheet of the objective test', [], 'bn'));
     });
 });
 
@@ -219,7 +244,7 @@ describe('the scanner page', function () {
         Filament::setCurrentPanel('teacher');
 
         livewire(ListExams::class)
-            ->assertTableActionHasUrl('scanOmrSheets', route('filament.teacher.exams.omr-scan', $this->exam), $this->exam);
+            ->assertTableActionHasUrl('omr', route('filament.teacher.exams.omr-scan', $this->exam), $this->exam);
     });
 });
 

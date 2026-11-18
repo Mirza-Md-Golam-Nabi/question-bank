@@ -79,6 +79,29 @@ class ExamResultSheet
     }
 
     /**
+     * The result sheet as rows of a CSV file, the heading row first: the
+     * same ranked participants as rowsFor(), with what the exam is out of.
+     *
+     * @return list<list<string|float|int>>
+     */
+    public function csvRows(Exam $exam): array
+    {
+        $outOf = $exam->scoredMarks();
+
+        return [
+            [__('Position'), __('Name'), __('Roll / Phone / Email'), __('Marks'), __('Out of'), __('Time taken')],
+            ...$this->rowsFor($exam)->map(fn (array $row): array => [
+                $row['position'],
+                $row['name'],
+                (string) $row['contact'],
+                $row['score'],
+                $outOf,
+                $row['duration_seconds'] === null ? '' : self::formatDuration($row['duration_seconds']),
+            ])->all(),
+        ];
+    }
+
+    /**
      * How the participants did on each question — how many got it right,
      * how many got it wrong, how many left it blank — with the question
      * most often answered wrongly first, so the teacher sees straight away
@@ -238,7 +261,8 @@ class ExamResultSheet
 
     /**
      * What makes two attempts "the same person": a logged-in student's
-     * account, a scanned OMR sheet's (class + section +) roll, a School
+     * account, a scanned OMR sheet's (class + section +) roll or
+     * registration number, a School
      * student's class + section + roll + name, or a guest's name +
      * phone/email.
      */
@@ -249,7 +273,7 @@ class ExamResultSheet
         }
 
         if ($attempt->is_omr) {
-            return "omr:{$attempt->school_class_id}|{$attempt->school_section_id}|{$attempt->school_roll}";
+            return "omr:{$attempt->school_class_id}|{$attempt->school_section_id}|{$attempt->omrIdentity()->value}:{$attempt->identityNumber()}";
         }
 
         if ($attempt->isSchoolAttempt()) {

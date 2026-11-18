@@ -889,3 +889,91 @@
         line-height: 1.5rem;
     }
 }
+
+/*
+ * An OMR check's answer key (CLAUDE.md rule 10.12): a row per question —
+ * its number, then a circle per option — in as many columns as fit. The
+ * same circles type the key in (filament.support.omr-answer-key-field) and
+ * show one student's sheet against it (components/omr-answer-sheet).
+ */
+.qb-answer-key {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+    gap: 0.25rem 1.5rem;
+}
+
+.qb-answer-key-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.5rem;
+}
+
+.qb-answer-key-row--missing {
+    background-color: #fef3c7;
+}
+
+.qb-answer-key-number {
+    width: 2.25rem;
+    flex: none;
+    text-align: end;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.qb-answer-key-bubble {
+    display: inline-flex;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #d1d5db;
+    border-radius: 9999px;
+    background-color: #fff;
+    color: #374151;
+    font-size: 0.8125rem;
+    line-height: 1;
+}
+
+button.qb-answer-key-bubble:hover {
+    border-color: #2563eb;
+}
+
+.qb-answer-key-bubble--picked {
+    border-color: #2563eb;
+    background-color: #2563eb;
+    color: #fff;
+    font-weight: 600;
+}
+
+.qb-answer-key-bubble--correct {
+    border-color: #16a34a;
+    background-color: #16a34a;
+    color: #fff;
+    font-weight: 600;
+}
+
+.qb-answer-key-bubble--wrong {
+    border-color: #dc2626;
+    background-color: #dc2626;
+    color: #fff;
+    font-weight: 600;
+}
+
+.qb-answer-key-note {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+:is(.dark .qb-answer-key-row--missing) {
+    background-color: rgb(245 158 11 / 0.15);
+}
+
+:is(.dark .qb-answer-key-bubble:not(.qb-answer-key-bubble--picked, .qb-answer-key-bubble--correct, .qb-answer-key-bubble--wrong)) {
+    border-color: rgb(255 255 255 / 0.2);
+    background-color: transparent;
+    color: #d1d5db;
+}

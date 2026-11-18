@@ -18,12 +18,14 @@ use Illuminate\View\View;
 use RuntimeException;
 
 /**
- * Scanning students' filled-in OMR sheets (CLAUDE.md rule 10.11): a plain
- * page where the teacher points the phone's camera at the sheets one after
- * another (or picks photos/scans), checks what was read, and saves each as
- * a graded paper. The reading happens in the browser
- * (resources/js/omr-scan.js) — only the answers reach the server, which
- * marks them (OmrResultRecorder).
+ * An exam's OMR page (CLAUDE.md rules 10.11, 10.12) — the one page every
+ * OMR sheet is reached from, a printed exam's and an OMR check's alike:
+ * which number tells the students apart, the sheet (and answer key) to
+ * print, and scanning the filled-in sheets — the teacher points the phone's
+ * camera at them one after another (or picks photos/scans), checks what
+ * was read, and saves each as a graded paper. The reading happens in the
+ * browser (resources/js/omr-scan.js) — only the answers reach the server,
+ * which marks them (OmrResultRecorder).
  *
  * For whoever may print the exam (ExamPolicy::print()); a School scans one
  * class + section of its students at a time. Registered inside the Teacher
@@ -58,12 +60,17 @@ class OmrScanController extends Controller
         return view('teacher.omr-scan', [
             'exam' => $exam,
             'layout' => OmrSheet::for($exam)->scannerLayout(),
+            'identity' => OmrSheet::for($exam)->identity(),
+            'canChangeIdentity' => ! $exam->attempts()->where('is_omr', true)->exists(),
+            'savedCount' => $exam->attempts()->where('is_omr', true)->count(),
             'classes' => $classes,
             'rosterError' => $rosterError,
             'saveUrl' => CurrentPanel::route('exams.omr-scan.store', $exam),
+            'identityUrl' => CurrentPanel::route('exams.omr-identity', $exam),
             'printUrl' => CurrentPanel::route('exams.print', ['exam' => $exam, 'answers' => 'omr']),
+            'keyUrl' => CurrentPanel::route('exams.print', ['exam' => $exam, 'answers' => 'key']),
             'resultsUrl' => ExamResults::getUrl(['record' => $exam]),
-            'examsUrl' => ExamResource::getUrl('index'),
+            'examsUrl' => ExamResource::listUrlFor($exam),
         ]);
     }
 
@@ -112,9 +119,25 @@ class OmrScanController extends Controller
     {
         $this->authorizeScanning($exam);
 
+        // An OMR check's sheet has a row per question of its answer key.
+        abort_if($exam->isOmrCheck(), 404);
+
         OmrSheet::saveQuestionCount($exam, $request->input('questions'));
 
         return redirect(CurrentPanel::route('exams.print', ['exam' => $exam, 'answers' => 'omr']));
+    }
+
+    /**
+     * Which number tells the students apart (OmrSheet::saveIdentity()),
+     * chosen on this page before any sheet is saved.
+     */
+    public function saveIdentity(Request $request, Exam $exam): RedirectResponse
+    {
+        $this->authorizeScanning($exam);
+
+        OmrSheet::saveIdentity($exam, $request->input('identity'));
+
+        return redirect(CurrentPanel::route('exams.omr-scan', $exam));
     }
 
     private function authorizeScanning(Exam $exam): void

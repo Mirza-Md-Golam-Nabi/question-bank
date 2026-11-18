@@ -1,13 +1,21 @@
 @php
     /**
-     * Scanning the students' filled-in OMR sheets (CLAUDE.md rule 10.11) —
-     * the camera, the sheets read so far to check and save, all run by
-     * resources/js/omr-scan.js; the reading itself is omr-reader.js.
+     * An exam's OMR page (CLAUDE.md rules 10.11, 10.12; OmrScanController) —
+     * the one page for its OMR sheets, a printed exam's or an OMR check's:
+     * which number the students are told apart by, the sheet and the answer
+     * key to print, then scanning — the camera, the sheets read so far to
+     * check and save, all run by resources/js/omr-scan.js; the reading
+     * itself is omr-reader.js.
      *
      * @var \App\Models\Exam $exam
      * @var array<string, mixed> $layout  App\Support\OmrSheet::scannerLayout()
+     * @var \App\Enums\OmrIdentity $identity
+     * @var bool $canChangeIdentity  No sheet saved yet.
+     * @var int $savedCount
      * @var list<array{id: int, name: string, sections: list<array{id: int, name: string}>}>|null $classes  A School's classes; null for a teacher's exam.
      */
+    use App\Enums\Locale;
+    use App\Enums\OmrIdentity;
     use App\Filament\Support\QuestionDisplay;
 @endphp
 
@@ -17,7 +25,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ __('Scan OMR sheets') }} — {{ $exam->title }}</title>
+    <title>{{ __('OMR sheet') }} — {{ $exam->title }}</title>
     @fonts
     @vite(['resources/css/app.css', 'resources/js/omr-scan.js'])
 
@@ -86,10 +94,9 @@
 <body class="font-bangla bg-gray-100 min-h-screen">
     <div class="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-3">
         <div class="mx-auto flex max-w-3xl flex-wrap items-center gap-2">
-            <h1 class="me-auto text-base font-bold text-gray-900">{{ __('Scan OMR sheets') }} — {{ $exam->title }}</h1>
-            <a href="{{ $printUrl }}" target="_blank" class="qb-btn qb-btn--outline text-sm">{{ __('Print OMR sheet') }}</a>
-            <a href="{{ $resultsUrl }}" class="qb-btn qb-btn--outline text-sm">{{ __('Results') }}</a>
-            <a href="{{ $examsUrl }}" class="text-sm font-medium text-gray-600 hover:underline">{{ __('Back to exams') }}</a>
+            <h1 class="me-auto text-base font-bold text-gray-900">{{ __('OMR sheet') }} — {{ $exam->title }}</h1>
+            <a href="{{ $resultsUrl }}" class="qb-btn qb-btn--outline text-sm">{{ __('Results') }} ({{ Locale::current()->writeDigits((string) $savedCount) }})</a>
+            <a href="{{ $examsUrl }}" class="text-sm font-medium text-gray-600 hover:underline">{{ __('Back to the list') }}</a>
         </div>
     </div>
 
@@ -98,7 +105,41 @@
             <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{{ __('The school software could not be reached, so its classes are not available: :error', ['error' => $rosterError]) }}</p>
         @endif
 
+        {{-- 1. The sheet: the number it goes by, then printing it (and the key). --}}
         <section class="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm">
+            <h2 class="text-base font-bold text-gray-900">{{ __('1. Print the OMR sheet') }}</h2>
+
+            @if ($canChangeIdentity)
+                <form method="POST" action="{{ $identityUrl }}" class="flex flex-col gap-2">
+                    @csrf
+                    <span class="text-sm font-medium">{{ __('Save each result by') }}</span>
+                    <div class="flex flex-wrap items-center gap-3">
+                        @foreach (OmrIdentity::cases() as $option)
+                            <label class="flex items-center gap-1.5 text-sm">
+                                <input type="radio" name="identity" value="{{ $option->value }}" @checked($option === $identity)>
+                                {{ $option->getLabel() }}
+                            </label>
+                        @endforeach
+                        <button type="submit" class="qb-btn qb-btn--outline text-sm">{{ __('Apply') }}</button>
+                    </div>
+                    @error('identity')
+                        <span class="text-xs text-red-600">{{ $message }}</span>
+                    @enderror
+                    <p class="text-xs text-gray-500">{{ __('The scanner reads this number off each sheet; a number is saved once. Choose it before printing — a sheet printed before a change can no longer be scanned.') }}</p>
+                </form>
+            @else
+                <p class="text-sm text-gray-700">{{ __('Each result is saved by') }}: <strong>{{ $identity->getLabel() }}</strong></p>
+            @endif
+
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ $printUrl }}" target="_blank" class="qb-btn qb-btn--primary text-sm">{{ __('Print / download the OMR sheet') }}</a>
+                <a href="{{ $keyUrl }}" target="_blank" class="qb-btn qb-btn--outline text-sm">{{ __('Print the answer key') }}</a>
+            </div>
+        </section>
+
+        {{-- 2. Scanning the filled-in sheets. --}}
+        <section class="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm">
+            <h2 class="text-base font-bold text-gray-900">{{ __('2. Scan the filled-in sheets') }}</h2>
             <p class="text-sm text-gray-600">
                 {{ __('Hold the phone over one filled-in sheet at a time, with all four black corner squares in view. A sheet is read on its own (you hear a beep); then put the next one under the camera. Check each sheet below and save it.') }}
             </p>
@@ -154,14 +195,14 @@
             'text' => [
                 'searching' => __('Looking for a sheet…'),
                 'notThisExam' => __('Hold the sheet flat with all four corner squares in view. If it still is not read, it may be a sheet of another exam, or printed before the exam changed.'),
-                'read' => __('Read: roll :roll'),
+                'read' => __('Read: :who', ['who' => $identity->describe(':roll')]),
                 'alreadyRead' => __('This sheet is already in the list.'),
                 'cameraFailed' => __('The camera could not be started. Allow the camera for this site, or choose photos instead.'),
                 'stopCamera' => __('Stop camera'),
                 'startCamera' => __('Start camera'),
                 'noSheetInPhoto' => __('No sheet of this exam was found in :file.'),
                 'chooseClass' => __('Choose the class (and section) first.'),
-                'roll' => __('Roll'),
+                'roll' => $identity->getLabel(),
                 'name' => __('Name (optional)'),
                 'save' => __('Save'),
                 'saving' => __('Saving…'),
@@ -172,13 +213,13 @@
                 'several' => __('More than one'),
                 'unclear' => __('Not clear — choose what the student meant'),
                 'severalNote' => __('More than one circle filled — counted as wrong unless you choose one'),
-                'rollUnclear' => __('The roll could not be read clearly — check it.'),
-                'needsRoll' => __('Write the roll number.'),
+                'rollUnclear' => $identity->unclearMessage(),
+                'needsRoll' => $identity->missingMessage(),
                 'needsCheck' => __(':count questions to check'),
                 'allGood' => __('Everything was read clearly.'),
                 'showAll' => __('Show all answers'),
                 'hideAll' => __('Hide all answers'),
-                'missingPages' => __('Sheets still to scan for this roll: :pages'),
+                'missingPages' => __('Sheets still to scan for this number: :pages'),
                 'failed' => __('Could not save — check your connection and try again.'),
             ],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) !!}

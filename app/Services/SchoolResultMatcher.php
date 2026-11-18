@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\OmrIdentity;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use Illuminate\Support\Collection;
@@ -11,13 +12,19 @@ use Illuminate\Support\Collection;
  * software's list for one class (CLAUDE.md rule 12) — the one place that
  * decides whose mark is whose:
  *
- * - by section + roll (the papers' own, as the entry form took them);
+ * - by the number the paper goes by: section + roll (as the entry form or
+ *   the scanned OMR sheet took them), or the registration number of an OMR
+ *   sheet of an exam that goes by that (`exams.omr_identity`);
  * - one paper whose name matches → `matched`; whose name doesn't →
- *   `name_mismatch`, for the School to approve;
- * - more than one paper under the roll (someone else used it) → `duplicate`,
- *   for the School to pick one;
- * - no paper → `absent`;
- * - papers under a roll the list doesn't have → left over, never sent.
+ *   `name_mismatch`, for the School to approve (a registration number is
+ *   the student's own, so a sheet without a name matches by it alone);
+ * - more than one paper under the number (someone else used it) →
+ *   `duplicate`, for the School to pick one;
+ * - no paper → `absent` — or, when the exam goes by registration number and
+ *   the student has none in the software, `no_registration`: never sent,
+ *   since their sheet can't be found;
+ * - papers under a number the list doesn't have → left over, never sent
+ *   (the School is shown they failed).
  *
  * Only handed-in papers count.
  */
@@ -31,12 +38,16 @@ class SchoolResultMatcher
 
     public const ABSENT = 'absent';
 
+    public const NO_REGISTRATION = 'no_registration';
+
     /**
-     * @param  list<array{id: int, roll: ?string, name: ?string, section_id: ?int}>  $students  The school's list.
+     * @param  list<array{id: int, roll: ?string, registration?: ?string, name: ?string, section_id: ?int}>  $students  The school's list.
      * @return array{rows: list<array{student: array<string, mixed>, status: string, attempts: Collection<int, ExamAttempt>}>, unmatched: Collection<int, ExamAttempt>}
      */
     public function match(Exam $exam, int $classId, array $students): array
     {
+        $byRegistration = $exam->omr_identity === OmrIdentity::Registration;
+
         $papers = ExamAttempt::query()
             ->where('exam_id', $exam->id)
             ->where('school_class_id', $classId)
@@ -44,30 +55,59 @@ class SchoolResultMatcher
             ->orderBy('id')
             ->get();
 
-        $key = fn (?int $sectionId, ?string $roll): string => ($sectionId ?? '-').'|'.ExamAttempt::normalizeRoll((string) $roll);
-        $papersByRoll = $papers->groupBy(fn (ExamAttempt $paper): string => $key($paper->school_section_id, $paper->school_roll));
+        $papersByKey = $papers->groupBy(fn (ExamAttempt $paper): string => self::paperKey($paper));
 
-        $rows = collect($students)->map(function (array $student) use ($papersByRoll, $key): array {
-            $mine = $papersByRoll->get($key($student['section_id'] ?? null, $student['roll'] ?? null), collect())->values();
+        $rows = collect($students)->map(function (array $student) use ($papersByKey, $byRegistration): array {
+            $mine = collect(self::studentKeys($student))
+                ->flatMap(fn (string $key) => $papersByKey->get($key, collect()))
+                ->unique('id')
+                ->values();
+            $first = $mine->first();
 
             return [
                 'student' => $student,
                 'attempts' => $mine,
                 'status' => match (true) {
+                    $mine->isEmpty() && $byRegistration && blank($student['registration'] ?? null) => self::NO_REGISTRATION,
                     $mine->isEmpty() => self::ABSENT,
                     $mine->count() > 1 => self::DUPLICATE,
-                    self::sameName((string) $mine->first()->guest_name, (string) ($student['name'] ?? '')) => self::MATCHED,
+                    $first->registration_no !== null && blank($first->guest_name) => self::MATCHED,
+                    self::sameName((string) $first->guest_name, (string) ($student['name'] ?? '')) => self::MATCHED,
                     default => self::NAME_MISMATCH,
                 },
             ];
         });
 
-        $listed = collect($students)->map(fn (array $student): string => $key($student['section_id'] ?? null, $student['roll'] ?? null))->flip();
+        $listed = collect($students)->flatMap(fn (array $student): array => self::studentKeys($student))->flip();
 
         return [
             'rows' => $rows->values()->all(),
-            'unmatched' => $papers->reject(fn (ExamAttempt $paper): bool => $listed->has($key($paper->school_section_id, $paper->school_roll)))->values(),
+            'unmatched' => $papers->reject(fn (ExamAttempt $paper): bool => $listed->has(self::paperKey($paper)))->values(),
         ];
+    }
+
+    /**
+     * What a paper is found by: its registration number, or its section + roll.
+     */
+    private static function paperKey(ExamAttempt $paper): string
+    {
+        return $paper->registration_no !== null
+            ? 'registration:'.ExamAttempt::normalizeRoll($paper->registration_no)
+            : 'roll:'.($paper->school_section_id ?? '-').'|'.ExamAttempt::normalizeRoll((string) $paper->school_roll);
+    }
+
+    /**
+     * Every key a student on the school's list can be found by.
+     *
+     * @param  array<string, mixed>  $student
+     * @return list<string>
+     */
+    private static function studentKeys(array $student): array
+    {
+        return array_values(array_filter([
+            filled($student['registration'] ?? null) ? 'registration:'.ExamAttempt::normalizeRoll((string) $student['registration']) : null,
+            'roll:'.($student['section_id'] ?? '-').'|'.ExamAttempt::normalizeRoll((string) ($student['roll'] ?? '')),
+        ]));
     }
 
     /**

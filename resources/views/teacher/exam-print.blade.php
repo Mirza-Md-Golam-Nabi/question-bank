@@ -719,12 +719,13 @@
                     {{ __('Print / Save as PDF') }}
                 </button>
 
-                {{-- The other forms of this paper: not the one on screen, and no
+                {{-- The other forms of this paper: not the one on screen, no
                      answer key or OMR sheet for a CQ-only paper (CQ has no
-                     answers to list or fill in). --}}
+                     answers to list or fill in), and only those two for an
+                     OMR check, which has no questions. --}}
                 @foreach ([
-                    ['answers' => null, 'label' => __('Questions only'), 'hidden' => ! $showAnswers && ! $isAnswerKey && ! $isOmrSheet],
-                    ['answers' => 1, 'label' => __('With answers'), 'hidden' => $showAnswers],
+                    ['answers' => null, 'label' => __('Questions only'), 'hidden' => $exam->isOmrCheck() || (! $showAnswers && ! $isAnswerKey && ! $isOmrSheet)],
+                    ['answers' => 1, 'label' => __('With answers'), 'hidden' => $exam->isOmrCheck() || $showAnswers],
                     ['answers' => 'key', 'label' => __('Answer key only'), 'hidden' => $isAnswerKey || ! $hasMcq],
                     ['answers' => 'omr', 'label' => __('OMR sheet'), 'hidden' => $isOmrSheet || ! $hasMcq],
                 ] as $copy)
@@ -736,16 +737,16 @@
                     @endunless
                 @endforeach
 
-                @if ($isOmrSheet)
+                @if ($isOmrSheet || $exam->isOmrCheck())
                     <a href="{{ CurrentPanel::route('exams.omr-scan', $exam) }}"
                        class="qb-btn qb-btn--primary text-sm">
                         {{ __('Scan filled-in sheets') }}
                     </a>
                 @endif
 
-                <a href="{{ ExamResource::getUrl('index') }}"
+                <a href="{{ ExamResource::listUrlFor($exam) }}"
                    class="ms-auto text-sm font-medium text-gray-600 hover:underline">
-                    {{ __('Back to exams') }}
+                    {{ __('Back to the list') }}
                 </a>
             </div>
 
@@ -787,7 +788,8 @@
                 @endif
 
                 <p class="mt-2 flex justify-between text-[0.9em]">
-                    <span data-editable="time">{{ __('Time') }}: {{ __(':minutes minutes', ['minutes' => $digits((string) $exam->duration_minutes)]) }}</span>
+                    {{-- An OMR check's paper was set outside the system: its time isn't known here. --}}
+                    <span data-editable="time" @if ($exam->isOmrCheck()) hidden @endif>{{ __('Time') }}: {{ __(':minutes minutes', ['minutes' => $digits((string) $exam->duration_minutes)]) }}</span>
                     <span data-editable="marks">{{ __('Total marks') }}: {{ $digits(QuestionDisplay::marks($totalMarks)) }}</span>
                 </p>
 
@@ -809,7 +811,7 @@
             @if ($isAnswerKey)
                 @include('teacher.partials.exam-answer-key', ['mcqQuestions' => $mcqQuestions])
             @elseif ($isOmrSheet)
-                @include('teacher.partials.exam-omr-sheet', ['exam' => $exam, 'mcqQuestions' => $mcqQuestions])
+                @include('teacher.partials.exam-omr-sheet', ['exam' => $exam, 'mcqQuestions' => $mcqQuestions, 'languages' => App\Support\PrintSettings::omrLanguages($printSettings)])
             @else
                 @if ($hasMcq)
                     <section class="mb-6">

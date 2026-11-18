@@ -109,9 +109,10 @@ it('offers "print answer key only" in the exam list only for a printed paper wit
         ->assertTableActionHasUrl('printAnswerKey', route('filament.teacher.exams.print', ['exam' => $offline, 'answers' => 'key']), $offline)
         ->assertTableActionHidden('printAnswerKey', $online)
         ->assertTableActionHidden('printAnswerKey', $cqOnly)
-        ->assertTableActionHasUrl('printOmrSheet', route('filament.teacher.exams.print', ['exam' => $offline, 'answers' => 'omr']), $offline)
-        ->assertTableActionHidden('printOmrSheet', $online)
-        ->assertTableActionHidden('printOmrSheet', $cqOnly);
+        // The OMR sheet is printed from the exam's OMR page.
+        ->assertTableActionHasUrl('omr', route('filament.teacher.exams.omr-scan', $offline), $offline)
+        ->assertTableActionHidden('omr', $online)
+        ->assertTableActionHidden('omr', $cqOnly);
 });
 
 it('lists a past paper\'s several right options, or a dash when it gives none', function () {
@@ -258,6 +259,7 @@ describe('the OMR sheet', function () {
             ['option' => 'c', 'image' => null, 'is_correct' => false],
         ]]);
         $exam->questions()->attach($second->id, ['order_index' => 3, 'marks_override' => null]);
+        $this->teacher->forceFill(['print_settings' => ['omr_language' => 'en']])->save();
 
         $html = $this->get(route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 'omr']))
             ->assertOk()
@@ -274,6 +276,52 @@ describe('the OMR sheet', function () {
             // The scanner's way in: a link to it, and the frame's corner squares.
             ->and($html)->toContain(route('filament.teacher.exams.omr-scan', $exam))
             ->and(substr_count($html, 'class="qb-omr-solid"'))->toBeGreaterThan(4);
+    });
+
+    it('is printed in the language of the print settings, whatever the panel\'s language', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        $omrUrl = route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 'omr']);
+
+        // Bangla by default: ক খ গ ঘ, Bangla numbers and words.
+        $this->get($omrUrl)
+            ->assertOk()
+            ->assertSee('lang="bn"', escape: false)
+            ->assertSee('>ক</span>', escape: false)
+            ->assertSee('>১</span>', escape: false)
+            ->assertSee('নৈর্ব্যক্তিক অভীক্ষার উত্তরপত্র')
+            ->assertDontSee('Answer sheet of the objective test');
+
+        $this->teacher->forceFill(['print_settings' => array_fill_keys(PrintSettings::OMR_LANGUAGES, 'en')])->save();
+
+        $this->get($omrUrl)
+            ->assertOk()
+            ->assertSee('>A</span>', escape: false)
+            ->assertSee('>1</span>', escape: false)
+            ->assertSee('Answer sheet of the objective test')
+            ->assertDontSee('>ক</span>', escape: false)
+            // The panel around it stays in its own language.
+            ->assertSee('Print settings');
+    });
+
+    it('prints each number grid in its own language', function () {
+        $exam = ($this->examWith)(ExamDeliveryMode::Offline);
+        $this->teacher->forceFill(['print_settings' => ['omr_language' => 'bn', 'omr_roll_language' => 'en', 'omr_set_language' => 'bn', 'omr_subject_language' => 'en']])->save();
+
+        $html = $this->get(route('filament.teacher.exams.print', ['exam' => $exam, 'answers' => 'omr']))
+            ->assertOk()
+            ->assertSee('নৈর্ব্যক্তিক অভীক্ষার উত্তরপত্র')
+            ->getContent();
+
+        $grid = function (string $key) use ($html): string {
+            preg_match('/data-omr-grid="'.$key.'".*?(?=data-omr-grid=|class="qb-omr-box")/s', $html, $match);
+
+            return $match[0];
+        };
+
+        expect($grid('roll'))->toContain('lang="en"', 'Roll number', '>9</span>')->not->toContain('>৯</span>')
+            ->and($grid('set'))->toContain('lang="bn"', 'সেট কোড', '>ক</span>', '>ঘ</span>')
+            ->and($grid('subject'))->toContain('Subject code', '>9</span>')
+            ->and($grid('registration'))->toContain('রেজিস্ট্রেশন নম্বর', '>৯</span>');
     });
 
     it('is not offered for a paper with no mcq', function () {

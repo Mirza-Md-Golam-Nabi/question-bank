@@ -9,6 +9,7 @@ use App\Filament\Teacher\Pages\Dashboard;
 use App\Http\Controllers\OmrScanController;
 use App\Http\Controllers\PrintSettingsController;
 use App\Http\Controllers\TeacherExamPrintController;
+use App\Http\Controllers\TeacherExamResultsCsvController;
 use App\Http\Controllers\TeacherExamResultsPrintController;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -37,17 +38,19 @@ class TeacherPanelProvider extends PanelProvider
     }
 
     /**
-     * The exam's printable paper and result sheet, its print settings and
-     * the OMR scanner — plain pages behind the panel's auth, in the Teacher
-     * and School panels alike.
+     * The exam's printable paper and result sheet (and its CSV), its print
+     * settings and the OMR page — plain pages behind the panel's auth, in
+     * the Teacher and School panels alike.
      */
     public static function examPaperRoutes(): void
     {
         Route::get('exams/{exam}/print', TeacherExamPrintController::class)->name('exams.print');
         Route::get('exams/{exam}/results/print', TeacherExamResultsPrintController::class)->name('exams.results.print');
+        Route::get('exams/{exam}/results/csv', TeacherExamResultsCsvController::class)->name('exams.results.csv');
         Route::post('exams/print-settings', PrintSettingsController::class)->name('exams.print-settings');
         Route::get('exams/{exam}/omr-scan', [OmrScanController::class, 'show'])->name('exams.omr-scan');
         Route::post('exams/{exam}/omr-scan', [OmrScanController::class, 'store'])->name('exams.omr-scan.store');
         Route::post('exams/{exam}/omr-questions', [OmrScanController::class, 'saveQuestionCount'])->name('exams.omr-questions');
+        Route::post('exams/{exam}/omr-identity', [OmrScanController::class, 'saveIdentity'])->name('exams.omr-identity');
     }
 }

@@ -184,6 +184,60 @@ class ExamsTable
             ->action(fn (Exam $record, array $data, ListExams $livewire, Action $action) => $livewire->takeAgain($record, $data, $action));
     }
 
+    /**
+     * The one way to an exam's OMR page (OmrScanController — the sheet to
+     * print, scanning, the results): a printed paper with MCQ, or an OMR
+     * check. Shared with the OMR checks' list.
+     */
+    public static function omrAction(): Action
+    {
+        return Action::make('omr')
+            ->label(__('OMR sheet'))
+            ->tooltip(__('Print the OMR sheet, scan the filled-in sheets'))
+            ->icon('heroicon-o-table-cells')
+            ->iconButton()
+            ->color('primary')
+            ->visible(fn (Exam $record): bool => $record->isOmrCheck() || ($record->delivery_mode->includesOffline() && self::hasMcqQuestions($record)))
+            ->url(fn (Exam $record): string => CurrentPanel::route('exams.omr-scan', $record));
+    }
+
+    /**
+     * The way back to an editable paper (or an OMR check's answer key) once
+     * students have started: call the exam off, which deletes everything
+     * they did on it (Exam::cancel()). Shared with the OMR checks' list.
+     */
+    public static function cancelExamAction(): Action
+    {
+        return Action::make('cancelExam')
+            ->label(__('Cancel exam'))
+            ->icon('heroicon-o-x-circle')
+            ->iconButton()
+            ->color('danger')
+            ->visible(fn (Exam $record) => self::hasAttempts($record))
+            ->requiresConfirmation()
+            ->modalHeading(__('Cancel this exam?'))
+            ->modalDescription(fn (Exam $record): string => $record->isOmrCheck()
+                ? trans_choice(
+                    'This permanently deletes the :count saved OMR sheet of this check — its marks and position. It cannot be undone. You can then change the answer key and scan the sheets again.|This permanently deletes all :count saved OMR sheets of this check — their marks and positions. It cannot be undone. You can then change the answer key and scan the sheets again.',
+                    $record->attempts()->count(),
+                )
+                : trans_choice(
+                    'This permanently deletes the result of :count student who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.|This permanently deletes the results of all :count students who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.',
+                    $record->attempts()->count(),
+                ))
+            ->modalSubmitActionLabel(__('Yes, cancel and delete results'))
+            ->authorize('update')
+            ->action(function (Exam $record) {
+                $deleted = $record->cancel();
+
+                Notification::make()
+                    ->title(__('Exam cancelled'))
+                    ->body(trans_choice(':count result was deleted. You can now edit the exam.|:count results were deleted. You can now edit the exam.', $deleted))
+                    ->success()
+                    ->send();
+            });
+    }
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -191,6 +245,8 @@ class ExamsTable
             // One query for the whole page tells every row whether students
             // have started it, instead of each row asking separately.
             ->modifyQueryUsing(fn (Builder $query) => $query
+                // An OMR check has its own list (OmrCheckResource).
+                ->where('exam_type', '!=', ExamType::OmrCheck)
                 ->withExists('attempts')
                 // Whether there is an answer key to print (only MCQ has one).
                 ->withExists(['questions as has_mcq_questions' => fn (Builder $question) => $question->where('question_type', QuestionType::Mcq)])
@@ -409,22 +465,9 @@ class ExamsTable
                         ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
                         ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', ['exam' => $record, 'answers' => 'key']))
                         ->openUrlInNewTab(),
-                    // A bubble sheet for the students to answer the MCQ on.
-                    Action::make('printOmrSheet')
-                        ->label(__('Print OMR sheet'))
-                        ->color('gray')
-                        ->icon('heroicon-o-table-cells')
-                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
-                        ->url(fn (Exam $record): string => CurrentPanel::route('exams.print', ['exam' => $record, 'answers' => 'omr']))
-                        ->openUrlInNewTab(),
-                    // The students' filled-in sheets, read by the phone's
-                    // camera and marked (CLAUDE.md rule 10.11).
-                    Action::make('scanOmrSheets')
-                        ->label(__('Scan OMR sheets'))
-                        ->color('gray')
-                        ->icon('heroicon-o-camera')
-                        ->visible(fn (Exam $record) => $record->delivery_mode->includesOffline() && self::hasMcqQuestions($record))
-                        ->url(fn (Exam $record): string => CurrentPanel::route('exams.omr-scan', $record)),
+                    // The exam's OMR page: its sheet to print, the students'
+                    // filled-in sheets to scan and mark (CLAUDE.md rule 10.11).
+                    self::omrAction()->grouped(),
                     // Editing works like creating: the exam opens in the question
                     // picker with its questions already selected. Gone once a
                     // student has started it — the paper they sat must not change
@@ -436,30 +479,7 @@ class ExamsTable
                         ->authorize('update')
                         ->url(fn (Exam $record): string => SelectQuestions::getUrl(['exam' => $record->id])),
                     self::takeAgainAction()->grouped(),
-                    // The way back to an editable paper once students have started:
-                    // call the exam off, which deletes everything they did on it.
-                    Action::make('cancelExam')
-                        ->label(__('Cancel exam'))
-                        ->icon('heroicon-o-x-circle')
-                        ->color('danger')
-                        ->visible(fn (Exam $record) => self::hasAttempts($record))
-                        ->requiresConfirmation()
-                        ->modalHeading(__('Cancel this exam?'))
-                        ->modalDescription(fn (Exam $record): string => trans_choice(
-                            'This permanently deletes the result of :count student who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.|This permanently deletes the results of all :count students who started this exam — marks, answers, positions and the question analysis. It cannot be undone. The exam goes back to a draft so you can edit its questions and publish it again with the same link.',
-                            $record->attempts()->count(),
-                        ))
-                        ->modalSubmitActionLabel(__('Yes, cancel and delete results'))
-                        ->authorize('update')
-                        ->action(function (Exam $record) {
-                            $deleted = $record->cancel();
-
-                            Notification::make()
-                                ->title(__('Exam cancelled'))
-                                ->body(trans_choice(':count result was deleted. You can now edit the exam.|:count results were deleted. You can now edit the exam.', $deleted))
-                                ->success()
-                                ->send();
-                        }),
+                    self::cancelExamAction()->grouped(),
                     DeleteAction::make(),
                 ])
                     ->label(__('More actions'))

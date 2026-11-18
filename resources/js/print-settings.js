@@ -179,6 +179,8 @@ if (dataElement) {
     window.addEventListener('resize', fitToScreen);
 
     let saveTimer;
+    // A setting the server prints with (the OMR sheet's language) shows only once the page reloads after saving it.
+    let reloadAfterSave = false;
 
     const save = () => {
         clearTimeout(saveTimer);
@@ -195,6 +197,10 @@ if (dataElement) {
                 });
 
                 saveStatus.textContent = response.ok ? data.saved : data.notSaved;
+
+                if (response.ok && reloadAfterSave) {
+                    window.location.reload();
+                }
             } catch {
                 saveStatus.textContent = data.notSaved;
             }
@@ -220,7 +226,10 @@ if (dataElement) {
     for (const control of controls) {
         const event = control.dataset.value !== undefined ? 'click' : (control.type === 'checkbox' || control.tagName === 'SELECT' ? 'change' : 'input');
 
-        control.addEventListener(event, () => change(control.dataset.setting, valueOf(control)));
+        control.addEventListener(event, () => {
+            reloadAfterSave ||= control.dataset.reload !== undefined && settings[control.dataset.setting] !== valueOf(control);
+            change(control.dataset.setting, valueOf(control));
+        });
     }
 
     for (const reset of document.querySelectorAll('[data-reset]')) {

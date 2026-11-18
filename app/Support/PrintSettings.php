@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\Locale;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,10 @@ use Illuminate\Validation\ValidationException;
  * `header_text` / `footer_text` are printed small at the top / bottom of
  * every page; `omr_roll_digits` is how many digits the OMR sheet's roll
  * number has (0 = no roll grid), `omr_paper_size` the paper it is printed
- * on (the question paper's own size and margins don't apply to it).
+ * on (the question paper's own size and margins don't apply to it),
+ * the `omr_*language` ones the language each part of it is printed in —
+ * words, letters (ক খ গ ঘ / A B C D) and numbers — whatever language the
+ * panel is in (OMR_LANGUAGES).
  */
 final class PrintSettings
 {
@@ -29,6 +33,21 @@ final class PrintSettings
 
     /** The OMR sheet's own paper: A4, or A5 with the same sheet smaller (OmrSheet::A5_SCALE). */
     public const OMR_PAPER_SIZES = ['A4', 'A5'];
+
+    /**
+     * The OMR sheet's parts that each have their own language, and the
+     * setting that holds it: `sheet` = the answer list and every other word
+     * on it, the rest = its number grids (OmrSheet::grids()).
+     *
+     * @var array<string, string>
+     */
+    public const OMR_LANGUAGES = [
+        'sheet' => 'omr_language',
+        'roll' => 'omr_roll_language',
+        'set' => 'omr_set_language',
+        'subject' => 'omr_subject_language',
+        'registration' => 'omr_registration_language',
+    ];
 
     public const OPTION_STYLES = ['paren', 'circle', 'dot', 'bracket'];
 
@@ -74,6 +93,11 @@ final class PrintSettings
         'footer_text' => null,
         'omr_roll_digits' => 4,
         'omr_paper_size' => 'A4',
+        'omr_language' => 'bn',
+        'omr_roll_language' => 'bn',
+        'omr_set_language' => 'bn',
+        'omr_subject_language' => 'bn',
+        'omr_registration_language' => 'bn',
         'mcq_instructions' => null,
         'cq_instructions' => null,
         'paper_size' => 'A4',
@@ -115,6 +139,17 @@ final class PrintSettings
     }
 
     /**
+     * The language of each part of the OMR sheet (OMR_LANGUAGES), by part.
+     *
+     * @param  array<string, mixed>  $settings  The user's settings (for()).
+     * @return array<string, string>
+     */
+    public static function omrLanguages(array $settings): array
+    {
+        return array_map(fn (string $setting): string => $settings[$setting], self::OMR_LANGUAGES);
+    }
+
+    /**
      * Saves what the print page sent: only the known settings, each within
      * its limits.
      *
@@ -150,6 +185,11 @@ final class PrintSettings
             'footer_text' => ['nullable', 'string', 'max:'.self::RUNNING_TEXT_MAX],
             'omr_roll_digits' => ['integer', 'between:0,'.OmrSheet::ROLL_DIGITS],
             'omr_paper_size' => [Rule::in(self::OMR_PAPER_SIZES)],
+            'omr_language' => [Rule::enum(Locale::class)],
+            'omr_roll_language' => [Rule::enum(Locale::class)],
+            'omr_set_language' => [Rule::enum(Locale::class)],
+            'omr_subject_language' => [Rule::enum(Locale::class)],
+            'omr_registration_language' => [Rule::enum(Locale::class)],
             'mcq_instructions' => ['nullable', 'string', 'max:1000'],
             'cq_instructions' => ['nullable', 'string', 'max:1000'],
             'paper_size' => [Rule::in(self::PAPER_SIZES)],

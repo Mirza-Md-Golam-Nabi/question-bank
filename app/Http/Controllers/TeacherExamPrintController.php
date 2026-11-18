@@ -24,7 +24,7 @@ use Illuminate\View\View;
  * an OMR answer sheet for the students (`?answers=omr` — a circle per
  * option of every MCQ, and a roll number grid).
  * The same for an exam made of a past paper, whose questions are the
- * paper's. Laid out by the user's own print settings (PrintSettings), with
+ * paper's; an OMR check (rule 10.12) has only its sheet and its key. Laid out by the user's own print settings (PrintSettings), with
  * one of their usable institution names (and its logo) on top
  * (InstitutionNameService).
  * Registered inside the Teacher and School panels' authenticated routes.
@@ -46,6 +46,8 @@ class TeacherExamPrintController extends Controller
         $isOmrSheet = $request->query('answers') === 'omr';
 
         abort_if(($isAnswerKey || $isOmrSheet) && $mcqQuestions->isEmpty(), 404);
+        // An OMR check has no question paper: only its sheet and its key.
+        abort_if($exam->isOmrCheck() && ! $isAnswerKey && ! $isOmrSheet, 404);
 
         $settings = BillingSetting::current();
         $usableNames = $institutionNames->usableNamesFor($request->user());

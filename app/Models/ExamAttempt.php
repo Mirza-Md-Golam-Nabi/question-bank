@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ExamAttemptStatus;
 use App\Enums\Locale;
 use App\Enums\NoAnswerMarking;
+use App\Enums\OmrIdentity;
 use App\Enums\QuestionType;
 use App\Filament\Support\QuestionBlocks;
 use App\Services\QuestionDifficultyTracker;
@@ -28,7 +29,7 @@ use Random\Randomizer;
 
 #[Fillable([
     'exam_id', 'student_id', 'is_guest', 'is_omr', 'guest_name', 'guest_contact',
-    'school_class_id', 'school_class_name', 'school_section_id', 'school_section_name', 'school_roll',
+    'school_class_id', 'school_class_name', 'school_section_id', 'school_section_name', 'school_roll', 'registration_no',
     'started_at', 'submitted_at', 'status', 'total_score',
 ])]
 class ExamAttempt extends Model
@@ -350,11 +351,11 @@ class ExamAttempt extends Model
     public function participantContact(): ?string
     {
         if ($this->isSchoolAttempt()) {
-            return collect([$this->school_class_name, $this->school_section_name, __('Roll :roll', ['roll' => $this->school_roll])])->filter()->join(' · ');
+            return collect([$this->school_class_name, $this->school_section_name, $this->omrIdentity()->describe($this->identityNumber())])->filter()->join(' · ');
         }
 
         if ($this->is_omr) {
-            return __('Roll :roll', ['roll' => $this->school_roll]).' · '.__('OMR');
+            return $this->omrIdentity()->describe($this->identityNumber()).' · '.__('OMR');
         }
 
         return $this->is_guest ? $this->guest_contact : $this->student?->email;
@@ -367,9 +368,27 @@ class ExamAttempt extends Model
     {
         return match (true) {
             $this->isSchoolAttempt() => __('Class / Roll'),
-            $this->is_omr => __('Roll'),
+            $this->is_omr => (string) $this->omrIdentity()->getLabel(),
             default => __('Phone/Email'),
         };
+    }
+
+    /**
+     * Which number this paper goes by: a scanned OMR sheet of an exam that
+     * tells students apart by registration number keeps that; every other
+     * School or OMR paper its roll.
+     */
+    public function omrIdentity(): OmrIdentity
+    {
+        return $this->registration_no !== null ? OmrIdentity::Registration : OmrIdentity::Roll;
+    }
+
+    /**
+     * The roll or registration number this paper goes by (omrIdentity()).
+     */
+    public function identityNumber(): string
+    {
+        return (string) ($this->registration_no ?? $this->school_roll);
     }
 
     public function student(): BelongsTo
@@ -412,7 +431,7 @@ class ExamAttempt extends Model
     public function savedAnswers(): array
     {
         return $this->answers()
-            ->get(['question_id', 'board_mcq_question_id', 'student_answer'])
+            ->get(['question_id', 'board_mcq_question_id', 'answer_key_number', 'student_answer'])
             ->mapWithKeys(fn (AttemptAnswer $answer): array => [$answer->key() => $answer->student_answer])
             ->all();
     }
@@ -546,7 +565,7 @@ class ExamAttempt extends Model
         $exam = $this->exam;
         // Every question of the exam, the printed-only CQs too: their answers
         // are left as they are below.
-        $examQuestions = ($exam->isPastPaper() || $exam->holdsPaperQuestions() ? $exam->onlineItems() : $exam->questions)
+        $examQuestions = ($exam->isPastPaper() || $exam->holdsPaperQuestions() || $exam->isOmrCheck() ? $exam->onlineItems() : $exam->questions)
             ->keyBy(fn (Model $question): string => AttemptAnswer::keyFor($question));
         $penalty = $exam->marksLostPerWrongAnswer();
 
@@ -555,7 +574,7 @@ class ExamAttempt extends Model
         $correctQuestionIds = [];
         $correctPaperQuestionIds = [];
 
-        foreach ($this->answers()->get(['id', 'question_id', 'board_mcq_question_id', 'student_answer']) as $answer) {
+        foreach ($this->answers()->get(['id', 'question_id', 'board_mcq_question_id', 'answer_key_number', 'student_answer']) as $answer) {
             $question = $examQuestions->get($answer->key());
 
             if ($question?->question_type !== QuestionType::Mcq || $exam->isWithoutCorrectAnswer($question)) {
@@ -572,9 +591,10 @@ class ExamAttempt extends Model
             $outcomes["{$isCorrect}|{$marks}"] ??= ['is_correct' => (bool) $isCorrect, 'obtained_marks' => $marks, 'ids' => []];
             $outcomes["{$isCorrect}|{$marks}"]['ids'][] = $answer->id;
 
+            // An OMR check's questions are only numbers: nothing to record about them.
             if ($isCorrect && $question instanceof BoardMcqQuestion) {
                 $correctPaperQuestionIds[] = $question->id;
-            } elseif ($isCorrect) {
+            } elseif ($isCorrect && $question instanceof Question) {
                 $correctQuestionIds[] = $question->id;
             }
         }
@@ -693,7 +713,7 @@ class ExamAttempt extends Model
     {
         return [
             'exam.questions',
-            'answers' => fn (HasMany $answers) => $answers->where('is_correct', true)->select(['id', 'attempt_id', 'question_id', 'board_mcq_question_id', 'is_correct']),
+            'answers' => fn (HasMany $answers) => $answers->where('is_correct', true)->select(['id', 'attempt_id', 'question_id', 'board_mcq_question_id', 'answer_key_number', 'is_correct']),
         ];
     }
 

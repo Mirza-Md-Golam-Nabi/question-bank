@@ -12,22 +12,23 @@ use Filament\Schemas\Components\Utilities\Get;
 /**
  * The negative-marking switch and its amount on a teacher's exam — when
  * saving it from the question picker and when changing it later from the
- * exams list.
+ * exams list — and on an OMR check.
  */
 class NegativeMarkingFields
 {
     /**
      * @param  bool|Closure(): bool  $visible  Only an exam taken online is marked by the system.
+     * @param  string|null  $helperText  How it works where it is used — on an online exam by default.
      * @return array<int, Toggle|TextInput>
      */
-    public static function make(bool|Closure $visible = true): array
+    public static function make(bool|Closure $visible = true, ?string $helperText = null): array
     {
         $isVisible = fn (): bool => (bool) value($visible);
 
         return [
             Toggle::make('negative_marking')
                 ->label(__('Negative marking'))
-                ->helperText(__('Marks are taken off for each wrong answer online. A blank answer loses nothing, and the total never goes below 0.'))
+                ->helperText($helperText ?? __('Marks are taken off for each wrong answer online. A blank answer loses nothing, and the total never goes below 0.'))
                 ->visible($isVisible)
                 ->live(),
             TextInput::make('negative_marks')
