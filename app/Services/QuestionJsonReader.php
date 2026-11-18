@@ -8,6 +8,7 @@ use App\Enums\QuestionType;
 use App\Models\BillingSetting;
 use App\Models\Question;
 use App\Models\QuestionStimulus;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use JsonException;
 
@@ -38,6 +39,12 @@ final class QuestionJsonReader
      * The field of an import form the problems are reported against.
      */
     public const ERROR_KEY = 'json';
+
+    /**
+     * The largest JSON file taken — a technical guard against a wrong file,
+     * well above any list of questions the import limit lets through.
+     */
+    public const FILE_CEILING_KB = 5120;
 
     public function __construct(
         private readonly ?QuestionType $onlyType = null,
@@ -245,6 +252,23 @@ final class QuestionJsonReader
         }
 
         return json_encode($sample, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * The text of an uploaded JSON file, to read like pasted JSON — without
+     * the byte-order mark some editors put at its start.
+     *
+     * @throws ValidationException when the file is not UTF-8 text
+     */
+    public static function textOfFile(UploadedFile $file): string
+    {
+        $text = (string) $file->get();
+
+        if (! mb_check_encoding($text, 'UTF-8')) {
+            throw ValidationException::withMessages([self::ERROR_KEY => __('The JSON file must be saved as UTF-8 text.')]);
+        }
+
+        return preg_replace('/^\xEF\xBB\xBF/', '', $text) ?? $text;
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Enums\QuestionStatus;
 use App\Enums\QuestionType;
 use App\Filament\Pages\BillingSettings;
 use App\Filament\Resources\BoardQuestionPapers\Pages\EditBoardQuestionPaper;
+use App\Filament\Support\QuestionJsonImportAction;
 use App\Filament\Support\RelationManagers\PaperCqQuestionsRelationManager;
 use App\Filament\Support\RelationManagers\PaperMcqQuestionsRelationManager;
 use App\Models\BillingSetting;
@@ -19,6 +20,7 @@ use App\Services\QuestionJsonImporter;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 
 use function Pest\Livewire\livewire;
@@ -267,6 +269,19 @@ describe('the "Add from JSON" button beside the new-question button', function (
             ->callAction(TestAction::make('importPaperQuestionsFromJson')->table(), ['json' => json_encode([($this->mcq)()])])
             ->assertHasNoFormErrors()
             ->assertNotified();
+
+        expect($this->paper->mcqQuestions()->count())->toBe(1);
+    });
+
+    it('adds MCQs from an uploaded JSON file', function () {
+        $file = UploadedFile::fake()->createWithContent('paper.json', "\xEF\xBB\xBF".json_encode([($this->mcq)()]));
+
+        livewire(PaperMcqQuestionsRelationManager::class, ['ownerRecord' => $this->paper, 'pageClass' => EditBoardQuestionPaper::class])
+            ->mountAction(TestAction::make('importPaperQuestionsFromJson')->table())
+            ->fillForm([QuestionJsonImportAction::FILE_FIELD => $file])
+            ->assertSchemaStateSet(['json' => json_encode([($this->mcq)()])], 'mountedActionSchema0')
+            ->callMountedAction()
+            ->assertHasNoFormErrors();
 
         expect($this->paper->mcqQuestions()->count())->toBe(1);
     });

@@ -4,6 +4,11 @@
 
 এই ফাইল ২০২৬-১০-১০ থেকে রাখা হচ্ছে; তার আগের ইতিহাস Git-এ (`git log`)।
 
+## ২০২৬-১১-১৮
+
+- **JSON ফাইল আপলোড:** "Add from JSON"-এ (প্রশ্নভাণ্ডার ও বিগত সালের প্রশ্নপত্র) পেস্টের পাশাপাশি `.json` ফাইল দেওয়া যায় — লেখা JSON-এর ঘরে চলে আসে, বাকি সব আগের মতো (`docs/05-question-bank.md`)।
+- **"Add from JSON"-এর পপআপ:** JSON ফাইল ও ছবির ঘর এক সারিতে পাশাপাশি; AI-কে দেওয়ার ফরম্যাট (কপি বাটনসহ) এখন আলাদা "AI-এর জন্য ফরম্যাট" ট্যাবে (`docs/05-question-bank.md`)।
+
 ## ২০২৬-১১-১৫
 
 - **লাইভ থেকে টেস্ট সার্ভারে প্রশ্ন আনা (নতুন, CLAUDE.md নিয়ম ১৬):** লাইভের Super Admin "টেস্ট সার্ভারে প্রশ্ন শেয়ার" পেজে কত ঘণ্টার জন্য সই করা API চালু করেন (নিজে থেকে বন্ধ হয়); টেস্টের Super Admin "লাইভ সার্ভার থেকে প্রশ্ন আনুন" পেজে বামে টেস্টের, ডানে লাইভের শ্রেণি → বিষয় → অধ্যায় বেছে পুরো অধ্যায় (উত্তর, ব্যাখ্যা, ছবি, টপিক নাম মিলিয়ে বা তৈরি করে, difficulty) বা পুরো প্রশ্নপত্র queue-তে আনেন — approved, ডুপ্লিকেট যাচাই ছাড়া; আবার আনলে শুধু লাইভে নতুন সংস্করণ হলে টেস্টে নতুন সংস্করণ। `.env`-এ `QUESTION_SYNC_ROLE`/`SECRET`/`SOURCE_URL`; নতুন কলাম `questions.remote_origin_id`/`remote_version`, `question_stimuli.remote_id`, `board_question_papers.remote_id`, সেটিং `question_sync_open_until`/`question_sync_open_hours`, টেবিল `question_sync_runs`। HMAC সই এখন এক জায়গায় (`RequestSignature`)। → [05-question-bank.md](05-question-bank.md#লাইভ-সার্ভার-থেকে-টেস্ট-সার্ভারে-প্রশ্ন-আনা), [03-database.md](03-database.md)

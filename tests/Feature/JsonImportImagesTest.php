@@ -188,6 +188,26 @@ it('adds images to a past paper\'s questions the same way', function () {
     Storage::disk(ImportedImages::DISK)->assertExists($path);
 });
 
+it('fills the JSON box from an uploaded JSON file, and refuses a file that is not UTF-8', function () {
+    Filament::setCurrentPanel(Filament::getPanel('teacher'));
+    $json = json_encode([['question' => 'চিত্রে কী?', 'image' => 'q1.png', 'options' => ['ক', 'খ'], 'answer' => 1]]);
+
+    livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+        ->mountAction('importQuestionsFromJson')
+        ->fillForm([QuestionJsonImportAction::FILE_FIELD => UploadedFile::fake()->createWithContent('q.json', "\xFF\xFE not text")])
+        ->assertSchemaStateSet(['json' => null], 'mountedActionSchema0')
+        ->assertNotified();
+
+    livewire(TeacherListQuestions::class, ['chapter' => $this->chapter->id])
+        ->mountAction('importQuestionsFromJson')
+        ->fillForm([QuestionJsonImportAction::FILE_FIELD => UploadedFile::fake()->createWithContent('q.json', $json), ImportedQuestions::IMAGES_KEY => [($this->png)('q1.png')]])
+        ->assertSchemaStateSet(['json' => $json], 'mountedActionSchema0')
+        ->callMountedAction()
+        ->assertHasNoFormErrors();
+
+    expect(Question::sole()->question_image)->not->toBeNull();
+});
+
 it('takes the images in the "Add from JSON" window, and lists there the ones a question misses', function () {
     Filament::setCurrentPanel(Filament::getPanel('teacher'));
     $json = json_encode([['question' => 'চিত্রে কী?', 'image' => 'q1.png', 'options' => ['ক', 'খ'], 'answer' => 1]]);

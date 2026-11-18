@@ -24,11 +24,15 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\ViewField;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use WeakMap;
@@ -47,6 +51,11 @@ class QuestionJsonImportAction
      * The preview step's field of possible duplicates to add anyway.
      */
     public const ACCEPTED_FIELD = 'accepted_duplicates';
+
+    /**
+     * The first step's box for a JSON file, instead of pasting.
+     */
+    public const FILE_FIELD = 'json_file';
 
     /**
      * Ctrl/Cmd+Enter presses the wizard's button that is showing — "Next"
@@ -155,36 +164,60 @@ class QuestionJsonImportAction
                 'x-on:keydown.meta.enter.window' => self::NEXT_OR_SUBMIT_SHORTCUT_HANDLER,
             ])
             ->steps([
-                Step::make(__('Paste JSON'))
+                Step::make(__('Paste or upload JSON'))
                     ->columns(2)
                     ->schema([
                         ...$fields,
 
-                        View::make('filament.support.questions.json-import-format')
-                            ->viewData(['guide' => $guide])
-                            ->columnSpanFull(),
+                        Tabs::make()
+                            ->columnSpanFull()
+                            ->tabs([
+                                Tab::make(__('JSON'))
+                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->schema([
+                                        // Only a way to fill the box below: the file's
+                                        // text goes into it, to look over or edit, and
+                                        // is read from there like pasted JSON.
+                                        FileUpload::make(self::FILE_FIELD)
+                                            ->label(__('JSON file (optional)'))
+                                            ->helperText(__('A .json file instead of pasting — its text appears in the box below.'))
+                                            ->storeFiles(false)
+                                            ->acceptedFileTypes(['application/json', 'text/json', 'text/plain'])
+                                            ->maxSize(QuestionJsonReader::FILE_CEILING_KB)
+                                            ->previewable(false)
+                                            ->dehydrated(false)
+                                            ->live()
+                                            ->afterStateUpdated(fn (mixed $state, Set $set) => static::fillFromFile($state, $set)),
 
-                        Textarea::make(QuestionJsonReader::ERROR_KEY)
-                            ->label(__('Questions as JSON'))
-                            ->helperText(__('"answer" is the number of the correct option. A formula goes between $ signs, and in JSON every backslash of it is written twice: :example. A figure is an image file named in "image" and given below.', ['example' => '$\\\\frac{1}{2}$']))
-                            ->rows(12)
-                            ->extraInputAttributes(['spellcheck' => 'false', 'dir' => 'ltr'])
-                            ->required()
-                            ->showAllValidationMessages()
-                            ->rule(fn (Get $get): Closure => static::acceptableJsonRule($parse, $get))
-                            ->columnSpanFull(),
+                                        // Kept as uploads until the questions are
+                                        // added; what is in them is ImportedImages'
+                                        // to judge.
+                                        FileUpload::make(ImportedQuestions::IMAGES_KEY)
+                                            ->label(__('Images (optional)'))
+                                            ->helperText(__('The figures the JSON names in "image" — one ZIP, or the image files themselves (PNG, JPG, WebP), found by their file names.'))
+                                            ->multiple()
+                                            ->storeFiles(false)
+                                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp', 'application/zip', 'application/x-zip-compressed'])
+                                            ->maxSize(ImportedImages::UPLOAD_CEILING_KB)
+                                            ->previewable(false),
 
-                        // Kept as uploads until the questions are added;
-                        // what is in them is ImportedImages' to judge.
-                        FileUpload::make(ImportedQuestions::IMAGES_KEY)
-                            ->label(__('Images (optional)'))
-                            ->helperText(__('The figures the JSON names in "image" — one ZIP, or the image files themselves (PNG, JPG, WebP), found by their file names.'))
-                            ->multiple()
-                            ->storeFiles(false)
-                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp', 'application/zip', 'application/x-zip-compressed'])
-                            ->maxSize(ImportedImages::UPLOAD_CEILING_KB)
-                            ->previewable(false)
-                            ->columnSpanFull(),
+                                        Textarea::make(QuestionJsonReader::ERROR_KEY)
+                                            ->label(__('Questions as JSON'))
+                                            ->helperText(__('"answer" is the number of the correct option. A formula goes between $ signs, and in JSON every backslash of it is written twice: :example. A figure is an image file named in "image" and given above.', ['example' => '$\\\\frac{1}{2}$']))
+                                            ->rows(12)
+                                            ->extraInputAttributes(['spellcheck' => 'false', 'dir' => 'ltr'])
+                                            ->required()
+                                            ->showAllValidationMessages()
+                                            ->rule(fn (Get $get): Closure => static::acceptableJsonRule($parse, $get))
+                                            ->columnSpanFull(),
+                                    ]),
+
+                                Tab::make(__('Format for the AI'))
+                                    ->schema([
+                                        View::make('filament.support.questions.json-import-format')
+                                            ->viewData(['guide' => $guide]),
+                                    ]),
+                            ]),
                     ]),
 
                 Step::make(__('Preview'))
@@ -243,6 +276,27 @@ class QuestionJsonImportAction
                 }
             }
         };
+    }
+
+    /**
+     * Puts the text of the JSON file just given into the JSON box.
+     */
+    protected static function fillFromFile(mixed $state, Set $set): void
+    {
+        $file = collect(is_iterable($state) ? $state : [$state])->first();
+
+        if (! $file instanceof UploadedFile) {
+            return;
+        }
+
+        try {
+            $set(QuestionJsonReader::ERROR_KEY, QuestionJsonReader::textOfFile($file));
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title($exception->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 
     /**
